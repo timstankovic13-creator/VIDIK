@@ -34,7 +34,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
     const initialRecommendation = await page.locator('#recommendation').textContent();
     const initialAdmissible = await page.locator('#admissible').textContent();
     expect(initialRecommendation?.trim()).not.toBe('NO RECOMMENDATION');
-    expect(initialAdmissible?.trim()).toMatch(/^(YES|TRUE|ADMISSIBLE)$/i);
+    expect(Number(initialAdmissible?.trim())).toBeGreaterThan(0);
 
     const pool = page.locator('#pool');
     await pool.evaluate(el => {
@@ -46,7 +46,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
     await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
     await expect(page.locator('#recommendation')).toHaveText('NO RECOMMENDATION');
     await expect(page.locator('#rec')).toHaveText('NO RECOMMENDATION');
-    await expect(page.locator('#admissible')).not.toHaveText(/^(YES|TRUE|ADMISSIBLE)$/i);
+    await expect.poll(async () => Number(await page.locator('#admissible').textContent())).toBe(0);
     await expect(pool).toHaveAttribute('aria-invalid', 'true');
     await expect(pool).toHaveJSProperty('validationMessage', 'Resource pool cannot be negative.');
   });
