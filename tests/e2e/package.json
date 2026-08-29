@@ -1,0 +1,11 @@
+{
+  "name": "vidik-e2e",
+  "private": true,
+  "version": "9.1.2",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
