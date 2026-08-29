@@ -9,6 +9,11 @@
     const gate=document.getElementById('gate');
     const rec=document.getElementById('recommendation');
     const rr=document.getElementById('rec');
+    const admissible=document.getElementById('admissible');
+    const lineage=document.getElementById('lineage');
+    const candidates=document.getElementById('candidates');
+    const why=document.getElementById('why');
+    const audit=document.getElementById('audit');
     if(invalid){
       pool.setCustomValidity(Number.isFinite(p)&&p<0?'Resource pool cannot be negative.':'');
       risk.setCustomValidity(Number.isFinite(r)&&(r<0||r>1)?'Risk ceiling must be between 0 and 1.':'');
@@ -17,6 +22,11 @@
       if(gate){gate.textContent='BLOCKED — invalid numeric input';gate.className='status fail';}
       if(rec){rec.textContent='NO RECOMMENDATION';rec.className='status fail';}
       if(rr)rr.textContent='NO RECOMMENDATION';
+      if(admissible)admissible.textContent='0';
+      if(lineage)lineage.textContent='0/'+(window.C?.length||0);
+      if(candidates)candidates.innerHTML='';
+      if(why)why.textContent='No decision is admissible because the current numeric inputs are invalid.';
+      if(audit)audit.textContent=JSON.stringify({version:window.V?.version||null,city:document.getElementById('city')?.value||null,pool:p,risk:r,recommendation:null,admissible:[],blocked:true,reason:'invalid-numeric-input',timestamp:new Date().toISOString()},null,2);
     }else{
       pool.setCustomValidity('');risk.setCustomValidity('');
       pool.removeAttribute('aria-invalid');risk.removeAttribute('aria-invalid');
