@@ -23,6 +23,32 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
     });
     await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
     await expect(page.locator('#recommendation')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#rec')).toHaveText('NO RECOMMENDATION');
+    await expect(pool).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  test('hostile mutation invalidates an already generated decision and prevents stale state', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
+
+    const initialRecommendation = await page.locator('#recommendation').textContent();
+    const initialAdmissible = await page.locator('#admissible').textContent();
+    expect(initialRecommendation?.trim()).not.toBe('NO RECOMMENDATION');
+    expect(initialAdmissible?.trim()).toMatch(/^(YES|TRUE|ADMISSIBLE)$/i);
+
+    const pool = page.locator('#pool');
+    await pool.evaluate(el => {
+      el.value = '-1';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
+    await expect(page.locator('#recommendation')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#rec')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#admissible')).not.toHaveText(/^(YES|TRUE|ADMISSIBLE)$/i);
+    await expect(pool).toHaveAttribute('aria-invalid', 'true');
+    await expect(pool).toHaveJSProperty('validationMessage', 'Resource pool cannot be negative.');
   });
 
   test('city controls are discoverable through semantic selectors', async ({ page }) => {
