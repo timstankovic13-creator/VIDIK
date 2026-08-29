@@ -1,27 +1,37 @@
 name: VIDIK 9.1.3 Browser Acceptance
+
 on:
-  push:
-    branches: [v9.1.3-modular]
-  pull_request:
-    branches: [v9.1.3-modular]
   workflow_dispatch:
+  push:
+    branches: [main, v9.1.3-modular]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
-  e2e:
+  browser-acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout canonical 9.1.3 source
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run VIDIK 9.1.3 browser acceptance
+        run: npm run test:e2e
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vidik-9.1.3-playwright-report
+          name: vidik-9.1.3-browser-acceptance-report
           path: |
             playwright-report/
             test-results/
