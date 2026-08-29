@@ -1,0 +1,14 @@
+{
+  "product": "VIDIK",
+  "build": "9.1.2",
+  "status": "canonical-candidate",
+  "artifact": "VIDIK__HTML_REFERENCE_V9_1_2_CANONICAL.html",
+  "sha256": "e4ee580ed04d69979d08ed44be0ac1c2b3d92dfa3d59504922a8b4fc2b4fb1fb",
+  "artifact_source": "VIDIK 9.1.2 canonical build produced in the validation workspace",
+  "browser_e2e": "configured in GitHub Actions; execution awaits the exact artifact being committed",
+  "notes": [
+    "The GitHub connector supports UTF-8 repository files but does not provide a binary/multipart upload action for the 1.46 MB canonical HTML artifact.",
+    "The E2E workflow intentionally fails closed if the exact canonical HTML artifact is absent.",
+    "Do not substitute a reduced placeholder artifact for the canonical build."
+  ]
+}
