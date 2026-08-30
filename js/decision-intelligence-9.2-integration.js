@@ -11,9 +11,9 @@
     const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score);
     const risk=numericControl('risk');
     if(!Number.isFinite(risk)||risk<0||risk>1)throw new Error('invalid-risk-ceiling');
-    const admissible=scored.filter(x=>!x.blocked&&x.risk<=risk).sort((a,b)=>b.score-a.score);
+    // score() returns the scored row without copying candidate.risk, so the risk gate must read the canonical candidate record.
+    const admissible=scored.filter(x=>!x.blocked&&C.find(c=>c.id===x.id)?.risk<=risk).sort((a,b)=>b.score-a.score);
     // The canonical integration must follow the recommendation actually produced by the canonical renderer.
-    // Prefer that rendered recommendation when present, and require it to resolve to a scored admissible candidate.
     const renderedName=document.getElementById('rec')?.textContent?.trim()||'';
     const renderedCandidate=C.find(c=>c.name===renderedName);
     const top=renderedCandidate?admissible.find(x=>x.id===renderedCandidate.id)||null:(admissible[0]||null);
