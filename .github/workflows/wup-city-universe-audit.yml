@@ -31,7 +31,6 @@ jobs:
           ws=wb['Data']; rows=list(ws.iter_rows(values_only=True))
           def clean(v): return '' if v is None else str(v).strip()
           def norm(v): return re.sub(r'[^a-z0-9]+','_',clean(v).lower()).strip('_')
-          # Actual WUP F21 schema: Location, City_Name, and a year column named 2025.
           header=None
           for ri,row in enumerate(rows[:500]):
               loc=city=pop=None
@@ -43,7 +42,6 @@ jobs:
               if loc is not None and city is not None and pop is not None:
                   header=(ri,loc,city,pop); break
           if header is None:
-              # Some workbook versions expose the year as numeric rather than text.
               for ri,row in enumerate(rows[:500]):
                   loc=city=pop=None
                   for ci,v in enumerate(row):
@@ -57,20 +55,35 @@ jobs:
                       header=(ri,loc,city,pop); break
           if header is None: raise SystemExit('Could not identify WUP F21 Data fields Location, City_Name, 2025')
           hi,loc_i,city_i,pop_i=header; records=[]
-          for row in rows[hi+1:]:
+          for row_number,row in enumerate(rows[hi+1:],start=hi+2):
               if max(loc_i,city_i,pop_i)>=len(row): continue
               country,city,raw=clean(row[loc_i]),clean(row[city_i]),row[pop_i]
               if not country or not city: continue
               try: value=float(str(raw).replace(',','').strip())
               except (TypeError,ValueError): continue
-              if math.isfinite(value) and value>=50: records.append((country,city,value))
+              if math.isfinite(value) and value>=50: records.append((country,city,value,row_number))
           if not records: raise SystemExit('F21 produced no city records >=50 (population is in thousands)')
-          keys=[(norm(a),norm(b)) for a,b,_ in records]
-          if len(keys)!=len(set(keys)): raise SystemExit('Duplicate country/city keys detected')
-          names=[norm(b) for _,b,_ in records]
+          # WUP may contain repeated presentation rows. Collapse exact repeats, but
+          # fail if the same normalized country/city has conflicting 2025 values.
+          grouped={}
+          for country,city,value,row_number in records:
+              key=(norm(country),norm(city))
+              grouped.setdefault(key,[]).append((country,city,value,row_number))
+          conflicts=[]; deduped=[]; duplicate_rows=0
+          for key,items in grouped.items():
+              values={x[2] for x in items}
+              if len(values)>1:
+                  conflicts.append({'key':key,'rows':[x[3] for x in items],'values':sorted(values)})
+              else:
+                  deduped.append(items[0]); duplicate_rows += len(items)-1
+          if conflicts:
+              preview=conflicts[:10]
+              raise SystemExit('Conflicting duplicate country/city 2025 values detected: '+json.dumps(preview))
+          records=deduped
+          names=[norm(b) for _,b,_,_ in records]
           ottawa=any(re.search(r'(^|_)ottawa($|_)',x) for x in names); toronto=any(re.search(r'(^|_)toronto($|_)',x) for x in names)
           if not (ottawa and toronto): raise SystemExit(f'Required cities missing: Ottawa={ottawa}, Toronto={toronto}')
-          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','sheet':'Data','city_field':'City_Name','country_field':'Location','population_field':'2025','population_units':'thousands','header_row':hi+1,'record_count_ge_50k':len(records),'duplicate_country_city_keys':0,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)}
+          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','sheet':'Data','city_field':'City_Name','country_field':'Location','population_field':'2025','population_units':'thousands','header_row':hi+1,'record_count_ge_50k':len(records),'duplicate_rows_collapsed':duplicate_rows,'conflicting_duplicate_country_city_keys':len(conflicts),'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)}
           json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2); print(json.dumps(report,indent=2))
           PY
       - name: Hash source manifest
