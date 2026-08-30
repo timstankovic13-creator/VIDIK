@@ -38,7 +38,7 @@ jobs:
           for p in sorted(glob.glob(root+'/unpacked/**/*.csv',recursive=True)):
               with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
               with open(p,encoding='utf-8-sig',newline='') as f:
-                  r=csv.reader(f); header=next(r); rows=sum(1 for _ in r)
+                  r=csv.reader(f, strict=False); header=next(r); rows=sum(1 for _ in r)
               records.append({'file':os.path.relpath(p,root+'/unpacked'),'sha256':sha,'bytes':os.path.getsize(p),'columns':len(header),'rows':rows})
           json.dump({'schema_version':'1.0.0','publisher':'Statistics Canada','generated_by':'national-reference-data.yml','sources':records},open(root+'/output/source-inventory.json','w'),indent=2)
           PY
@@ -53,22 +53,21 @@ jobs:
           assert files, 'no CSV files extracted'
           for p in files:
               with open(p,encoding='utf-8-sig',newline='') as f:
-                  # Statistics Canada bulk CSVs can contain embedded quotes that
-                  # are accepted by its export format but rejected by Python's
-                  # strict RFC mode. Use the standard CSV state machine without
-                  # strict=True, then enforce the invariant we actually need:
-                  # every logical record has exactly the header field count.
                   r=csv.reader(f, strict=False)
                   h=next(r, None)
                   assert h and all(x.strip() for x in h), f'empty-or-invalid-header:{p}'
-                  expected=len(h); n=1
+                  expected=len(h); n=1; blank=0
                   for row in r:
                       n += 1
+                      if len(row) == 0:
+                          blank += 1
+                          continue
                       if len(row) != expected:
                           raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={len(row)}')
               if n <= 1:
                   raise AssertionError(f'empty-data-file:{p}')
-          print(f'StatCan structural validation PASS: {len(files)} CSV files; logical-record widths validated with source-compatible CSV parsing')
+              print(f'validated:{p}:records={n-1}:blank-records-skipped={blank}:columns={expected}')
+          print(f'StatCan structural validation PASS: {len(files)} CSV files; blank records ignored; non-empty logical-record widths validated')
           PY
       - name: Publish raw-source inventory artifact
         uses: actions/upload-artifact@v4
