@@ -1,0 +1,22 @@
+{
+  "dataset_id": "wup-2025-population-ge50k",
+  "dataset_version": "1.0.0",
+  "display_name": "WUP 2025 Full-Universe Census",
+  "source_asset": "VIDIK_12138_Three_Score_Public_ARS_OPS_v0_1.xlsx",
+  "coverage_rule": "WUP urban/city records with population >= 50,000",
+  "expected_records": 12138,
+  "chunk_count": 10,
+  "chunk_pattern": "data/census-{01..10}.b64",
+  "integrity": {
+    "validation": ["all_chunks_present", "base64_decodable", "gzip_decodable", "json_array", "exact_record_count", "required_city_identity_fields"],
+    "payload_sha256": null,
+    "note": "Cryptographic payload hash is intentionally null until generated from the canonical decompressed payload; Git blob SHAs are recorded separately by repository history."
+  },
+  "status": "frozen-reference-asset",
+  "effective_for_decisions": true,
+  "provenance": {
+    "retrieved_or_generated": "2026-08-20",
+    "owner": "VIDIK",
+    "schema_version": "city-registry.v1"
+  }
+}
