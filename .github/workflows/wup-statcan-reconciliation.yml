@@ -15,25 +15,26 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/reconcile
-          cat > /tmp/reconcile/wup.csv <<'CSV'
-CSDUID,name
-2021A00053506008,Ottawa
-CSV
-          cat > /tmp/reconcile/statcan.csv <<'CSV'
-CSDUID,name,population
-2021A00053506008,Ottawa,1017449
-CSV
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/tmp/reconcile')
+          (root / 'wup.csv').write_text('CSDUID,name\n2021A00053506008,Ottawa\n', encoding='utf-8')
+          (root / 'statcan.csv').write_text('CSDUID,name,population\n2021A00053506008,Ottawa,1017449\n', encoding='utf-8')
+          PY
       - name: Run WUP Statistics Canada reconciliation
+        shell: bash
         run: python3 scripts/wup-statcan-reconcile.py --wup /tmp/reconcile/wup.csv --statcan /tmp/reconcile/statcan.csv --out /tmp/reconcile/report.json
       - name: Verify reconciliation artifact
+        shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json
-          p=json.load(open('/tmp/reconcile/report.json'))
-          assert p['status']=='pass'
-          assert p['matched']==1
-          assert p['only_wup']==0
-          assert p['only_statcan']==0
+          p = json.load(open('/tmp/reconcile/report.json', encoding='utf-8'))
+          assert p['status'] == 'pass'
+          assert p['matched'] == 1
+          assert p['only_wup'] == 0
+          assert p['only_statcan'] == 0
           print('WUP/StatCan reconciliation PASS')
           PY
       - name: Upload reconciliation report
