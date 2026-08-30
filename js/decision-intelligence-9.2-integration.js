@@ -9,7 +9,9 @@
     const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score),admissible=scored.filter(x=>!x.blocked&&x.risk<=Number(document.getElementById('risk').value||0));
     const top=admissible.sort((a,b)=>b.score-a.score)[0]||null;
     const topCandidate=top&&C.find(c=>c.id===top.id);
-    const lineage=await DI.buildLineage({evidence:Object.values(E),claims,parameters,recommendation:topCandidate?{parameterIds:paramsForCandidate(topCandidate).map(p=>p.id)}:null});
+    const candidateParameters=topCandidate?paramsForCandidate(topCandidate):[];
+    const linkedParameters=candidateParameters.filter(p=>p.claimIds&&p.claimIds.length>0);
+    const lineage=await DI.buildLineage({evidence:Object.values(E),claims,parameters,recommendation:topCandidate?{parameterIds:linkedParameters.map(p=>p.id)}:null});
     const params=topCandidate?Object.values(topCandidate.params).filter(Boolean).map(p=>({id:topCandidate.id,low:p.uncertainty?.low,high:p.uncertainty?.high,mean:p.value})).filter(p=>Number.isFinite(p.low)&&Number.isFinite(p.high)&&Number.isFinite(p.mean)):[];
     const sensitivity=DI.sensitivityFlip({baseline:{risk:Number(document.getElementById('risk').value||0)},parameters:[{id:'risk',low:0,high:1}],scoreFn:x=>{const rows=C.map(score).filter(r=>!r.blocked&&C.find(c=>c.id===r.id).risk<=x.risk).sort((a,b)=>b.score-a.score);return {recommendation:rows[0]?.id||null};}});
     const voi=DI.valueOfInformation({currentDecision:top?.score??0,decisionValue:1,evidenceCost:0,candidates:scored.filter(x=>x.blocked).map(x=>({id:x.id,expectedBestValue:0,cost:0}))});
