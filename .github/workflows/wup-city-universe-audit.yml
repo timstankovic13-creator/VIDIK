@@ -21,23 +21,32 @@ jobs:
           from urllib.parse import urljoin
           import json,re
           class P(HTMLParser):
-              def __init__(self): super().__init__(); self.links=[]
+              def __init__(self): super().__init__(); self.links=[]; self.current=None
               def handle_starttag(self,t,a):
-                  d=dict(a); h=d.get('href','')
-                  if h: self.links.append(h)
+                  if t=='a':
+                      d=dict(a); self.current={'href':d.get('href',''),'text':''}
+              def handle_data(self,d):
+                  if self.current is not None: self.current['text'] += d
+              def handle_endtag(self,t):
+                  if t=='a' and self.current is not None:
+                      self.links.append(self.current); self.current=None
           p=P(); p.feed(open('/tmp/wup/cities.html',encoding='utf-8').read())
           base='https://population.un.org/wup/downloads?tab=Cities'
-          urls=[urljoin(base,h) for h in p.links]
           candidates=[]
-          for u in urls:
-              s=u.lower()
-              if 'wup2025' in s and any(x in s for x in ('.csv','.zip','.xlsx','.xls')) and ('city' in s or 'cities' in s):
-                  candidates.append(u)
-          candidates=sorted(set(candidates))
+          for item in p.links:
+              h=item.get('href','').strip(); text=' '.join(item.get('text','').split())
+              combined=(h+' '+text).lower()
+              if 'wup2025' not in combined: continue
+              if not any(x in combined for x in ('.csv','.zip','.xlsx','.xls','f18','f19','f20','f21','f22','f23','f24','f25','f26','f27','f28','f29','f30','f31','f32','f33','f34')): continue
+              if not h or h.startswith(('javascript:','#')): continue
+              candidates.append({'url':urljoin(base,h),'label':text})
+          # Preserve every official WUP2025 resource exposed by the page; row-level validation below decides whether it is suitable.
+          uniq={x['url']:x for x in candidates}
+          candidates=sorted(uniq.values(),key=lambda x:x['url'])
           json.dump({'source_page':base,'candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
           print(json.dumps(candidates,indent=2))
           if not candidates:
-              raise SystemExit('No authoritative WUP city download resource discovered from official page')
+              raise SystemExit('No WUP2025 download links exposed in the official Cities page HTML; page delivery appears dynamic and must be inspected rather than silently substituting another dataset')
           PY
       - name: Download candidate city resources and identify row-level city data
         shell: bash
@@ -47,8 +56,8 @@ jobs:
           import json,os,urllib.request
           from urllib.parse import urlparse
           r=json.load(open('/tmp/wup/resources.json'))
-          for i,u in enumerate(r['candidates']):
-              name=os.path.basename(urlparse(u).path) or f'resource-{i}'
+          for i,item in enumerate(r['candidates']):
+              u=item['url']; name=os.path.basename(urlparse(u).path) or f'resource-{i}'
               name=name.replace(' ','_')
               try:
                   req=urllib.request.Request(u,headers={'User-Agent':'VIDIK/9.3 data-audit'})
@@ -66,14 +75,13 @@ jobs:
           csv.field_size_limit(sys.maxsize)
           files=glob.glob('/tmp/wup/*')
           print('resources:',[os.path.basename(x) for x in files])
-          # Do not invent a city universe from aggregate F21. Require row-level fields.
           row_level=[]
           for p in files:
               if not os.path.isfile(p): continue
               if p.endswith('.zip'):
                   try:
                       with zipfile.ZipFile(p) as z:
-                          names=z.namelist(); print('zip',os.path.basename(p),names[:20])
+                          names=z.namelist(); print('zip',os.path.basename(p),names[:50])
                           for n in names:
                               if n.lower().endswith('.csv') and ('city' in n.lower() or 'cities' in n.lower()):
                                   row_level.append((p,n))
