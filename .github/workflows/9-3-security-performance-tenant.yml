@@ -1,0 +1,36 @@
+name: VIDIK 9.3 Security Performance Tenant Validation
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret-pattern scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE --exclude-dir=.git --exclude='*.lock' '(BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|xox[baprs]-)' .
+      - name: Dependency manifest validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f package.json
+          if test -f package-lock.json; then npm ci --ignore-scripts; npm audit --audit-level=high; else npm install --package-lock-only --ignore-scripts; npm audit --audit-level=high; fi
+  tenant-and-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tenant isolation and performance smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f package.json; then npm ci --ignore-scripts; fi
+          if test -f tests/e2e/tenant-isolation.spec.js; then npx playwright test tests/e2e/tenant-isolation.spec.js; fi
+          if test -f tests/e2e/performance.spec.js; then npx playwright test tests/e2e/performance.spec.js; fi
+          if test -f tests/e2e/security.spec.js; then npx playwright test tests/e2e/security.spec.js; fi
+          echo '9.3 tenant/performance/security smoke gate complete'
