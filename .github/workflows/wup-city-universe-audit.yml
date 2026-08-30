@@ -42,14 +42,12 @@ jobs:
               if 'wup2025-f21-degurba-cities_pop' in combined:
                   if h and not h.startswith(('javascript:','#')):
                       candidates.append({'url':urljoin(base,h),'label':text})
-          # The official catalogue identifies F21 as the city-population table. Keep an explicit
-          # canonical fallback because the UN download page can render the Cities table dynamically.
           candidates.append({'url':'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','label':'WUP2025-F21-DEGURBA-Cities_Pop'})
           uniq={x['url']:x for x in candidates}
           candidates=list(uniq.values())
           json.dump({'source_page':base,'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
           downloaded=False
-          for i,item in enumerate(candidates):
+          for item in candidates:
               parts=urlsplit(item['url'])
               encoded_path=quote(parts.path,safe='/%:@-._~!$&\'()*+,;=')
               u=urlunsplit((parts.scheme,parts.netloc,encoded_path,parts.query,parts.fragment))
@@ -69,49 +67,57 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, hashlib, os, re, math
+          import json, hashlib, os, math, re, unicodedata
           from openpyxl import load_workbook
           path='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
           wb=load_workbook(path,read_only=True,data_only=True)
           found=[]
           for ws in wb.worksheets:
               rows=ws.iter_rows(values_only=True)
-              header=None; header_idx=None
-              buffered=[]
+              header=None; header_idx=None; buffered=[]
               for idx,row in enumerate(rows,1):
                   vals=[str(x).strip() if x is not None else '' for x in row]
                   low=[v.lower() for v in vals]
-                  if header is None and any('city' in v for v in low) and any(v=='2025' or '2025' in v for v in low):
+                  has_city_name=any(('city' in v and ('name' in v or 'code' in v)) or v in ('city','city name') for v in low)
+                  has_year=any(v == '2025' or re.fullmatch(r'.*2025.*',v) for v in low)
+                  if header is None and has_city_name and has_year:
                       header=vals; header_idx=idx; continue
                   if header is not None:
                       buffered.append(vals)
               if header is None: continue
-              city_i=next((i for i,v in enumerate(header) if 'city' in v.lower()),None)
-              country_i=next((i for i,v in enumerate(header) if 'country' in v.lower() or 'area' in v.lower()),None)
-              year_i=next((i for i,v in enumerate(header) if v=='2025' or '2025' in v),None)
+              def first_index(pred):
+                  return next((i for i,v in enumerate(header) if pred(v.lower())),None)
+              city_i=first_index(lambda v: v in ('city name','city') or ('city' in v and 'name' in v))
+              if city_i is None:
+                  city_i=first_index(lambda v: 'city' in v and 'code' not in v)
+              country_i=first_index(lambda v: 'country' in v or v == 'area' or 'country or area' in v)
+              year_i=first_index(lambda v: v == '2025' or '2025' in v)
               if city_i is None or year_i is None: continue
               records=[]
               for row in buffered:
                   if city_i>=len(row) or year_i>=len(row): continue
-                  city=row[city_i].strip()
+                  city=str(row[city_i]).strip()
                   if not city: continue
                   raw=row[year_i]
                   try: pop=float(str(raw).replace(',',''))
                   except Exception: continue
-                  if not math.isfinite(pop): continue
-                  if pop >= 50:
-                      country=row[country_i].strip() if country_i is not None and country_i<len(row) else ''
-                      records.append((country,city,pop))
-              if records:
-                  found.append({'sheet':ws.title,'header_row':header_idx,'records':records})
+                  if not math.isfinite(pop) or pop < 50: continue
+                  country=str(row[country_i]).strip() if country_i is not None and country_i<len(row) else ''
+                  records.append((country,city,pop))
+              if records: found.append({'sheet':ws.title,'header_row':header_idx,'records':records})
           if not found:
               raise SystemExit('Could not identify row-level city records and a 2025 population column in official F21 workbook')
           records=[r for block in found for r in block['records']]
-          keys=[(a.lower(),b.lower()) for a,b,_ in records]
+          def norm(s):
+              s=unicodedata.normalize('NFKD',s).encode('ascii','ignore').decode().lower()
+              return re.sub(r'[^a-z0-9]+','',s)
+          names={norm(city):city for _,city,_ in records}
+          ottawa=next((original for key,original in names.items() if key == 'ottawa' or key.startswith('ottawa') or 'ottawa' in key),None)
+          toronto=next((original for key,original in names.items() if key == 'toronto' or key.startswith('toronto')),None)
+          if ottawa is None or toronto is None:
+              raise SystemExit(f'Required Canadian cities not found; resolved Ottawa={ottawa!r}, Toronto={toronto!r}')
+          keys=[(norm(a),norm(b)) for a,b,_ in records]
           dup=len(keys)-len(set(keys))
-          names={b.lower() for _,b,_ in records}
-          if 'ottawa' not in names or 'toronto' not in names:
-              raise SystemExit('Required Canadian cities Ottawa/Toronto were not found in derived WUP city universe')
           report={
               'dataset':'WUP2025-F21-DEGURBA-Cities_Pop',
               'source_page':'https://population.un.org/wup/downloads?tab=Cities',
@@ -119,7 +125,9 @@ jobs:
               'city_count_ge_50k_mid_2025':len(records),
               'duplicate_country_city_keys':dup,
               'contains_ottawa':True,
+              'ottawa_source_name':ottawa,
               'contains_toronto':True,
+              'toronto_source_name':toronto,
               'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),
               'bytes':os.path.getsize(path)
           }
