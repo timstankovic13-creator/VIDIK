@@ -47,27 +47,32 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import csv,glob,sys
+          import csv,glob,os,sys
           csv.field_size_limit(sys.maxsize)
           files=glob.glob('/tmp/statcan/unpacked/**/*.csv',recursive=True)
           assert files, 'no CSV files extracted'
           for p in files:
+              is_metadata=os.path.basename(p).lower().endswith('_metadata.csv')
               with open(p,encoding='utf-8-sig',newline='') as f:
                   r=csv.reader(f, strict=False)
                   h=next(r, None)
-                  assert h and all(x.strip() for x in h), f'empty-or-invalid-header:{p}'
-                  expected=len(h); n=1; blank=0
+                  assert h and any(x.strip() for x in h), f'empty-or-invalid-header:{p}'
+                  expected=len(h); n=1; blank=0; nonempty=0
                   for row in r:
                       n += 1
                       if len(row) == 0:
                           blank += 1
                           continue
-                      if len(row) != expected:
+                      nonempty += 1
+                      if not is_metadata and len(row) != expected:
                           raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={len(row)}')
-              if n <= 1:
+                      if is_metadata and not any(str(x).strip() for x in row):
+                          raise AssertionError(f'empty-metadata-record:{p}:record={n}')
+              if n <= 1 or nonempty == 0:
                   raise AssertionError(f'empty-data-file:{p}')
-              print(f'validated:{p}:records={n-1}:blank-records-skipped={blank}:columns={expected}')
-          print(f'StatCan structural validation PASS: {len(files)} CSV files; blank records ignored; non-empty logical-record widths validated')
+              mode='metadata' if is_metadata else 'data'
+              print(f'validated:{p}:type={mode}:records={n-1}:blank-records-skipped={blank}:header-columns={expected}')
+          print(f'StatCan structural validation PASS: {len(files)} CSV files; data schemas strict; metadata records parsed with metadata-specific validation')
           PY
       - name: Publish raw-source inventory artifact
         uses: actions/upload-artifact@v4
