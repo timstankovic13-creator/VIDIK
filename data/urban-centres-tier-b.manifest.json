@@ -1,0 +1,16 @@
+{
+  "dataset_id": "wup-2025-urban-centres-below-50k",
+  "dataset_version": "0.1.0",
+  "display_name": "WUP 2025 Urban Centres <50k Expansion Tier",
+  "coverage_rule": "WUP urban centres with population < 50,000",
+  "expected_records": 4690,
+  "status": "prepared-expansion-tier",
+  "loaded_into_runtime": false,
+  "eligible_for_default_decisions": false,
+  "purpose": "Preserve the planned expansion universe without silently mixing it into the frozen >=50k decision universe.",
+  "provenance": {
+    "source_family": "WUP 2025",
+    "identified": "2026-08-20",
+    "schema_version": "city-registry.v1"
+  }
+}
