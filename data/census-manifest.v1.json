@@ -1,0 +1,34 @@
+{
+  "dataset_id": "wup-2025-population-ge50k",
+  "dataset_version": "1.0.0",
+  "display_name": "WUP 2025 Full-Universe Census",
+  "source_asset": "VIDIK_12138_Three_Score_Public_ARS_OPS_v0_1.xlsx",
+  "coverage_rule": "WUP urban/city records with population >= 50,000",
+  "expected_records": 12138,
+  "chunk_count": 10,
+  "chunk_pattern": "data/census-{01..10}.b64",
+  "integrity": {
+    "validation": ["all_chunks_present", "base64_decodable", "gzip_decodable", "json_array", "exact_record_count", "required_city_identity_fields"],
+    "payload_sha256": null,
+    "git_blob_sha1_by_chunk": {
+      "01": "9f00d388cc45a9e4da256cdd5f667ef44ed43017",
+      "02": "728f3077887fdb51836b61d8a04ab74b59b6968e",
+      "03": "0abf9586422a22365785318d1dcb8d569ca319dd",
+      "04": "14f551c59a18caa5006f02cd53a7820ae716b015",
+      "05": "54bf8a2a0b4fe0c0a7ee31187cfe79812b543e00",
+      "06": "eff5a4c8ba37fcb1efd1afc035400354533a6334",
+      "07": "0f62e2221ce5a87fd6779b9e416d1380cdb1f521",
+      "08": "270fab489883528b7da208ff2a4037d32f9415f1",
+      "09": "710d989623d25c1ded64847d5627969b368efba8",
+      "10": "d1b55793a6f11080919cd0b0807737e89a559ff8"
+    },
+    "note": "The canonical payload is integrity-checked at runtime; Git blob SHAs pin each frozen chunk to repository history. A cryptographic payload hash can be added later without changing the dataset version."
+  },
+  "status": "frozen-reference-asset",
+  "effective_for_decisions": true,
+  "provenance": {
+    "retrieved_or_generated": "2026-08-20",
+    "owner": "VIDIK",
+    "schema_version": "city-registry.v1"
+  }
+}
