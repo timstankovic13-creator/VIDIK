@@ -10,18 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Download official WUP 2025 CSV catalog
+      - name: Download official WUP 2025 catalog resources
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup/raw /tmp/wup/output
           python3 - <<'PY'
           from html.parser import HTMLParser
-          from urllib.parse import urljoin
+          from urllib.parse import urljoin, urlsplit, urlunsplit, quote
           from urllib.request import Request, urlopen
           from pathlib import Path
-          import hashlib, json
-          base='https://population.un.org/wup/'
+          import hashlib, json, os
           page='https://population.un.org/wup/downloads?tab=Cities'
           req=Request(page, headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
           html=urlopen(req, timeout=60).read()
@@ -30,17 +29,22 @@ jobs:
               def __init__(self): super().__init__(); self.links=[]
               def handle_starttag(self, tag, attrs):
                   if tag=='a':
-                      d=dict(attrs); href=d.get('href'); text=d.get('download','') or d.get('title','')
-                      if href: self.links.append((href,text))
+                      d=dict(attrs); href=d.get('href')
+                      if href: self.links.append(href)
           p=P(); p.feed(html.decode('utf-8','replace'))
           links=[]
-          for href,text in p.links:
+          for href in p.links:
               u=urljoin(page,href)
-              if 'population.un.org' in u and ('WUP2025' in u or 'wup2025' in u) and any(x in u.lower() for x in ('.csv','.zip','.xlsx','.xls')):
-                  links.append(u)
+              if 'population.un.org' not in u or not ('WUP2025' in u or 'wup2025' in u): continue
+              if not any(x in u.lower() for x in ('.csv','.zip','.xlsx','.xls')): continue
+              s=urlsplit(u)
+              # Encode spaces and other unsafe path characters while preserving the URL structure.
+              safe_path=quote(s.path, safe='/,:;@%+$&=')
+              u=urlunsplit((s.scheme,s.netloc,safe_path,s.query,s.fragment))
+              links.append(u)
           links=sorted(set(links))
           if not links: raise SystemExit('no-official-wup-2025-download-links-found')
-          Path('/tmp/wup/output/catalog.json').write_text(json.dumps({'source_page':page,'links':links},indent=2)+'\n')
+          Path('/tmp/wup/output/catalog.json').write_text(json.dumps({'source_page':page,'links':links},indent=2)+'\n',encoding='utf-8')
           print('official WUP links discovered:',len(links))
           for u in links: print(u)
           PY
@@ -52,8 +56,10 @@ jobs:
           for i,u in enumerate(cat['links']):
               name=os.path.basename(u.split('?',1)[0]) or f'wup-{i}'
               p=out/name
-              urllib.request.urlretrieve(u,p)
+              req=urllib.request.Request(u,headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
+              with urllib.request.urlopen(req,timeout=120) as r: p.write_bytes(r.read())
               h=hashlib.sha256(p.read_bytes()).hexdigest()
+              if p.stat().st_size == 0: raise SystemExit(f'empty-download:{name}')
               print(f'{name} sha256={h} bytes={p.stat().st_size}')
           PY
       - name: Build immutable WUP source manifest
@@ -65,7 +71,7 @@ jobs:
           files=[]
           for p in sorted(glob.glob('/tmp/wup/raw/*')):
               if os.path.isfile(p):
-                  h=hashlib.sha256(open(p,'rb').read()).hexdigest()
+                  with open(p,'rb') as f: h=hashlib.sha256(f.read()).hexdigest()
                   files.append({'file':os.path.basename(p),'sha256':h,'bytes':os.path.getsize(p)})
           assert files, 'no-wup-source-files'
           json.dump({'schema_version':'1.0.0','publisher':'United Nations DESA Population Division','dataset':'World Urbanization Prospects 2025','source_page':'https://population.un.org/wup/downloads?tab=Cities','files':files},open('/tmp/wup/output/source-manifest.json','w'),indent=2)
