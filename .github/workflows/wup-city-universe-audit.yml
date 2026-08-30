@@ -39,28 +39,21 @@ jobs:
           for item in p.links:
               h=item.get('href','').strip(); text=' '.join(item.get('text','').split())
               combined=(h+' '+text).lower()
-              if 'wup2025-f21-degurba-cities_pop' in combined:
-                  if h and not h.startswith(('javascript:','#')):
-                      candidates.append({'url':urljoin(base,h),'label':text})
+              if 'wup2025-f21-degurba-cities_pop' in combined and h and not h.startswith(('javascript:','#')):
+                  candidates.append({'url':urljoin(base,h),'label':text})
           candidates.append({'url':'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','label':'WUP2025-F21-DEGURBA-Cities_Pop'})
-          uniq={x['url']:x for x in candidates}
-          candidates=list(uniq.values())
+          candidates=list({x['url']:x for x in candidates}.values())
           json.dump({'source_page':base,'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
           downloaded=False
           for item in candidates:
-              parts=urlsplit(item['url'])
-              encoded_path=quote(parts.path,safe='/%:@-._~!$&\'()*+,;=')
+              parts=urlsplit(item['url']); encoded_path=quote(parts.path,safe='/%:@-._~!$&\'()*+,;=')
               u=urlunsplit((parts.scheme,parts.netloc,encoded_path,parts.query,parts.fragment))
               try:
                   req=urllib.request.Request(u,headers={'User-Agent':'VIDIK/9.3 data-audit'})
                   with urllib.request.urlopen(req,timeout=120) as x, open('/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','wb') as f: f.write(x.read())
-                  print('downloaded',u)
-                  downloaded=True
-                  break
-              except Exception as e:
-                  print('download-failed',u,repr(e))
-          if not downloaded:
-              raise SystemExit('Unable to download official WUP2025 F21 city population workbook')
+                  print('downloaded',u); downloaded=True; break
+              except Exception as e: print('download-failed',u,repr(e))
+          if not downloaded: raise SystemExit('Unable to download official WUP2025 F21 city population workbook')
           PY
       - name: Validate workbook and derive city universe
         shell: bash
@@ -71,61 +64,45 @@ jobs:
           from openpyxl import load_workbook
           path='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
           wb=load_workbook(path,read_only=True,data_only=True)
+          def clean(v): return '' if v is None else str(v).strip()
+          def norm(v): return re.sub(r'[^a-z0-9]+',' ',clean(v).lower()).strip()
           found=[]
           for ws in wb.worksheets:
-              rows=ws.iter_rows(values_only=True)
-              header=None; header_idx=None
-              buffered=[]
-              for idx,row in enumerate(rows,1):
-                  vals=[str(x).strip() if x is not None else '' for x in row]
-                  low=[v.lower() for v in vals]
-                  if header is None and any('city' in v for v in low) and any(v=='2025' or '2025' in v for v in low):
-                      header=vals; header_idx=idx; continue
-                  if header is not None:
-                      buffered.append(vals)
-              if header is None: continue
-              city_i=next((i for i,v in enumerate(header) if 'city' in v.lower()),None)
-              country_i=next((i for i,v in enumerate(header) if 'country' in v.lower() or 'area' in v.lower()),None)
-              year_i=next((i for i,v in enumerate(header) if v=='2025' or '2025' in v),None)
-              if city_i is None or year_i is None: continue
-              records=[]
-              for row in buffered:
-                  if city_i>=len(row) or year_i>=len(row): continue
-                  city=row[city_i].strip()
-                  if not city: continue
-                  raw=row[year_i]
-                  try: pop=float(str(raw).replace(',',''))
-                  except Exception: continue
-                  if not math.isfinite(pop): continue
-                  if pop >= 50:
-                      country=row[country_i].strip() if country_i is not None and country_i<len(row) else ''
+              rows=[[clean(v) for v in row] for row in ws.iter_rows(values_only=True)]
+              for i,row in enumerate(rows):
+                  low=[norm(v) for v in row]
+                  city_cols=[j for j,v in enumerate(low) if v=='city' or v.endswith(' city')]
+                  country_cols=[j for j,v in enumerate(low) if v=='country or area' or 'country or area' in v]
+                  if not city_cols or not country_cols: continue
+                  header_end=i
+                  city_i=city_cols[0]; country_i=country_cols[0]; year_i=None
+                  for k in range(i,min(i+5,len(rows))):
+                      for j,v in enumerate(rows[k]):
+                          if norm(v)=='2025': year_i=j; header_end=max(header_end,k)
+                  if year_i is None: continue
+                  records=[]
+                  for data_row in rows[header_end+1:]:
+                      if max(city_i,country_i,year_i) >= len(data_row): continue
+                      city=clean(data_row[city_i]); country=clean(data_row[country_i]); raw=data_row[year_i]
+                      if not city: continue
+                      try: pop=float(str(raw).replace(',','').replace(' ','').strip())
+                      except Exception: continue
+                      if not math.isfinite(pop) or pop < 50: continue
                       records.append((country,city,pop))
-              if records:
-                  found.append({'sheet':ws.title,'header_row':header_idx,'records':records})
-          if not found:
-              raise SystemExit('Could not identify row-level city records and a 2025 population column in official F21 workbook')
+                  if records:
+                      found.append({'sheet':ws.title,'header_row':i+1,'header_end_row':header_end+1,'records':records})
+          if not found: raise SystemExit('Could not identify the F21 city/country header and 2025 population column')
           records=[r for block in found for r in block['records']]
-          def norm(value):
-              return re.sub(r'[^a-z0-9]+',' ',str(value).lower()).strip()
           keys=[(norm(a),norm(b)) for a,b,_ in records]
           dup=len(keys)-len(set(keys))
           names={norm(b) for _,b,_ in records}
           ottawa=any(re.search(r'\bottawa\b',name) for name in names)
           toronto=any(re.search(r'\btoronto\b',name) for name in names)
           if not ottawa or not toronto:
-              raise SystemExit('Required Canadian cities Ottawa/Toronto were not found in derived WUP city universe')
-          report={
-              'dataset':'WUP2025-F21-DEGURBA-Cities_Pop',
-              'source_page':'https://population.un.org/wup/downloads?tab=Cities',
-              'sheets':[{'sheet':x['sheet'],'header_row':x['header_row'],'record_count':len(x['records'])} for x in found],
-              'city_count_ge_50k_mid_2025':len(records),
-              'duplicate_country_city_keys':dup,
-              'contains_ottawa':ottawa,
-              'contains_toronto':toronto,
-              'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),
-              'bytes':os.path.getsize(path)
-          }
+              diagnostics=sorted(n for n in names if 'ott' in n or 'tor' in n)
+              raise SystemExit('Required Canadian cities Ottawa/Toronto were not found; nearby parsed names='+repr(diagnostics[:30]))
           if dup: raise SystemExit(f'duplicate country/city keys: {dup}')
+          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','source_page':'https://population.un.org/wup/downloads?tab=Cities','sheets':[{'sheet':x['sheet'],'header_row':x['header_row'],'header_end_row':x['header_end_row'],'record_count':len(x['records'])} for x in found],'city_count_ge_50k_mid_2025':len(records),'duplicate_country_city_keys':dup,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),'bytes':os.path.getsize(path)}
           json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2)
           print(json.dumps(report,indent=2))
           PY
