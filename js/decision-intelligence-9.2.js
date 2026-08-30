@@ -1,0 +1,141 @@
+'use strict';
+
+const DI92_VERSION = '9.2.0-alpha.1';
+
+function finite(x){ return Number.isFinite(Number(x)); }
+function clamp01(x){ const n=Number(x); return finite(n) ? Math.max(0,Math.min(1,n)) : null; }
+function stableJSON(x){
+  if(Array.isArray(x)) return '['+x.map(stableJSON).join(',')+']';
+  if(x && typeof x==='object') return '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+stableJSON(x[k])).join(',')+'}';
+  return JSON.stringify(x);
+}
+function fnv1a(s){ let h=0x811c9dc5; for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);} return ('00000000'+(h>>>0).toString(16)).slice(-8); }
+function hashObject(x){ return fnv1a(stableJSON(x)); }
+
+function buildLineage({evidence=[], claims=[], parameters=[], recommendation=null}){
+  const E=new Map(evidence.map(x=>[x.id,x]));
+  const C=new Map(claims.map(x=>[x.id,x]));
+  const P=new Map(parameters.map(x=>[x.id,x]));
+  const links=[];
+  for(const p of parameters){
+    for(const cid of (p.claimIds||[])){
+      const c=C.get(cid); if(!c) throw new Error('missing-claim:'+cid);
+      for(const eid of (c.evidenceIds||[])){
+        if(!E.has(eid)) throw new Error('missing-evidence:'+eid);
+        links.push({evidenceId:eid,claimId:cid,parameterId:p.id});
+      }
+    }
+  }
+  if(recommendation){
+    for(const pid of (recommendation.parameterIds||[])) if(!P.has(pid)) throw new Error('missing-parameter:'+pid);
+  }
+  return {version:DI92_VERSION,links,hash:hashObject(links)};
+}
+
+function propagateEvidenceChange({before,after,recommendationFn}){
+  const beforeHash=hashObject(before), afterHash=hashObject(after);
+  const beforeResult=recommendationFn(before);
+  const afterResult=recommendationFn(after);
+  return {
+    evidenceChanged:beforeHash!==afterHash,
+    beforeHash,afterHash,
+    recommendationChanged:hashObject(beforeResult)!==hashObject(afterResult),
+    before:beforeResult,after:afterResult
+  };
+}
+
+function resolveEvidenceConflict(evidence){
+  const groups={};
+  for(const e of evidence){
+    const key=e.claimKey||e.id;
+    (groups[key] ||= []).push(e);
+  }
+  return Object.entries(groups).map(([claimKey,items])=>{
+    const directions=new Set(items.map(x=>String(x.direction||'unknown')));
+    const conflict=directions.size>1;
+    const total=items.reduce((s,x)=>s+(clamp01(x.quality)??0),0);
+    return {claimKey,conflict,sources:items.map(x=>x.id),resolution:conflict?'CONFLICT_REQUIRES_REVIEW':'CONSISTENT',qualityWeight:total};
+  });
+}
+
+function transportability({sourceGeography,targetGeography,similarity,threshold=.5}){
+  const s=clamp01(similarity);
+  return {sourceGeography,targetGeography,similarity:s,threshold,pass:s!==null&&s>=threshold,reason:s===null?'invalid-similarity':s>=threshold?'transportable':'insufficient-transportability'};
+}
+
+function correlatedUncertainty(parameters,correlations=[]){
+  const vars=parameters.map(p=>({id:p.id,low:Number(p.low),high:Number(p.high),mean:Number(p.mean)}));
+  if(vars.some(p=>![p.low,p.high,p.mean].every(finite))) throw new Error('invalid-uncertainty');
+  const variance=vars.reduce((s,p)=>s+Math.pow((p.high-p.low)/3.92,2),0);
+  let covariance=0;
+  for(const c of correlations){
+    const a=vars.find(x=>x.id===c.a),b=vars.find(x=>x.id===c.b);
+    if(!a||!b||!finite(c.rho)||c.rho<-1||c.rho>1) throw new Error('invalid-correlation');
+    covariance += 2*Number(c.rho)*((a.high-a.low)/3.92)*((b.high-b.low)/3.92);
+  }
+  return {mean:vars.reduce((s,p)=>s+p.mean,0),variance:Math.max(0,variance+covariance),sd:Math.sqrt(Math.max(0,variance+covariance))};
+}
+
+function sensitivityFlip({baseline,parameters,scoreFn,steps=21}){
+  const flips=[];
+  const base=scoreFn(baseline);
+  for(const p of parameters){
+    const low=Number(p.low),high=Number(p.high);
+    if(!finite(low)||!finite(high)||low>high) throw new Error('invalid-sensitivity-range:'+p.id);
+    for(let i=0;i<steps;i++){
+      const v=low+(high-low)*(i/(steps-1));
+      const scenario={...baseline,[p.id]:v};
+      const result=scoreFn(scenario);
+      if(result.recommendation!==base.recommendation){flips.push({parameterId:p.id,value:v,from:base.recommendation,to:result.recommendation});break;}
+    }
+  }
+  return {baseline:base,flips,recommendationStable:flips.length===0};
+}
+
+function valueOfInformation({candidates=[],currentDecision,decisionValue=1,evidenceCost=0}){
+  const current=currentDecision;
+  let best=0;
+  const ranked=candidates.map(c=>{
+    const alt=Math.max(0,Number(c.expectedBestValue)-Number(current));
+    const voi=alt*Number(decisionValue)-Number(evidenceCost||c.cost||0);
+    if(voi>best) best=voi;
+    return {...c,voi};
+  }).sort((a,b)=>b.voi-a.voi);
+  return {expectedValueOfInformation:best,priority:ranked.filter(x=>x.voi>0),ranked};
+}
+
+function counterfactual({statusQuo,recommendation,metricFn}){
+  const sq=metricFn(statusQuo),rec=metricFn(recommendation);
+  return {statusQuo:sq,recommendation:rec,incremental:rec-sq,improves:rec>sq};
+}
+
+function recalibrate({predictions=[],observations=[],learningRate=.25}){
+  if(predictions.length!==observations.length) throw new Error('length-mismatch');
+  const errors=predictions.map((p,i)=>Number(observations[i])-Number(p));
+  if(errors.some(e=>!finite(e))) throw new Error('invalid-outcome');
+  const meanError=errors.length?errors.reduce((a,b)=>a+b,0)/errors.length:0;
+  return {n:errors.length,meanError,calibrationAdjustment:Number(learningRate)*meanError,updatedAt:new Date().toISOString()};
+}
+
+function immutableDecisionSnapshot({decisionObject,datasets,evidence,parameters,outcomeState=null}){
+  const snapshot={schema:'VIDIK-DIS-9.2',version:DI92_VERSION,decision:decisionObject,datasets,evidence,parameters,outcomeState};
+  return Object.freeze({snapshot,hash:hashObject(snapshot),createdAt:new Date().toISOString()});
+}
+
+function replaySnapshot(snapshot,recommendationFn){
+  const expectedHash=hashObject(snapshot.snapshot);
+  if(expectedHash!==snapshot.hash) return {ok:false,reason:'SNAPSHOT_TAMPERED'};
+  const first=recommendationFn(snapshot.snapshot);
+  const second=recommendationFn(snapshot.snapshot);
+  return {ok:hashObject(first)===hashObject(second),deterministic:hashObject(first)===hashObject(second),result:first,snapshotHash:snapshot.hash};
+}
+
+const VIDIK_DECISION_INTELLIGENCE_92={
+  version:DI92_VERSION,
+  buildLineage,propagateEvidenceChange,resolveEvidenceConflict,transportability,
+  correlatedUncertainty,sensitivityFlip,valueOfInformation,counterfactual,
+  recalibrate,immutableDecisionSnapshot,replaySnapshot,hashObject
+};
+
+if(typeof window!=='undefined') window.VIDIK_DECISION_INTELLIGENCE_92=VIDIK_DECISION_INTELLIGENCE_92;
+if(typeof module!=='undefined') module.exports=VIDIK_DECISION_INTELLIGENCE_92;
