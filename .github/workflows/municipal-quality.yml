@@ -1,0 +1,38 @@
+name: VIDIK Municipal Quality Gates
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  municipal-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Run municipal data smoke tests
+        run: node tests/municipal-data-smoke.js
+      - name: Python syntax check
+        run: python3 -m py_compile scripts/wup-statcan-reconcile.py
+      - name: Security dependency audit
+        run: npm install --ignore-scripts --no-audit --no-fund && npm audit --audit-level=high
+      - name: Repository secret-pattern scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=.git --exclude='*.lock' '(AKIA[0-9A-Z]{16}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})' .; then
+            echo 'Potential secret material found'; exit 1
+          fi
+      - name: Tenant-isolation static guard
+        run: |
+          set -euo pipefail
+          ! grep -RInE --exclude-dir=.git 'tenantId\s*[:=]\s*['"'"'](\*|all|global)['"'"']' js scripts tests
+      - name: Performance smoke
+        run: |
+          node - <<'NODE'
+          const {buildOttawaContext}=require('./scripts/ottawa-adapter');
+          const t=Date.now(); for(let i=0;i<10000;i++) buildOttawaContext();
+          const ms=Date.now()-t; console.log(`10k adapter builds: ${ms}ms`); if(ms>5000) process.exit(1);
+          NODE
