@@ -1,0 +1,68 @@
+name: National Municipal Reference Data
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  download-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download authoritative Statistics Canada tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/statcan/raw /tmp/statcan/unpacked /tmp/statcan/output
+          curl --fail --location --retry 4 --retry-delay 2 -o /tmp/statcan/raw/98100002-eng.zip https://www150.statcan.gc.ca/n1/tbl/csv/98100002-eng.zip
+          curl --fail --location --retry 4 --retry-delay 2 -o /tmp/statcan/raw/17100155-eng.zip https://www150.statcan.gc.ca/n1/tbl/csv/17100155-eng.zip
+          curl --fail --location --retry 4 --retry-delay 2 -o /tmp/statcan/raw/35100077-eng.zip https://www150.statcan.gc.ca/n1/tbl/csv/35100077-eng.zip
+      - name: Verify archives and extract data/metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          for z in /tmp/statcan/raw/*.zip; do unzip -t "$z" >/dev/null; unzip -q "$z" -d "/tmp/statcan/unpacked/$(basename "$z" .zip)"; done
+          find /tmp/statcan/unpacked -type f -name '*.csv' -print | sort
+      - name: Generate source hashes and inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv,glob,hashlib,json,os
+          root='/tmp/statcan'
+          records=[]
+          for p in sorted(glob.glob(root+'/raw/*.zip')):
+              with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
+              records.append({'file':os.path.basename(p),'sha256':sha,'bytes':os.path.getsize(p)})
+          for p in sorted(glob.glob(root+'/unpacked/**/*.csv',recursive=True)):
+              with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
+              with open(p,encoding='utf-8-sig',newline='') as f:
+                  r=csv.reader(f); header=next(r); rows=sum(1 for _ in r)
+              records.append({'file':os.path.relpath(p,root+'/unpacked'),'sha256':sha,'bytes':os.path.getsize(p),'columns':len(header),'rows':rows})
+          json.dump({'schema_version':'1.0.0','publisher':'Statistics Canada','generated_by':'national-reference-data.yml','sources':records},open(root+'/output/source-inventory.json','w'),indent=2)
+          PY
+      - name: Structural validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv,glob,os
+          files=glob.glob('/tmp/statcan/unpacked/**/*.csv',recursive=True)
+          assert files, 'no CSV files extracted'
+          for p in files:
+              with open(p,encoding='utf-8-sig',newline='') as f:
+                  r=csv.reader(f); h=next(r); assert h and all(x.strip() for x in h), p
+                  n=0
+                  for row in r:
+                      assert len(row)==len(h), f'row-width-mismatch:{p}:row={n+2}'
+                      n+=1
+              assert n>0, f'empty-data-file:{p}'
+          print(f'StatCan structural validation PASS: {len(files)} CSV files')
+          PY
+      - name: Publish raw-source inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-national-reference-source-inventory
+          path: /tmp/statcan/output/source-inventory.json
+          retention-days: 30
