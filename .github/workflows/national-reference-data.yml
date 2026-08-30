@@ -29,9 +29,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import csv,glob,hashlib,json,os
-          root='/tmp/statcan'
-          records=[]
+          import csv,glob,hashlib,json,os,sys
+          csv.field_size_limit(sys.maxsize)
+          root='/tmp/statcan'; records=[]
           for p in sorted(glob.glob(root+'/raw/*.zip')):
               with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
               records.append({'file':os.path.basename(p),'sha256':sha,'bytes':os.path.getsize(p)})
@@ -42,23 +42,31 @@ jobs:
               records.append({'file':os.path.relpath(p,root+'/unpacked'),'sha256':sha,'bytes':os.path.getsize(p),'columns':len(header),'rows':rows})
           json.dump({'schema_version':'1.0.0','publisher':'Statistics Canada','generated_by':'national-reference-data.yml','sources':records},open(root+'/output/source-inventory.json','w'),indent=2)
           PY
-      - name: Structural validation
+      - name: Structural validation using logical CSV records
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import csv,glob,os
+          import csv,glob,sys,os
+          csv.field_size_limit(sys.maxsize)
           files=glob.glob('/tmp/statcan/unpacked/**/*.csv',recursive=True)
           assert files, 'no CSV files extracted'
           for p in files:
-              with open(p,encoding='utf-8-sig',newline='') as f:
-                  r=csv.reader(f); h=next(r); assert h and all(x.strip() for x in h), p
-                  n=0
-                  for row in r:
-                      assert len(row)==len(h), f'row-width-mismatch:{p}:row={n+2}'
-                      n+=1
-              assert n>0, f'empty-data-file:{p}'
-          print(f'StatCan structural validation PASS: {len(files)} CSV files')
+              try:
+                  with open(p,encoding='utf-8-sig',newline='') as f:
+                      r=csv.reader(f, strict=True)
+                      h=next(r, None)
+                      assert h and all(x.strip() for x in h), f'empty-or-invalid-header:{p}'
+                      expected=len(h); n=1
+                      for row in r:
+                          n += 1
+                          if len(row) != expected:
+                              raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={len(row)}')
+              except csv.Error as e:
+                  raise AssertionError(f'csv-parse-error:{p}:record={n}:{e}') from e
+              if n <= 1:
+                  raise AssertionError(f'empty-data-file:{p}')
+          print(f'StatCan structural validation PASS: {len(files)} CSV files; validation used logical CSV records, not physical lines')
           PY
       - name: Publish raw-source inventory artifact
         uses: actions/upload-artifact@v4
