@@ -8,103 +8,124 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Discover authoritative WUP city resources from rendered page
+      - name: Install Python workbook parser
+        run: python3 -m pip install --disable-pip-version-check openpyxl
+      - name: Discover and download authoritative WUP city population source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup
-          node <<'NODE'
-          const { chromium } = require('playwright');
-          const fs = require('fs');
-          (async()=>{
-            const browser = await chromium.launch({headless:true});
-            const page = await browser.newPage();
-            const seen = new Set();
-            const responses = [];
-            page.on('response', r => {
-              const u=r.url();
-              if (/population\.un\.org\/wup/i.test(u)) responses.push(u);
-            });
-            await page.goto('https://population.un.org/wup/downloads?tab=Cities',{waitUntil:'networkidle',timeout:120000});
-            const buttons = await page.getByRole('button').allTextContents();
-            console.log('buttons:', buttons);
-            const cities = page.getByRole('button',{name:/^Cities$/i});
-            if (await cities.count()) { await cities.first().click(); await page.waitForTimeout(3000); }
-            const links = await page.locator('a').evaluateAll(as => as.map(a => ({href:a.href,text:(a.textContent||'').replace(/\\s+/g,' ').trim()})));
-            const candidates=[];
-            for (const x of [...links.map(x=>({...x})), ...responses.map(u=>({href:u,text:''}))]) {
-              const combined=(x.href+' '+x.text).toLowerCase();
-              if (!combined.includes('wup2025')) continue;
-              if (!/\\.(csv|zip|xlsx?|xls)(?:$|[?#])/.test(combined) && !/f(18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34)/.test(combined)) continue;
-              if (/javascript:|#/.test(x.href)) continue;
-              candidates.push({url:x.href,label:x.text});
-            }
-            const uniq=[...new Map(candidates.map(x=>[x.url,x])).values()];
-            fs.writeFileSync('/tmp/wup/resources.json',JSON.stringify({source_page:'https://population.un.org/wup/downloads?tab=Cities',candidates:uniq},null,2));
-            console.log(JSON.stringify(uniq,null,2));
-            if(!uniq.length) throw new Error('No WUP2025 city resources found after rendering and selecting Cities tab');
-            await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
-          NODE
-      - name: Download candidate city resources and identify row-level city data
-        shell: bash
-        run: |
-          set -euo pipefail
+          curl --fail --location --retry 4 -A 'VIDIK/9.3 data-audit' -o /tmp/wup/cities.html 'https://population.un.org/wup/downloads?tab=Cities'
           python3 - <<'PY'
-          import json,os,urllib.request
-          from urllib.parse import urlparse,unquote
-          r=json.load(open('/tmp/wup/resources.json'))
-          for i,item in enumerate(r['candidates']):
-              u=item['url']; name=os.path.basename(unquote(urlparse(u).path)) or f'resource-{i}'
-              name=name.replace(' ','_')
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlsplit, urlunsplit, quote
+          import json, urllib.request
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]; self.current=None
+              def handle_starttag(self,t,a):
+                  if t=='a':
+                      d=dict(a); self.current={'href':d.get('href',''),'text':''}
+              def handle_data(self,d):
+                  if self.current is not None: self.current['text'] += d
+              def handle_endtag(self,t):
+                  if t=='a' and self.current is not None:
+                      self.links.append(self.current); self.current=None
+          p=P(); p.feed(open('/tmp/wup/cities.html',encoding='utf-8').read())
+          base='https://population.un.org/wup/downloads?tab=Cities'
+          candidates=[]
+          for item in p.links:
+              h=item.get('href','').strip(); text=' '.join(item.get('text','').split())
+              combined=(h+' '+text).lower()
+              if 'wup2025-f21-degurba-cities_pop' in combined:
+                  if h and not h.startswith(('javascript:','#')):
+                      candidates.append({'url':urljoin(base,h),'label':text})
+          # The official catalogue identifies F21 as the city-population table. Keep an explicit
+          # canonical fallback because the UN download page can render the Cities table dynamically.
+          candidates.append({'url':'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','label':'WUP2025-F21-DEGURBA-Cities_Pop'})
+          uniq={x['url']:x for x in candidates}
+          candidates=list(uniq.values())
+          json.dump({'source_page':base,'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
+          downloaded=False
+          for i,item in enumerate(candidates):
+              parts=urlsplit(item['url'])
+              encoded_path=quote(parts.path,safe='/%:@-._~!$&\'()*+,;=')
+              u=urlunsplit((parts.scheme,parts.netloc,encoded_path,parts.query,parts.fragment))
               try:
                   req=urllib.request.Request(u,headers={'User-Agent':'VIDIK/9.3 data-audit'})
-                  with urllib.request.urlopen(req,timeout=120) as x, open('/tmp/wup/'+name,'wb') as f: f.write(x.read())
-                  print('downloaded',u,'->',name)
+                  with urllib.request.urlopen(req,timeout=120) as x, open('/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','wb') as f: f.write(x.read())
+                  print('downloaded',u)
+                  downloaded=True
+                  break
               except Exception as e:
                   print('download-failed',u,repr(e))
+          if not downloaded:
+              raise SystemExit('Unable to download official WUP2025 F21 city population workbook')
           PY
-      - name: Validate and derive city universe
+      - name: Validate workbook and derive city universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import csv,glob,hashlib,json,os,sys,zipfile
-          csv.field_size_limit(sys.maxsize)
-          files=glob.glob('/tmp/wup/*')
-          print('resources:',[os.path.basename(x) for x in files])
-          row_level=[]
-          for p in files:
-              if not os.path.isfile(p): continue
-              if p.endswith('.zip'):
-                  try:
-                      with zipfile.ZipFile(p) as z:
-                          names=z.namelist(); print('zip',os.path.basename(p),names[:100])
-                          for n in names:
-                              if n.lower().endswith('.csv'):
-                                  with z.open(n) as raw:
-                                      sample=raw.read(200000).decode('utf-8-sig','replace').splitlines()
-                                  if not sample: continue
-                                  h=next(csv.reader([sample[0]]),[]); hs={x.strip().lower() for x in h}
-                                  if any('city' in x and ('code' in x or 'name' in x) for x in hs): row_level.append((p,n,h))
-                  except zipfile.BadZipFile: pass
-              elif p.lower().endswith('.csv'):
-                  with open(p,encoding='utf-8-sig',newline='') as f: h=next(csv.reader(f),[])
-                  hs={x.strip().lower() for x in h}
-                  if any('city' in x and ('code' in x or 'name' in x) for x in hs): row_level.append((p,None,h))
-          if not row_level:
-              raise SystemExit('No row-level WUP city resource discovered; aggregate tables must not be treated as the city census')
-          print('row-level city resources:',row_level)
+          import json, hashlib, os, re, math
+          from openpyxl import load_workbook
+          path='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+          wb=load_workbook(path,read_only=True,data_only=True)
+          found=[]
+          for ws in wb.worksheets:
+              rows=ws.iter_rows(values_only=True)
+              header=None; header_idx=None
+              buffered=[]
+              for idx,row in enumerate(rows,1):
+                  vals=[str(x).strip() if x is not None else '' for x in row]
+                  low=[v.lower() for v in vals]
+                  if header is None and any('city' in v for v in low) and any(v=='2025' or '2025' in v for v in low):
+                      header=vals; header_idx=idx; continue
+                  if header is not None:
+                      buffered.append(vals)
+              if header is None: continue
+              city_i=next((i for i,v in enumerate(header) if 'city' in v.lower()),None)
+              country_i=next((i for i,v in enumerate(header) if 'country' in v.lower() or 'area' in v.lower()),None)
+              year_i=next((i for i,v in enumerate(header) if v=='2025' or '2025' in v),None)
+              if city_i is None or year_i is None: continue
+              records=[]
+              for row in buffered:
+                  if city_i>=len(row) or year_i>=len(row): continue
+                  city=row[city_i].strip()
+                  if not city: continue
+                  raw=row[year_i]
+                  try: pop=float(str(raw).replace(',',''))
+                  except Exception: continue
+                  if not math.isfinite(pop): continue
+                  if pop >= 50:
+                      country=row[country_i].strip() if country_i is not None and country_i<len(row) else ''
+                      records.append((country,city,pop))
+              if records:
+                  found.append({'sheet':ws.title,'header_row':header_idx,'records':records})
+          if not found:
+              raise SystemExit('Could not identify row-level city records and a 2025 population column in official F21 workbook')
+          records=[r for block in found for r in block['records']]
+          keys=[(a.lower(),b.lower()) for a,b,_ in records]
+          dup=len(keys)-len(set(keys))
+          names={b.lower() for _,b,_ in records}
+          if 'ottawa' not in names or 'toronto' not in names:
+              raise SystemExit('Required Canadian cities Ottawa/Toronto were not found in derived WUP city universe')
+          report={
+              'dataset':'WUP2025-F21-DEGURBA-Cities_Pop',
+              'source_page':'https://population.un.org/wup/downloads?tab=Cities',
+              'sheets':[{'sheet':x['sheet'],'header_row':x['header_row'],'record_count':len(x['records'])} for x in found],
+              'city_count_ge_50k_mid_2025':len(records),
+              'duplicate_country_city_keys':dup,
+              'contains_ottawa':True,
+              'contains_toronto':True,
+              'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),
+              'bytes':os.path.getsize(path)
+          }
+          if dup: raise SystemExit(f'duplicate country/city keys: {dup}')
+          json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2)
+          print(json.dumps(report,indent=2))
           PY
       - name: Hash source manifest
         shell: bash
