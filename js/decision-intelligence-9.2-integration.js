@@ -1,4 +1,5 @@
 'use strict';
+// VIDIK 9.2 canonical integration: real recommendation-to-evidence lineage.
 (function(){
   const DI=window.VIDIK_DECISION_INTELLIGENCE_92;
   if(!DI) throw new Error('VIDIK 9.2 intelligence unavailable');
