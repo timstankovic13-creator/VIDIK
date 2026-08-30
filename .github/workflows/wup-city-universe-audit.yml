@@ -66,19 +66,27 @@ jobs:
           wb=load_workbook(path,read_only=True,data_only=True)
           def clean(v): return '' if v is None else str(v).strip()
           def norm(v): return re.sub(r'[^a-z0-9]+',' ',clean(v).lower()).strip()
+          def is_year(v):
+              s=norm(v)
+              return s in {'2025','population 2025','pop 2025','2025 population'}
           found=[]
           for ws in wb.worksheets:
               rows=[[clean(v) for v in row] for row in ws.iter_rows(values_only=True)]
               for i,row in enumerate(rows):
                   low=[norm(v) for v in row]
-                  city_cols=[j for j,v in enumerate(low) if v=='city' or v.endswith(' city')]
-                  country_cols=[j for j,v in enumerate(low) if v=='country or area' or 'country or area' in v]
+                  city_cols=[j for j,v in enumerate(low) if v in {'city','cities','city name','city or urban centre','urban centre','urban center'} or v.endswith(' city')]
+                  country_cols=[j for j,v in enumerate(low) if v in {'country or area','country','area','country/area'} or 'country or area' in v]
                   if not city_cols or not country_cols: continue
-                  header_end=i
-                  city_i=city_cols[0]; country_i=country_cols[0]; year_i=None
-                  for k in range(i,min(i+5,len(rows))):
+                  city_i=city_cols[0]; country_i=country_cols[0]
+                  year_i=None; header_end=i
+                  for k in range(i,min(i+12,len(rows))):
                       for j,v in enumerate(rows[k]):
-                          if norm(v)=='2025': year_i=j; header_end=max(header_end,k)
+                          if is_year(v): year_i=j; header_end=max(header_end,k)
+                  if year_i is None:
+                      # F21 uses a wide time-series layout; locate a numeric year label anywhere in the next header block.
+                      for k in range(i,min(i+12,len(rows))):
+                          for j,v in enumerate(rows[k]):
+                              if clean(v) in {'2025.0','2025'}: year_i=j; header_end=max(header_end,k)
                   if year_i is None: continue
                   records=[]
                   for data_row in rows[header_end+1:]:
@@ -91,7 +99,8 @@ jobs:
                       records.append((country,city,pop))
                   if records:
                       found.append({'sheet':ws.title,'header_row':i+1,'header_end_row':header_end+1,'records':records})
-          if not found: raise SystemExit('Could not identify the F21 city/country header and 2025 population column')
+          if not found:
+              raise SystemExit('Could not identify F21 city/country fields and 2025 population field; workbook schema changed or source is not F21')
           records=[r for block in found for r in block['records']]
           keys=[(norm(a),norm(b)) for a,b,_ in records]
           dup=len(keys)-len(set(keys))
