@@ -1,5 +1,5 @@
 'use strict';
-// VIDIK 9.2 canonical integration: real recommendation-to-evidence lineage.
+// VIDIK 9.2 canonical integration: bind the actual rendered recommendation to real evidence lineage.
 (function(){
   const DI=window.VIDIK_DECISION_INTELLIGENCE_92;
   if(!DI) throw new Error('VIDIK 9.2 intelligence unavailable');
@@ -11,8 +11,12 @@
     const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score);
     const risk=numericControl('risk');
     if(!Number.isFinite(risk)||risk<0||risk>1)throw new Error('invalid-risk-ceiling');
-    const admissible=scored.filter(x=>!x.blocked&&x.risk<=risk);
-    const top=admissible.sort((a,b)=>b.score-a.score)[0]||null;
+    const admissible=scored.filter(x=>!x.blocked&&x.risk<=risk).sort((a,b)=>b.score-a.score);
+    // The canonical integration must follow the recommendation actually produced by the canonical renderer.
+    // Prefer that rendered recommendation when present, and require it to resolve to a scored admissible candidate.
+    const renderedName=document.getElementById('rec')?.textContent?.trim()||'';
+    const renderedCandidate=C.find(c=>c.name===renderedName);
+    const top=renderedCandidate?admissible.find(x=>x.id===renderedCandidate.id)||null:(admissible[0]||null);
     const topCandidate=top&&C.find(c=>c.id===top.id);
     const candidateParameters=topCandidate?paramsForCandidate(topCandidate):[];
     const linkedParameters=candidateParameters.filter(p=>p.claimIds&&p.claimIds.length>0);
