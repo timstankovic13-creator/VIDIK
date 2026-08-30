@@ -51,6 +51,45 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
     await expect(pool).toHaveJSProperty('validationMessage', 'Resource pool cannot be negative.');
   });
 
+  test('hostile risk mutation invalidates an already generated decision', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
+    expect(Number(await page.locator('#admissible').textContent())).toBeGreaterThan(0);
+
+    const risk = page.locator('#risk');
+    await risk.evaluate(el => {
+      el.value = '2';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
+    await expect(page.locator('#recommendation')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#rec')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#admissible')).toHaveText('0');
+    await expect(risk).toHaveAttribute('aria-invalid', 'true');
+    await expect(risk).toHaveJSProperty('validationMessage', 'Risk ceiling must be between 0 and 1.');
+  });
+
+  test('hostile non-numeric resource mutation invalidates an already generated decision', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
+    expect(Number(await page.locator('#admissible').textContent())).toBeGreaterThan(0);
+
+    const pool = page.locator('#pool');
+    await pool.evaluate(el => {
+      el.value = 'not-a-number';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
+    await expect(page.locator('#recommendation')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#rec')).toHaveText('NO RECOMMENDATION');
+    await expect(page.locator('#admissible')).toHaveText('0');
+    await expect(pool).toHaveAttribute('aria-invalid', 'true');
+  });
+
   test('city controls are discoverable through semantic selectors', async ({ page }) => {
     await page.goto('/');
     const city = page.locator('#city');
