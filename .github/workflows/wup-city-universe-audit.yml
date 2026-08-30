@@ -8,140 +8,73 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install Python workbook parser
         run: python3 -m pip install --disable-pip-version-check openpyxl
-      - name: Discover and download authoritative WUP city population source
+      - name: Download authoritative WUP F21 workbook
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup
-          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o /tmp/wup/cities.html 'https://population.un.org/wup/downloads?tab=Cities'
-          python3 - <<'PY'
-          from html.parser import HTMLParser
-          from urllib.parse import urljoin, urlsplit, urlunsplit, quote
-          import json, urllib.request
-          class P(HTMLParser):
-              def __init__(self): super().__init__(); self.links=[]; self.current=None
-              def handle_starttag(self,t,a):
-                  if t=='a':
-                      d=dict(a); self.current={'href':d.get('href',''),'text':''}
-              def handle_data(self,d):
-                  if self.current is not None: self.current['text'] += d
-              def handle_endtag(self,t):
-                  if t=='a' and self.current is not None:
-                      self.links.append(self.current); self.current=None
-          p=P(); p.feed(open('/tmp/wup/cities.html',encoding='utf-8').read())
-          base='https://population.un.org/wup/downloads?tab=Cities'
-          candidates=[]
-          for item in p.links:
-              h=item.get('href','').strip(); text=' '.join(item.get('text','').split())
-              combined=(h+' '+text).lower()
-              if 'wup2025-f21-degurba-cities_pop' in combined and h and not h.startswith(('javascript:','#')):
-                  candidates.append({'url':urljoin(base,h),'label':text})
-          candidates.append({'url':'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','label':'WUP2025-F21-DEGURBA-Cities_Pop'})
-          candidates=list({x['url']:x for x in candidates}.values())
-          json.dump({'source_page':base,'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
-          downloaded=False
-          for item in candidates:
-              parts=urlsplit(item['url']); encoded_path=quote(parts.path,safe='/%:@-._~!$&\'()*+,;=')
-              u=urlunsplit((parts.scheme,parts.netloc,encoded_path,parts.query,parts.fragment))
-              try:
-                  req=urllib.request.Request(u,headers={'User-Agent':'VIDIK/9.3 data-audit'})
-                  with urllib.request.urlopen(req,timeout=120) as x, open('/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx','wb') as f: f.write(x.read())
-                  print('downloaded',u); downloaded=True; break
-              except Exception as e: print('download-failed',u,repr(e))
-          if not downloaded: raise SystemExit('Unable to download official WUP2025 F21 city population workbook')
-          PY
-      - name: Validate workbook and derive city universe
+          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o /tmp/wup/F21.xlsx 'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+      - name: Validate F21 and derive city universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, hashlib, os, re, math
+          import hashlib,json,math,os,re
           from openpyxl import load_workbook
-          path='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
-          wb=load_workbook(path,read_only=True,data_only=True)
+          p='/tmp/wup/F21.xlsx'; wb=load_workbook(p,read_only=True,data_only=True)
+          if 'Data' not in wb.sheetnames: raise SystemExit(f'Expected Data sheet, got {wb.sheetnames}')
+          ws=wb['Data']; rows=list(ws.iter_rows(values_only=True))
           def clean(v): return '' if v is None else str(v).strip()
-          def norm(v): return re.sub(r'[^a-z0-9]+',' ',clean(v).lower()).strip()
-          def year_value(v):
-              s=norm(v)
-              if s in {'2025','2025 population','population 2025','pop 2025'}: return True
-              try: return float(clean(v)) == 2025
-              except Exception: return False
-          def is_city_header(v):
-              s=norm(v)
-              return s in {'city','cities','city name','cities name','city name','city_name','city or urban centre','city or urban center','urban centre','urban center','urban centre name','urban center name'} or s.endswith(' city') or s.endswith(' cities')
-          def is_country_header(v):
-              s=norm(v)
-              return s in {'country','country area','country or area','country area name','country or area name','area','country area code','country code','country or area code','location','location name'} or 'country or area' in s
-          found=[]
-          for ws in wb.worksheets:
-              rows=[[clean(v) for v in row] for row in ws.iter_rows(values_only=True)]
-              limit=min(100,len(rows))
-              city_hits=[]; country_hits=[]; year_hits=[]
-              for i in range(limit):
-                  for j,v in enumerate(rows[i]):
-                      if is_city_header(v): city_hits.append((i,j))
-                      if is_country_header(v): country_hits.append((i,j))
-                      if year_value(v): year_hits.append((i,j))
-              if not city_hits or not country_hits or not year_hits:
-                  continue
-              pairs=[]
-              for ci,cj in city_hits:
-                  for ki,kj in country_hits:
-                      for yi,yj in year_hits:
-                          score=abs(ci-ki)*10+abs(cj-kj)+max(0, cj-yj)*2+max(0,ki-yi)*2
-                          pairs.append((score,ci,cj,ki,kj,yi,yj))
-              pairs.sort()
-              _,city_row,city_i,country_row,country_i,year_row,year_i=pairs[0]
-              header_end=max(city_row,country_row,year_row)
-              records=[]
-              for data_row in rows[header_end+1:]:
-                  if max(city_i,country_i,year_i) >= len(data_row): continue
-                  city=clean(data_row[city_i]); country=clean(data_row[country_i]); raw=data_row[year_i]
-                  if not city or not country: continue
-                  try: pop=float(str(raw).replace(',','').replace(' ','').strip())
-                  except Exception: continue
-                  if not math.isfinite(pop) or pop < 50: continue
-                  records.append((country,city,pop))
-              if records:
-                  found.append({'sheet':ws.title,'city_header_row':city_row+1,'country_header_row':country_row+1,'year_header_row':year_row+1,'header_end_row':header_end+1,'city_col':city_i+1,'country_col':country_i+1,'year_col':year_i+1,'records':records})
-          if not found:
-              diagnostics=[]
-              for ws in wb.worksheets:
-                  for idx,row in enumerate(ws.iter_rows(min_row=1,max_row=min(40,ws.max_row),values_only=True),1):
-                      vals=[clean(v) for v in row if clean(v)]
-                      if vals: diagnostics.append({'sheet':ws.title,'row':idx,'values':vals[:20]})
-              print(json.dumps({'workbook_sheets':wb.sheetnames,'diagnostic_rows':diagnostics[:80]},indent=2))
-              raise SystemExit('Could not identify F21 city/country fields and 2025 population field; workbook schema changed or source is not F21')
-          records=[r for block in found for r in block['records']]
+          def norm(v): return re.sub(r'[^a-z0-9]+','_',clean(v).lower()).strip('_')
+          # Actual WUP F21 schema: Location, City_Name, and a year column named 2025.
+          header=None
+          for ri,row in enumerate(rows[:500]):
+              loc=city=pop=None
+              for ci,v in enumerate(row):
+                  k=norm(v)
+                  if k in ('location','location_name'): loc=ci
+                  elif k in ('city_name','city','cities'): city=ci
+                  elif k=='2025' or k.startswith('2025_'): pop=ci
+              if loc is not None and city is not None and pop is not None:
+                  header=(ri,loc,city,pop); break
+          if header is None:
+              # Some workbook versions expose the year as numeric rather than text.
+              for ri,row in enumerate(rows[:500]):
+                  loc=city=pop=None
+                  for ci,v in enumerate(row):
+                      k=norm(v)
+                      if k=='location': loc=ci
+                      elif k=='city_name': city=ci
+                      try:
+                          if float(v)==2025: pop=ci
+                      except (TypeError,ValueError): pass
+                  if loc is not None and city is not None and pop is not None:
+                      header=(ri,loc,city,pop); break
+          if header is None: raise SystemExit('Could not identify WUP F21 Data fields Location, City_Name, 2025')
+          hi,loc_i,city_i,pop_i=header; records=[]
+          for row in rows[hi+1:]:
+              if max(loc_i,city_i,pop_i)>=len(row): continue
+              country,city,raw=clean(row[loc_i]),clean(row[city_i]),row[pop_i]
+              if not country or not city: continue
+              try: value=float(str(raw).replace(',','').strip())
+              except (TypeError,ValueError): continue
+              if math.isfinite(value) and value>=50: records.append((country,city,value))
+          if not records: raise SystemExit('F21 produced no city records >=50 (population is in thousands)')
           keys=[(norm(a),norm(b)) for a,b,_ in records]
-          dup=len(keys)-len(set(keys))
-          names={norm(b) for _,b,_ in records}
-          ottawa=any(re.search(r'\bottawa\b',name) for name in names)
-          toronto=any(re.search(r'\btoronto\b',name) for name in names)
-          if not ottawa or not toronto:
-              diagnostics=sorted(n for n in names if 'ott' in n or 'tor' in n)
-              raise SystemExit('Required Canadian cities Ottawa/Toronto were not found; nearby parsed names='+repr(diagnostics[:30]))
-          if dup: raise SystemExit(f'duplicate country/city keys: {dup}')
-          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','source_page':'https://population.un.org/wup/downloads?tab=Cities','sheets':[{'sheet':x['sheet'],'city_header_row':x['city_header_row'],'country_header_row':x['country_header_row'],'year_header_row':x['year_header_row'],'header_end_row':x['header_end_row'],'city_col':x['city_col'],'country_col':x['country_col'],'year_col':x['year_col'],'record_count':len(x['records'])} for x in found],'city_count_ge_50k_mid_2025':len(records),'duplicate_country_city_keys':dup,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),'bytes':os.path.getsize(path)}
-          json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2)
-          print(json.dumps(report,indent=2))
+          if len(keys)!=len(set(keys)): raise SystemExit('Duplicate country/city keys detected')
+          names=[norm(b) for _,b,_ in records]
+          ottawa=any(re.search(r'(^|_)ottawa($|_)',x) for x in names); toronto=any(re.search(r'(^|_)toronto($|_)',x) for x in names)
+          if not (ottawa and toronto): raise SystemExit(f'Required cities missing: Ottawa={ottawa}, Toronto={toronto}')
+          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','sheet':'Data','city_field':'City_Name','country_field':'Location','population_field':'2025','population_units':'thousands','header_row':hi+1,'record_count_ge_50k':len(records),'duplicate_country_city_keys':0,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)}
+          json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2); print(json.dumps(report,indent=2))
           PY
       - name: Hash source manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib,json,glob,os
-          out=[]
-          for p in sorted(glob.glob('/tmp/wup/*')):
-              if os.path.isfile(p): out.append({'file':os.path.basename(p),'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)})
-          json.dump(out,open('/tmp/wup/source-manifest.json','w'),indent=2)
-          PY
+        run: sha256sum /tmp/wup/* > /tmp/wup/source-manifest.txt
       - uses: actions/upload-artifact@v4
         with:
           name: vidik-wup-city-universe-audit
