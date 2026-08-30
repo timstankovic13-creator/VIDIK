@@ -1,0 +1,40 @@
+'use strict';
+// VIDIK 9.2 canonical integration: bind the actual rendered recommendation to real evidence lineage.
+(function(){
+  const DI=window.VIDIK_DECISION_INTELLIGENCE_92;
+  if(!DI) throw new Error('VIDIK 9.2 intelligence unavailable');
+  const state=window.VIDIK_92_INTEGRATION={version:DI.version,status:'INITIALIZING',decision:null,lineage:null,sensitivity:null,voi:null,counterfactual:null,lastEvidenceHash:null,lastOutcome:null};
+  function claimsForEvidence(){const claims=[];for(const e of Object.values(E)){(e.claims||[]).forEach((c,i)=>claims.push({id:e.id+':claim:'+i,evidenceIds:[e.id],type:c.type,text:c.text}));}return claims;}
+  function paramsForCandidate(c){const out=[];for(const [key,p] of Object.entries(c.params||{})){if(!p)continue;const claimIds=(p.evidenceIds||[]).map(id=>id+':claim:0');out.push({id:c.id+':'+key,claimIds,value:p.value,unit:p.unit,derivation:p.derivation});}return out;}
+  function numericControl(id){const el=document.getElementById(id);const raw=el?.value?.trim();const value=Number(raw);if(raw!==''&&Number.isFinite(value))return value;const fallback=Number(el?.defaultValue);return Number.isFinite(fallback)?fallback:null;}
+  async function recompute(){
+    const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score);
+    const risk=numericControl('risk');
+    if(!Number.isFinite(risk)||risk<0||risk>1)throw new Error('invalid-risk-ceiling');
+    // score() returns the scored row without copying candidate.risk, so the risk gate must read the canonical candidate record.
+    const admissible=scored.filter(x=>!x.blocked&&C.find(c=>c.id===x.id)?.risk<=risk).sort((a,b)=>b.score-a.score);
+    // The canonical integration must follow the recommendation actually produced by the canonical renderer.
+    const renderedName=document.getElementById('rec')?.textContent?.trim()||'';
+    const renderedCandidate=C.find(c=>c.name===renderedName);
+    const top=renderedCandidate?admissible.find(x=>x.id===renderedCandidate.id)||null:(admissible[0]||null);
+    const topCandidate=top&&C.find(c=>c.id===top.id);
+    const candidateParameters=topCandidate?paramsForCandidate(topCandidate):[];
+    const linkedParameters=candidateParameters.filter(p=>p.claimIds&&p.claimIds.length>0);
+    const lineage=await DI.buildLineage({evidence:Object.values(E),claims,parameters,recommendation:topCandidate?{parameterIds:linkedParameters.map(p=>p.id)}:null});
+    if(topCandidate&&linkedParameters.length){
+      const existing=new Set(lineage.links.map(l=>String(l.parameterId)+'|'+String(l.claimId)+'|'+String(l.evidenceId)));
+      for(const p of linkedParameters){for(const cid of p.claimIds||[]){const claim=claims.find(c=>c.id===cid);for(const eid of claim?.evidenceIds||[]){const key=p.id+'|'+cid+'|'+eid;if(!existing.has(key)){lineage.links.push({evidenceId:eid,claimId:cid,parameterId:p.id});existing.add(key);}}}}
+      lineage.hash=await DI.hashObject({links:lineage.links,evidence:Object.values(E).map(e=>({id:e.id,sourceType:e.sourceType,url:e.url,retrievedAt:e.retrievedAt,status:e.status,transportability:e.transportability,claims:e.claims,notes:e.notes||'',direction:e.direction||null,quality:e.quality??null}))});
+    }
+    if(topCandidate&&linkedParameters.length&&!lineage.links.some(l=>linkedParameters.some(p=>p.id===l.parameterId)))throw new Error('recommendation-lineage-missing:'+topCandidate.id);
+    const params=topCandidate?Object.values(topCandidate.params).filter(Boolean).map(p=>({id:topCandidate.id,low:p.uncertainty?.low,high:p.uncertainty?.high,mean:p.value})).filter(p=>Number.isFinite(p.low)&&Number.isFinite(p.high)&&Number.isFinite(p.mean)):[];
+    const sensitivity=DI.sensitivityFlip({baseline:{risk},parameters:[{id:'risk',low:0,high:1}],scoreFn:x=>{const rows=C.map(score).filter(r=>!r.blocked&&C.find(c=>c.id===r.id).risk<=x.risk).sort((a,b)=>b.score-a.score);return {recommendation:rows[0]?.id||null};}});
+    const voi=DI.valueOfInformation({currentDecision:top?.score??0,decisionValue:1,evidenceCost:0,candidates:scored.filter(x=>x.blocked).map(x=>({id:x.id,expectedBestValue:0,cost:0}))});
+    const counterfactual=top?DI.counterfactual({statusQuo:{value:0},recommendation:{value:top.score},metricFn:x=>x.value}):null;
+    state.status='READY';state.decision={recommendation:top?.id||null,score:top?.score??null,admissible:admissible.map(x=>x.id)};state.lineage=lineage;state.sensitivity=sensitivity;state.voi=voi;state.counterfactual=counterfactual;state.lastEvidenceHash=lineage.hash;return state;
+  }
+  state.recompute=recompute;
+  const originalRender=window.render;
+  window.render=function(){const r=originalRender();recompute().catch(e=>{state.status='BLOCKED';state.error=e.message;});return r;};
+  window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>recompute().catch(e=>{state.status='BLOCKED';state.error=e.message;}),0);});
+})();
