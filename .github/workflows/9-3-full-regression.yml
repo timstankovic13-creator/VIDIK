@@ -8,6 +8,7 @@ permissions:
 jobs:
   browser-acceptance:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +19,8 @@ jobs:
         run: |
           set -euo pipefail
           if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci; else npm install --ignore-scripts; fi
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Full Playwright acceptance and hostile suites
         run: |
           set -euo pipefail
