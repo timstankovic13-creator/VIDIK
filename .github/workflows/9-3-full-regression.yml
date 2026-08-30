@@ -25,3 +25,4 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright test --reporter=line
+# Integrated regression trigger: preserve the validated code baseline while forcing a fresh run.
