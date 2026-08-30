@@ -20,7 +20,8 @@ jobs:
         run: |
           set -euo pipefail
           test -f package.json
-          if test -f package-lock.json; then npm ci --ignore-scripts; npm audit --audit-level=high; else npm install --package-lock-only --ignore-scripts; npm audit --audit-level=high; fi
+          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci --ignore-scripts; else npm install --package-lock-only --ignore-scripts; fi
+          npm audit --audit-level=high
   tenant-and-performance:
     runs-on: ubuntu-latest
     steps:
@@ -29,7 +30,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if test -f package.json; then npm ci --ignore-scripts; fi
+          if test -f package.json; then
+            if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
+          fi
           if test -f tests/e2e/tenant-isolation.spec.js; then npx playwright test tests/e2e/tenant-isolation.spec.js; fi
           if test -f tests/e2e/performance.spec.js; then npx playwright test tests/e2e/performance.spec.js; fi
           if test -f tests/e2e/security.spec.js; then npx playwright test tests/e2e/security.spec.js; fi
