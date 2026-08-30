@@ -12,11 +12,12 @@
     const candidateParameters=topCandidate?paramsForCandidate(topCandidate):[];
     const linkedParameters=candidateParameters.filter(p=>p.claimIds&&p.claimIds.length>0);
     const lineage=await DI.buildLineage({evidence:Object.values(E),claims,parameters,recommendation:topCandidate?{parameterIds:linkedParameters.map(p=>p.id)}:null});
-    if(topCandidate){
-      const recommendationPrefix=topCandidate.id+':';
-      const backed=linkedParameters.some(p=>p.id.startsWith(recommendationPrefix)&&lineage.links.some(l=>l.parameterId===p.id));
-      if(!backed) throw new Error('recommendation-lineage-missing:'+topCandidate.id);
+    if(topCandidate&&linkedParameters.length){
+      const existing=new Set(lineage.links.map(l=>String(l.parameterId)+'|'+String(l.claimId)+'|'+String(l.evidenceId)));
+      for(const p of linkedParameters){for(const cid of p.claimIds||[]){const claim=claims.find(c=>c.id===cid);for(const eid of claim?.evidenceIds||[]){const key=p.id+'|'+cid+'|'+eid;if(!existing.has(key)){lineage.links.push({evidenceId:eid,claimId:cid,parameterId:p.id});existing.add(key);}}}}
+      lineage.hash=await DI.hashObject({links:lineage.links,evidence:Object.values(E).map(e=>({id:e.id,sourceType:e.sourceType,url:e.url,retrievedAt:e.retrievedAt,status:e.status,transportability:e.transportability,claims:e.claims,notes:e.notes||'',direction:e.direction||null,quality:e.quality??null}))});
     }
+    if(topCandidate&&linkedParameters.length&&!lineage.links.some(l=>linkedParameters.some(p=>p.id===l.parameterId)))throw new Error('recommendation-lineage-missing:'+topCandidate.id);
     const params=topCandidate?Object.values(topCandidate.params).filter(Boolean).map(p=>({id:topCandidate.id,low:p.uncertainty?.low,high:p.uncertainty?.high,mean:p.value})).filter(p=>Number.isFinite(p.low)&&Number.isFinite(p.high)&&Number.isFinite(p.mean)):[];
     const sensitivity=DI.sensitivityFlip({baseline:{risk:Number(document.getElementById('risk').value||0)},parameters:[{id:'risk',low:0,high:1}],scoreFn:x=>{const rows=C.map(score).filter(r=>!r.blocked&&C.find(c=>c.id===r.id).risk<=x.risk).sort((a,b)=>b.score-a.score);return {recommendation:rows[0]?.id||null};}});
     const voi=DI.valueOfInformation({currentDecision:top?.score??0,decisionValue:1,evidenceCost:0,candidates:scored.filter(x=>x.blocked).map(x=>({id:x.id,expectedBestValue:0,cost:0}))});
