@@ -10,58 +10,66 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Discover authoritative WUP city resources
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Discover authoritative WUP city resources from rendered page
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup
-          curl --fail --location --retry 4 -A 'VIDIK/9.3 data-audit' -o /tmp/wup/cities.html 'https://population.un.org/wup/downloads?tab=Cities'
-          python3 - <<'PY'
-          from html.parser import HTMLParser
-          from urllib.parse import urljoin
-          import json,re
-          class P(HTMLParser):
-              def __init__(self): super().__init__(); self.links=[]; self.current=None
-              def handle_starttag(self,t,a):
-                  if t=='a':
-                      d=dict(a); self.current={'href':d.get('href',''),'text':''}
-              def handle_data(self,d):
-                  if self.current is not None: self.current['text'] += d
-              def handle_endtag(self,t):
-                  if t=='a' and self.current is not None:
-                      self.links.append(self.current); self.current=None
-          p=P(); p.feed(open('/tmp/wup/cities.html',encoding='utf-8').read())
-          base='https://population.un.org/wup/downloads?tab=Cities'
-          candidates=[]
-          for item in p.links:
-              h=item.get('href','').strip(); text=' '.join(item.get('text','').split())
-              combined=(h+' '+text).lower()
-              if 'wup2025' not in combined: continue
-              if not any(x in combined for x in ('.csv','.zip','.xlsx','.xls','f18','f19','f20','f21','f22','f23','f24','f25','f26','f27','f28','f29','f30','f31','f32','f33','f34')): continue
-              if not h or h.startswith(('javascript:','#')): continue
-              candidates.append({'url':urljoin(base,h),'label':text})
-          # Preserve every official WUP2025 resource exposed by the page; row-level validation below decides whether it is suitable.
-          uniq={x['url']:x for x in candidates}
-          candidates=sorted(uniq.values(),key=lambda x:x['url'])
-          json.dump({'source_page':base,'candidates':candidates},open('/tmp/wup/resources.json','w'),indent=2)
-          print(json.dumps(candidates,indent=2))
-          if not candidates:
-              raise SystemExit('No WUP2025 download links exposed in the official Cities page HTML; page delivery appears dynamic and must be inspected rather than silently substituting another dataset')
-          PY
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+          (async()=>{
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage();
+            const seen = new Set();
+            const responses = [];
+            page.on('response', r => {
+              const u=r.url();
+              if (/population\.un\.org\/wup/i.test(u)) responses.push(u);
+            });
+            await page.goto('https://population.un.org/wup/downloads?tab=Cities',{waitUntil:'networkidle',timeout:120000});
+            const buttons = await page.getByRole('button').allTextContents();
+            console.log('buttons:', buttons);
+            const cities = page.getByRole('button',{name:/^Cities$/i});
+            if (await cities.count()) { await cities.first().click(); await page.waitForTimeout(3000); }
+            const links = await page.locator('a').evaluateAll(as => as.map(a => ({href:a.href,text:(a.textContent||'').replace(/\\s+/g,' ').trim()})));
+            const candidates=[];
+            for (const x of [...links.map(x=>({...x})), ...responses.map(u=>({href:u,text:''}))]) {
+              const combined=(x.href+' '+x.text).toLowerCase();
+              if (!combined.includes('wup2025')) continue;
+              if (!/\\.(csv|zip|xlsx?|xls)(?:$|[?#])/.test(combined) && !/f(18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34)/.test(combined)) continue;
+              if (/javascript:|#/.test(x.href)) continue;
+              candidates.push({url:x.href,label:x.text});
+            }
+            const uniq=[...new Map(candidates.map(x=>[x.url,x])).values()];
+            fs.writeFileSync('/tmp/wup/resources.json',JSON.stringify({source_page:'https://population.un.org/wup/downloads?tab=Cities',candidates:uniq},null,2));
+            console.log(JSON.stringify(uniq,null,2));
+            if(!uniq.length) throw new Error('No WUP2025 city resources found after rendering and selecting Cities tab');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
       - name: Download candidate city resources and identify row-level city data
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json,os,urllib.request
-          from urllib.parse import urlparse
+          from urllib.parse import urlparse,unquote
           r=json.load(open('/tmp/wup/resources.json'))
           for i,item in enumerate(r['candidates']):
-              u=item['url']; name=os.path.basename(urlparse(u).path) or f'resource-{i}'
+              u=item['url']; name=os.path.basename(unquote(urlparse(u).path)) or f'resource-{i}'
               name=name.replace(' ','_')
               try:
                   req=urllib.request.Request(u,headers={'User-Agent':'VIDIK/9.3 data-audit'})
-                  with urllib.request.urlopen(req,timeout=90) as x, open('/tmp/wup/'+name,'wb') as f: f.write(x.read())
+                  with urllib.request.urlopen(req,timeout=120) as x, open('/tmp/wup/'+name,'wb') as f: f.write(x.read())
                   print('downloaded',u,'->',name)
               except Exception as e:
                   print('download-failed',u,repr(e))
@@ -81,18 +89,21 @@ jobs:
               if p.endswith('.zip'):
                   try:
                       with zipfile.ZipFile(p) as z:
-                          names=z.namelist(); print('zip',os.path.basename(p),names[:50])
+                          names=z.namelist(); print('zip',os.path.basename(p),names[:100])
                           for n in names:
-                              if n.lower().endswith('.csv') and ('city' in n.lower() or 'cities' in n.lower()):
-                                  row_level.append((p,n))
+                              if n.lower().endswith('.csv'):
+                                  with z.open(n) as raw:
+                                      sample=raw.read(200000).decode('utf-8-sig','replace').splitlines()
+                                  if not sample: continue
+                                  h=next(csv.reader([sample[0]]),[]); hs={x.strip().lower() for x in h}
+                                  if any('city' in x and ('code' in x or 'name' in x) for x in hs): row_level.append((p,n,h))
                   except zipfile.BadZipFile: pass
               elif p.lower().endswith('.csv'):
-                  with open(p,encoding='utf-8-sig',newline='') as f:
-                      h=next(csv.reader(f),[])
+                  with open(p,encoding='utf-8-sig',newline='') as f: h=next(csv.reader(f),[])
                   hs={x.strip().lower() for x in h}
-                  if {'city_code','city_name'}.issubset(hs) or {'city_code','city_name_en'}.issubset(hs): row_level.append((p,None))
+                  if any('city' in x and ('code' in x or 'name' in x) for x in hs): row_level.append((p,None,h))
           if not row_level:
-              raise SystemExit('No row-level WUP city resource with City_Code/City_Name discovered; aggregate tables must not be treated as the city census')
+              raise SystemExit('No row-level WUP city resource discovered; aggregate tables must not be treated as the city census')
           print('row-level city resources:',row_level)
           PY
       - name: Hash source manifest
@@ -103,9 +114,7 @@ jobs:
           import hashlib,json,glob,os
           out=[]
           for p in sorted(glob.glob('/tmp/wup/*')):
-              if os.path.isfile(p):
-                  h=hashlib.sha256(open(p,'rb').read()).hexdigest()
-                  out.append({'file':os.path.basename(p),'sha256':h,'bytes':os.path.getsize(p)})
+              if os.path.isfile(p): out.append({'file':os.path.basename(p),'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)})
           json.dump(out,open('/tmp/wup/source-manifest.json','w'),indent=2)
           PY
       - uses: actions/upload-artifact@v4
