@@ -6,8 +6,12 @@
   const state=window.VIDIK_92_INTEGRATION={version:DI.version,status:'INITIALIZING',decision:null,lineage:null,sensitivity:null,voi:null,counterfactual:null,lastEvidenceHash:null,lastOutcome:null};
   function claimsForEvidence(){const claims=[];for(const e of Object.values(E)){(e.claims||[]).forEach((c,i)=>claims.push({id:e.id+':claim:'+i,evidenceIds:[e.id],type:c.type,text:c.text}));}return claims;}
   function paramsForCandidate(c){const out=[];for(const [key,p] of Object.entries(c.params||{})){if(!p)continue;const claimIds=(p.evidenceIds||[]).map(id=>id+':claim:0');out.push({id:c.id+':'+key,claimIds,value:p.value,unit:p.unit,derivation:p.derivation});}return out;}
+  function numericControl(id){const el=document.getElementById(id);const raw=el?.value?.trim();const value=Number(raw);if(raw!==''&&Number.isFinite(value))return value;const fallback=Number(el?.defaultValue);return Number.isFinite(fallback)?fallback:null;}
   async function recompute(){
-    const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score),admissible=scored.filter(x=>!x.blocked&&x.risk<=Number(document.getElementById('risk').value||0));
+    const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),scored=C.map(score);
+    const risk=numericControl('risk');
+    if(!Number.isFinite(risk)||risk<0||risk>1)throw new Error('invalid-risk-ceiling');
+    const admissible=scored.filter(x=>!x.blocked&&x.risk<=risk);
     const top=admissible.sort((a,b)=>b.score-a.score)[0]||null;
     const topCandidate=top&&C.find(c=>c.id===top.id);
     const candidateParameters=topCandidate?paramsForCandidate(topCandidate):[];
@@ -20,7 +24,7 @@
     }
     if(topCandidate&&linkedParameters.length&&!lineage.links.some(l=>linkedParameters.some(p=>p.id===l.parameterId)))throw new Error('recommendation-lineage-missing:'+topCandidate.id);
     const params=topCandidate?Object.values(topCandidate.params).filter(Boolean).map(p=>({id:topCandidate.id,low:p.uncertainty?.low,high:p.uncertainty?.high,mean:p.value})).filter(p=>Number.isFinite(p.low)&&Number.isFinite(p.high)&&Number.isFinite(p.mean)):[];
-    const sensitivity=DI.sensitivityFlip({baseline:{risk:Number(document.getElementById('risk').value||0)},parameters:[{id:'risk',low:0,high:1}],scoreFn:x=>{const rows=C.map(score).filter(r=>!r.blocked&&C.find(c=>c.id===r.id).risk<=x.risk).sort((a,b)=>b.score-a.score);return {recommendation:rows[0]?.id||null};}});
+    const sensitivity=DI.sensitivityFlip({baseline:{risk},parameters:[{id:'risk',low:0,high:1}],scoreFn:x=>{const rows=C.map(score).filter(r=>!r.blocked&&C.find(c=>c.id===r.id).risk<=x.risk).sort((a,b)=>b.score-a.score);return {recommendation:rows[0]?.id||null};}});
     const voi=DI.valueOfInformation({currentDecision:top?.score??0,decisionValue:1,evidenceCost:0,candidates:scored.filter(x=>x.blocked).map(x=>({id:x.id,expectedBestValue:0,cost:0}))});
     const counterfactual=top?DI.counterfactual({statusQuo:{value:0},recommendation:{value:top.score},metricFn:x=>x.value}):null;
     state.status='READY';state.decision={recommendation:top?.id||null,score:top?.score??null,admissible:admissible.map(x=>x.id)};state.lineage=lineage;state.sensitivity=sensitivity;state.voi=voi;state.counterfactual=counterfactual;state.lastEvidenceHash=lineage.hash;return state;
