@@ -66,40 +66,59 @@ jobs:
           wb=load_workbook(path,read_only=True,data_only=True)
           def clean(v): return '' if v is None else str(v).strip()
           def norm(v): return re.sub(r'[^a-z0-9]+',' ',clean(v).lower()).strip()
-          def is_year(v):
+          def year_value(v):
               s=norm(v)
-              return s in {'2025','population 2025','pop 2025','2025 population'}
+              if s in {'2025','2025 population','population 2025','pop 2025'}: return True
+              try: return float(clean(v)) == 2025
+              except Exception: return False
+          def is_city_header(v):
+              s=norm(v)
+              return s in {'city','cities','city name','cities name','city or urban centre','city or urban center','urban centre','urban center','urban centre name','urban center name'} or s.endswith(' city') or s.endswith(' cities')
+          def is_country_header(v):
+              s=norm(v)
+              return s in {'country','country area','country or area','country area name','country or area name','area','country area code','country code','country or area code'} or 'country or area' in s
           found=[]
           for ws in wb.worksheets:
               rows=[[clean(v) for v in row] for row in ws.iter_rows(values_only=True)]
-              for i,row in enumerate(rows):
-                  low=[norm(v) for v in row]
-                  city_cols=[j for j,v in enumerate(low) if v in {'city','cities','city name','city or urban centre','urban centre','urban center'} or v.endswith(' city')]
-                  country_cols=[j for j,v in enumerate(low) if v in {'country or area','country','area','country/area'} or 'country or area' in v]
-                  if not city_cols or not country_cols: continue
-                  city_i=city_cols[0]; country_i=country_cols[0]
-                  year_i=None; header_end=i
-                  for k in range(i,min(i+12,len(rows))):
-                      for j,v in enumerate(rows[k]):
-                          if is_year(v): year_i=j; header_end=max(header_end,k)
-                  if year_i is None:
-                      # F21 uses a wide time-series layout; locate a numeric year label anywhere in the next header block.
-                      for k in range(i,min(i+12,len(rows))):
-                          for j,v in enumerate(rows[k]):
-                              if clean(v) in {'2025.0','2025'}: year_i=j; header_end=max(header_end,k)
-                  if year_i is None: continue
-                  records=[]
-                  for data_row in rows[header_end+1:]:
-                      if max(city_i,country_i,year_i) >= len(data_row): continue
-                      city=clean(data_row[city_i]); country=clean(data_row[country_i]); raw=data_row[year_i]
-                      if not city: continue
-                      try: pop=float(str(raw).replace(',','').replace(' ','').strip())
-                      except Exception: continue
-                      if not math.isfinite(pop) or pop < 50: continue
-                      records.append((country,city,pop))
-                  if records:
-                      found.append({'sheet':ws.title,'header_row':i+1,'header_end_row':header_end+1,'records':records})
+              # F21 has presentation/header material before the tabular records. Discover each field independently across the first 100 rows rather than requiring all labels on one row.
+              limit=min(100,len(rows))
+              city_hits=[]; country_hits=[]; year_hits=[]
+              for i in range(limit):
+                  for j,v in enumerate(rows[i]):
+                      if is_city_header(v): city_hits.append((i,j))
+                      if is_country_header(v): country_hits.append((i,j))
+                      if year_value(v): year_hits.append((i,j))
+              if not city_hits or not country_hits or not year_hits:
+                  continue
+              # Prefer city/country columns that are close together and a 2025 column to their right, as expected for F21's wide time-series layout.
+              pairs=[]
+              for ci,cj in city_hits:
+                  for ki,kj in country_hits:
+                      for yi,yj in year_hits:
+                          score=abs(ci-ki)*10+abs(cj-kj)+max(0, cj-yj)*2+max(0,ki-yi)*2
+                          pairs.append((score,ci,cj,ki,kj,yi,yj))
+              pairs.sort()
+              _,city_row,city_i,country_row,country_i,year_row,year_i=pairs[0]
+              header_end=max(city_row,country_row,year_row)
+              records=[]
+              for data_row in rows[header_end+1:]:
+                  if max(city_i,country_i,year_i) >= len(data_row): continue
+                  city=clean(data_row[city_i]); country=clean(data_row[country_i]); raw=data_row[year_i]
+                  if not city or not country: continue
+                  try: pop=float(str(raw).replace(',','').replace(' ','').strip())
+                  except Exception: continue
+                  if not math.isfinite(pop) or pop < 50: continue
+                  records.append((country,city,pop))
+              if records:
+                  found.append({'sheet':ws.title,'city_header_row':city_row+1,'country_header_row':country_row+1,'year_header_row':year_row+1,'header_end_row':header_end+1,'city_col':city_i+1,'country_col':country_i+1,'year_col':year_i+1,'records':records})
           if not found:
+              # Emit enough structure to diagnose a future source-layout change without requiring another blind parser edit.
+              diagnostics=[]
+              for ws in wb.worksheets:
+                  for idx,row in enumerate(ws.iter_rows(min_row=1,max_row=min(40,ws.max_row),values_only=True),1):
+                      vals=[clean(v) for v in row if clean(v)]
+                      if vals: diagnostics.append({'sheet':ws.title,'row':idx,'values':vals[:20]})
+              print(json.dumps({'workbook_sheets':wb.sheetnames,'diagnostic_rows':diagnostics[:80]},indent=2))
               raise SystemExit('Could not identify F21 city/country fields and 2025 population field; workbook schema changed or source is not F21')
           records=[r for block in found for r in block['records']]
           keys=[(norm(a),norm(b)) for a,b,_ in records]
@@ -111,7 +130,7 @@ jobs:
               diagnostics=sorted(n for n in names if 'ott' in n or 'tor' in n)
               raise SystemExit('Required Canadian cities Ottawa/Toronto were not found; nearby parsed names='+repr(diagnostics[:30]))
           if dup: raise SystemExit(f'duplicate country/city keys: {dup}')
-          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','source_page':'https://population.un.org/wup/downloads?tab=Cities','sheets':[{'sheet':x['sheet'],'header_row':x['header_row'],'header_end_row':x['header_end_row'],'record_count':len(x['records'])} for x in found],'city_count_ge_50k_mid_2025':len(records),'duplicate_country_city_keys':dup,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),'bytes':os.path.getsize(path)}
+          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','source_page':'https://population.un.org/wup/downloads?tab=Cities','sheets':[{'sheet':x['sheet'],'city_header_row':x['city_header_row'],'country_header_row':x['country_header_row'],'year_header_row':x['year_header_row'],'header_end_row':x['header_end_row'],'city_col':x['city_col'],'country_col':x['country_col'],'year_col':x['year_col'],'record_count':len(x['records'])} for x in found],'city_count_ge_50k_mid_2025':len(records),'duplicate_country_city_keys':dup,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),'bytes':os.path.getsize(path)}
           json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2)
           print(json.dumps(report,indent=2))
           PY
