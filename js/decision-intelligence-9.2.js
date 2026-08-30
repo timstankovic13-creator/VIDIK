@@ -1,6 +1,6 @@
 'use strict';
 
-const DI92_VERSION = '9.2.0-alpha.2';
+const DI92_VERSION = '9.2.0-alpha.3';
 function finite(x){ return Number.isFinite(Number(x)); }
 function clamp01(x){ const n=Number(x); return finite(n) ? Math.max(0,Math.min(1,n)) : null; }
 function stableJSON(x){
@@ -15,23 +15,10 @@ function propagateEvidenceChange({before,after,recommendationFn}){const beforeHa
 function resolveEvidenceConflict(evidence){const groups={};for(const e of evidence){const key=e.claimKey||e.id;(groups[key] ||= []).push(e);}return Object.entries(groups).map(([claimKey,items])=>{const directions=new Set(items.map(x=>String(x.direction||'unknown')));const conflict=directions.size>1;const total=items.reduce((s,x)=>s+(clamp01(x.quality)??0),0);return {claimKey,conflict,sources:items.map(x=>x.id),resolution:conflict?'CONFLICT_REQUIRES_REVIEW':'CONSISTENT',qualityWeight:total};});}
 function transportability({sourceGeography,targetGeography,similarity,threshold=.5}){const s=clamp01(similarity);return {sourceGeography,targetGeography,similarity:s,threshold,pass:s!==null&&s>=threshold,reason:s===null?'invalid-similarity':s>=threshold?'transportable':'insufficient-transportability'};}
 function correlatedUncertainty(parameters,correlations=[]){const vars=parameters.map(p=>({id:p.id,low:Number(p.low),high:Number(p.high),mean:Number(p.mean)}));if(vars.some(p=>![p.low,p.high,p.mean].every(finite)))throw new Error('invalid-uncertainty');const variance=vars.reduce((s,p)=>s+Math.pow((p.high-p.low)/3.92,2),0);let covariance=0;for(const c of correlations){const a=vars.find(x=>x.id===c.a),b=vars.find(x=>x.id===c.b);if(!a||!b||!finite(c.rho)||c.rho<-1||c.rho>1)throw new Error('invalid-correlation');covariance+=2*Number(c.rho)*((a.high-a.low)/3.92)*((b.high-b.low)/3.92);}const total=Math.max(0,variance+covariance);return {mean:vars.reduce((s,p)=>s+p.mean,0),variance:total,sd:Math.sqrt(total)};}
-function sensitivityFlip({baseline,parameters,scoreFn,steps=21}){
-  if(typeof scoreFn!=='function') throw new Error('invalid-score-function');
-  const flips=[]; const base=scoreFn({...baseline});
-  for(const p of parameters){
-    const low=Number(p.low),high=Number(p.high);
-    if(!finite(low)||!finite(high)||low>high) throw new Error('invalid-sensitivity-range:'+p.id);
-    const n=Math.max(3,Math.floor(Number(steps)||21));
-    const values=[low,high];
-    for(let i=1;i<n-1;i++) values.push(low+(high-low)*(i/(n-1)));
-    const seen=new Set();
-    for(const v of values){const key=String(v);if(seen.has(key))continue;seen.add(key);const result=scoreFn({...baseline,[p.id]:v});if(result&&result.recommendation!==base.recommendation){flips.push({parameterId:p.id,value:v,from:base.recommendation,to:result.recommendation});break;}}
-  }
-  return {baseline:base,flips,recommendationStable:flips.length===0};
-}
+function sensitivityFlip({baseline,parameters,scoreFn,steps=21}){if(typeof scoreFn!=='function')throw new Error('invalid-score-function');const flips=[];const base=scoreFn({...baseline});for(const p of parameters){const low=Number(p.low),high=Number(p.high);if(!finite(low)||!finite(high)||low>high)throw new Error('invalid-sensitivity-range:'+p.id);const n=Math.max(3,Math.floor(Number(steps)||21));const values=[low,high];for(let i=1;i<n-1;i++)values.push(low+(high-low)*(i/(n-1)));const seen=new Set();for(const v of values){const key=String(v);if(seen.has(key))continue;seen.add(key);const result=scoreFn({...baseline,[p.id]:v});if(result&&result.recommendation!==base.recommendation){flips.push({parameterId:p.id,value:v,from:base.recommendation,to:result.recommendation});break;}}}return {baseline:base,flips,recommendationStable:flips.length===0};}
 function valueOfInformation({candidates=[],currentDecision,decisionValue=1,evidenceCost=0}){let best=0;const ranked=candidates.map(c=>{const alt=Math.max(0,Number(c.expectedBestValue)-Number(currentDecision));const voi=alt*Number(decisionValue)-Number(evidenceCost||c.cost||0);if(voi>best)best=voi;return {...c,voi};}).sort((a,b)=>b.voi-a.voi);return {expectedValueOfInformation:best,priority:ranked.filter(x=>x.voi>0),ranked};}
 function counterfactual({statusQuo,recommendation,metricFn}){const sq=metricFn(statusQuo),rec=metricFn(recommendation);return {statusQuo:sq,recommendation:rec,incremental:rec-sq,improves:rec>sq};}
-function recalibrate({predictions=[],observations=[],learningRate=.25}){if(predictions.length!==observations.length)throw new Error('length-mismatch');const errors=predictions.map((p,i)=>Number(observations[i])-Number(p));if(errors.some(e=>!finite(e)))throw new Error('invalid-outcome');const meanError=errors.length?errors.reduce((a,b)=>a+b,0)/errors.length:0;return {n:errors.length,meanError,calibrationAdjustment:Number(learningRate)*meanError,updatedAt:new Date().toISOString()};}
+function recalibrate({predictions=[],observations=[],learningRate=.25}){if(predictions.length!==observations.length)throw new Error('length-mismatch');const errors=predictions.map((p,i)=>Number(observations[i])-Number(p));if(errors.some(e=>!finite(e)))throw new Error('invalid-outcome');const rawMeanError=errors.length?errors.reduce((a,b)=>a+b,0)/errors.length:0;const meanError=Math.abs(rawMeanError)<1e-12?0:rawMeanError;const lr=Number(learningRate);if(!finite(lr))throw new Error('invalid-learning-rate');return {n:errors.length,meanError,calibrationAdjustment:lr*meanError,updatedAt:new Date().toISOString()};}
 function immutableDecisionSnapshot({decisionObject,datasets,evidence,parameters,outcomeState=null}){const snapshot={schema:'VIDIK-DIS-9.2',version:DI92_VERSION,decision:decisionObject,datasets,evidence,parameters,outcomeState};return Object.freeze({snapshot,hash:hashObject(snapshot),createdAt:new Date().toISOString()});}
 function replaySnapshot(snapshot,recommendationFn){const expectedHash=hashObject(snapshot.snapshot);if(expectedHash!==snapshot.hash)return {ok:false,reason:'SNAPSHOT_TAMPERED'};const first=recommendationFn(snapshot.snapshot),second=recommendationFn(snapshot.snapshot);const deterministic=hashObject(first)===hashObject(second);return {ok:deterministic,deterministic,result:first,snapshotHash:snapshot.hash};}
 const VIDIK_DECISION_INTELLIGENCE_92={version:DI92_VERSION,buildLineage,propagateEvidenceChange,resolveEvidenceConflict,transportability,correlatedUncertainty,sensitivityFlip,valueOfInformation,counterfactual,recalibrate,immutableDecisionSnapshot,replaySnapshot,hashObject};
