@@ -1,0 +1,22 @@
+name: VIDIK 9.3 Full Regression
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Full Playwright acceptance and hostile suites
+        run: |
+          set -euo pipefail
+          npx playwright test --reporter=line
