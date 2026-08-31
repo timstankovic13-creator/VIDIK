@@ -17,7 +17,14 @@ assert.strictEqual(p.status, 'validated');
 assert.strictEqual(p.normalizedSha256.length, 64);
 assert.throws(() => adapterFor('NotARealCity'), /unsupported-municipality/);
 assert.throws(() => validateExpansion([]), /expansion-record-count/);
-const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({ city: `Test-${i}`, country: 'Canada', population: 1000 + i }));
+const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({
+  city: `Test-${i}`,
+  country: 'Canada',
+  population: 1000 + i,
+  wup_city_code: `WUP-${i}`,
+  source_row_index: i + 1,
+}));
 assert.deepStrictEqual(validateExpansion(records), { enabled: true, records: EXPECTED_RECORDS });
 assert.throws(() => validateExpansion(records.map((r, i) => i === 0 ? { ...r, population: 50000 } : r)), /expansion-invalid-population/);
+assert.throws(() => validateExpansion(records.map((r, i) => i === 0 ? { ...r, wup_city_code: '' } : r)), /expansion-missing:wup_city_code/);
 console.log('municipal-adapter-and-wup-contracts: PASS');
