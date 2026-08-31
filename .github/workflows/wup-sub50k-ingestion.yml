@@ -10,108 +10,84 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: python3 -m pip install --disable-pip-version-check openpyxl
-      - name: Download authoritative GHS-WUP 2025 MTUC statistics
+      - name: Install geospatial dependencies
+        run: |
+          python3 -m pip install --disable-pip-version-check geopandas pyogrio
+      - name: Discover and download authoritative GHS-WUP-DEGURBA 2025 vector
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup/raw /tmp/wup/output
-          curl --fail --location --retry 4 --retry-delay 10 --retry-all-errors \
-            'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip' \
-            --output /tmp/wup/raw/source.zip
+          python3 - <<'PY'
+          import re, requests
+          from pathlib import Path
+          page='https://human-settlement.emergency.copernicus.eu/GHSWUPDownload.php?ds=WUPDEGURBA'
+          html=requests.get(page,timeout=60).text
+          urls=re.findall(r'https?://[^\"\'\s<>]+',html)
+          candidates=[u for u in urls if 'DEGURBA' in u.upper() and (u.lower().endswith('.zip') or 'download' in u.lower())]
+          if not candidates:
+              raise SystemExit('wup-degurba-download-link-not-discovered')
+          print('Discovered candidate links:', *candidates, sep='\n- ')
+          for u in candidates:
+              try:
+                  r=requests.get(u,timeout=120,stream=True)
+                  r.raise_for_status()
+                  p=Path('/tmp/wup/raw/source.zip')
+                  with p.open('wb') as f:
+                      for chunk in r.iter_content(1024*1024):
+                          if chunk: f.write(chunk)
+                  if p.stat().st_size > 100000:
+                      print('Selected source:',u)
+                      break
+              except Exception as e:
+                  print('candidate failed:',u,e)
+          else:
+              raise SystemExit('wup-degurba-download-failed')
+          PY
           test -s /tmp/wup/raw/source.zip
           sha256sum /tmp/wup/raw/source.zip | tee /tmp/wup/output/source.sha256
           unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
-          find /tmp/wup/raw/unpacked -maxdepth 3 -type f -print
-      - name: Extract 2025 urban-centre records below 50k
+          find /tmp/wup/raw/unpacked -maxdepth 4 -type f -print
+      - name: Discover 2025 settlement entities below 50k
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import csv, json, openpyxl, hashlib, re
+          import geopandas as gpd, json, hashlib, re
           root=Path('/tmp/wup/raw/unpacked')
-          candidates=[]
-
-          def norm(v):
-              return re.sub(r'[^a-z0-9]+','_',str(v or '').strip().lower()).strip('_')
-
-          def find_columns(headers):
-              h={norm(v):i for i,v in enumerate(headers)}
-              year_i=next((i for k,i in h.items() if k in ('year','epoch','selectyear') or k.endswith('_year')),None)
-              pop_i=next((i for k,i in h.items() if k in ('pop','population','pop_2025','population_2025') or k.startswith('pop_')),None)
-              city_i=next((i for k,i in h.items() if k in ('city','city_name','name','unlocname','unloc_name','uc_name','urban_centre','urban_center')),None)
-              country_i=next((i for k,i in h.items() if k in ('country','country_name','unloc_country','un_country','location','unlocname','unloc_name')),None)
-              return year_i,pop_i,city_i,country_i
-
-          def consume(rows, source):
-              global candidates
-              buffered=[]
-              for _ in range(30):
-                  try: buffered.append(next(rows))
-                  except StopIteration: break
-              header_pos=None; cols=None
-              for pos,row in enumerate(buffered):
-                  y,p,c,co=find_columns(row)
-                  if y is not None and p is not None:
-                      header_pos=pos; cols=(y,p,c,co); break
-              if header_pos is None:
-                  return False
-              y,p,c,co=cols
-              for row in buffered[header_pos+1:]:
-                  handle(row,y,p,c,co,source)
-              for row in rows: handle(row,y,p,c,co,source)
-              return True
-
-          def handle(row,y,p,c,co,source):
-              if len(row) <= max(y,p): return
-              try:
-                  year=int(float(row[y]))
-                  pop=float(row[p])
-              except Exception: return
-              if year != 2025 or not (0 < pop < 50000): return
-              city=str(row[c]).strip() if c is not None and c < len(row) else ''
-              country=str(row[co]).strip() if co is not None and co < len(row) else ''
-              # The MTUC statistics identify the urban centre with UNLocName; retain it
-              # as a deterministic fallback when a separate city field is absent.
-              if not city and co is not None and c is None and co < len(row): city=country
-              if city and country:
-                  candidates.append({'city':city,'country':country,'population':pop,'source':source})
-
-          found=False
-          for pth in sorted(root.rglob('*')):
-              if pth.suffix.lower() == '.xlsx':
-                  wb=openpyxl.load_workbook(pth, read_only=True, data_only=True)
-                  for ws in wb.worksheets:
-                      found = consume(iter(ws.iter_rows(values_only=True)), str(pth)) or found
-              elif pth.suffix.lower() in ('.csv','.txt'):
-                  with pth.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
-                      sample=f.read(8192); f.seek(0)
-                      try: dialect=csv.Sniffer().sniff(sample)
-                      except Exception: dialect=csv.excel
-                      found = consume(csv.reader(f,dialect), str(pth)) or found
-
-          if not found:
-              raise SystemExit('wup-statistics-schema-not-discovered')
-
-          out=[]; seen=set()
-          for r in candidates:
-              key=(r['country'].lower(),r['city'].lower())
-              if key in seen: continue
-              seen.add(key); out.append(r)
-          out.sort(key=lambda r:(r['country'].lower(),r['city'].lower()))
-          Path('/tmp/wup/output/candidates.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-          print('2025 sub-50k candidates:',len(out))
-          print('Expected VIDIK expansion universe:',4690)
-          if len(out) != 4690:
-              raise SystemExit(f'sub50k-source-count-mismatch:{len(out)}:expected:4690')
-          raw=Path('/tmp/wup/output/candidates.json').read_bytes()
-          Path('/tmp/wup/output/candidates.sha256').write_text(hashlib.sha256(raw).hexdigest()+'\n')
+          shp=next(iter(sorted(root.rglob('*.shp'))),None)
+          if shp is None:
+              raise SystemExit('wup-degurba-vector-not-found')
+          gdf=gpd.read_file(shp)
+          print('Columns:', list(gdf.columns))
+          print('Rows:', len(gdf))
+          cols={re.sub(r'[^a-z0-9]+','_',str(c).lower()).strip('_'):c for c in gdf.columns}
+          pop=next((cols[k] for k in cols if k in ('population','pop','pop_2025','population_2025')),None)
+          typ=next((cols[k] for k in cols if k in ('class','class_code','degurba','degurba_class','type')),None)
+          country=next((cols[k] for k in cols if k in ('country','country_name','cntr_code')),None)
+          name=next((cols[k] for k in cols if k in ('name','uc_name','city','city_name','unlocname','unloc_name')),None)
+          if pop is None:
+              raise SystemExit('wup-degurba-population-column-not-found')
+          sub=gdf[gdf[pop].notna() & (gdf[pop].astype(float)>0) & (gdf[pop].astype(float)<50000)].copy()
+          print('2025 sub-50k settlement candidates:',len(sub))
+          print('Target previously assumed by VIDIK:',4690)
+          if typ is not None:
+              print('Entity-type distribution:')
+              print(sub[typ].value_counts(dropna=False).to_string())
+          out=[]
+          for _,r in sub.iterrows():
+              out.append({'name':str(r[name]) if name is not None else '', 'country':str(r[country]) if country is not None else '', 'population':float(r[pop]), 'entity_type':str(r[typ]) if typ is not None else ''})
+          out.sort(key=lambda x:(x['country'].lower(),x['name'].lower(),x['population']))
+          raw=json.dumps(out,ensure_ascii=False,indent=2)+'\n'
+          Path('/tmp/wup/output/candidates.json').write_text(raw,encoding='utf-8')
+          Path('/tmp/wup/output/candidates.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'\n')
+          # This discovery job intentionally does not assert 4,690. The previous
+          # assertion was invalid because MTUC is a >=50k urban-centre product.
           PY
-      - name: Upload validated expansion source
+      - name: Upload validated source discovery artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vidik-wup-sub50k-validated-source
+          name: vidik-wup-sub50k-source-discovery
           path: /tmp/wup/output/
           retention-days: 30
