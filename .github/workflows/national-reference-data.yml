@@ -18,7 +18,16 @@ jobs:
           download() {
             local id="$1"
             local out="/tmp/statcan/raw/${id}-eng.zip"
-            curl --fail --location --http1.1 --retry 8 --retry-delay 5 --retry-connrefused --retry-max-time 900 --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o "$out" "https://www150.statcan.gc.ca/n1/tbl/csv/${id}-eng.zip"
+            for attempt in 1 2 3; do
+              if curl --fail --location --http1.1 --retry 4 --retry-delay 5 --retry-connrefused --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o "$out" "https://www150.statcan.gc.ca/n1/tbl/csv/${id}-eng.zip"; then
+                test -s "$out"
+                return 0
+              fi
+              echo "Statistics Canada download attempt ${attempt}/3 failed for ${id}; retrying..."
+              sleep 10
+            done
+            echo "ERROR: authoritative Statistics Canada table ${id} could not be downloaded after retries." >&2
+            exit 1
           }
           download 98100002
           download 17100155
