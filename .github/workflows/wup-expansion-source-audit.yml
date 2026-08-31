@@ -16,77 +16,59 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet requests pyogrio pandas openpyxl
+          python3 -m pip install --quiet requests pyogrio pandas
           python3 - <<'PY'
           import io, re, zipfile
           from pathlib import Path
-          from urllib.parse import urljoin
           import requests
           import pandas as pd
           import pyogrio
 
-          root='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
-          session=requests.Session()
-
-          def links(url):
-              r=session.get(url,timeout=60); r.raise_for_status()
-              return re.findall(r'href=["\']([^"\']+)["\']',r.text,re.I)
-
-          def children(url):
-              return [urljoin(url,h) for h in links(url)]
-
-          def discover_archive(typ):
-              # The JRC product is a directory tree. The root currently exposes
-              # V1-0/, and the entity archives are below that directory. Walk
-              # directories, but never concatenate server-root absolute hrefs.
-              queue=[root]; seen=set()
-              while queue:
-                  url=queue.pop(0)
-                  if url in seen: continue
-                  seen.add(url)
-                  hs=links(url)
-                  for h in hs:
-                      full=urljoin(url,h)
-                      if full.lower().endswith('.zip') and re.search(rf'(^|[_-]){typ}([_.-]|$)',full,re.I):
-                          print(f'{typ}: discovered archive {full}')
-                          return full
-                  for h in hs:
-                      full=urljoin(url,h)
-                      if full.startswith(root) and full.endswith('/') and full not in seen:
-                          queue.append(full)
-              raise SystemExit(f'wup-source-archive-not-found:{typ}')
-
-          wanted=[(typ,discover_archive(typ)) for typ in ('UC','DUC','SDUC','RC')]
-          print('Authoritative WUP-DEGURBA root:',root)
-          print('Discovered archives:',wanted)
+          # Verified from the JRC directory index: the E2025 product contains
+          # one V1-0 directory with this archive. Do not infer archive names.
+          url=(
+              'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
+              'GHS_WUP_DEGURBA_GLOBE_R2025A/'
+              'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
+              'V1-0/'
+              'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip'
+          )
+          print('Downloading verified WUP-DEGURBA archive:', url)
+          r=requests.get(url,timeout=300)
+          r.raise_for_status()
+          z=zipfile.ZipFile(io.BytesIO(r.content))
+          names=z.namelist()
+          print('Archive member count:',len(names))
+          shp_names=[n for n in names if n.lower().endswith('.shp')]
+          print('Shapefile members:')
+          for n in shp_names: print(' -',n)
+          if not shp_names:
+              raise SystemExit('wup-no-shapefiles-in-verified-archive')
 
           out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True)
-          summary=[]
-          for typ,url in wanted:
-              r=session.get(url,timeout=180); r.raise_for_status()
-              z=zipfile.ZipFile(io.BytesIO(r.content))
-              names=z.namelist()
-              print(f'{typ}: archive members={names[:30]}')
-              z.extractall(out/typ)
-              shps=list((out/typ).rglob('*.shp'))
-              if not shps: raise SystemExit(f'wup-shapefile-missing:{typ}:members={names[:30]}')
-              shp=shps[0]
+          z.extractall(out)
+          shps=list(out.rglob('*.shp'))
+          print('Extracted shapefiles:',[str(p.relative_to(out)) for p in shps])
+
+          results=[]
+          for shp in shps:
+              label=shp.stem.upper()
               df=pyogrio.read_dataframe(shp)
               cols={str(c).upper():c for c in df.columns}
-              pop=next((cols[k] for k in ('POP2025','POP','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
+              pop=next((cols[k] for k in ('POP','POP2025','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
               name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN','NAME_ENGLISH') if k in cols),None)
+              country=next((cols[k] for k in ('COUNTRY','CNTR_NAME','COUNTRY_NAME','CNTR') if k in cols),None)
               unlocid=next((cols[k] for k in ('UNLOCID','UNLOC_ID','UN_LOC_ID') if k in cols),None)
-              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID','ID','ID_UC_G0','ID_MTUC') if k in cols),None)
-              print(f'{typ}: columns={list(df.columns)}')
-              if not pop or not name: raise SystemExit(f'wup-schema-missing:{typ}:columns={list(df.columns)}')
-              vals=pd.to_numeric(df[pop],errors='coerce')
-              positive=(vals>0)
-              sub=(vals>0)&(vals<50000)
-              summary.append((typ,len(df),int(positive.sum()),int(sub.sum())))
-              print(f'{typ}: rows={len(df)} positive={int(positive.sum())} sub50k={int(sub.sum())} pop_field={pop} name_field={name} unlocid_field={unlocid} unique_id_field={unique}')
+              vals=pd.to_numeric(df[pop],errors='coerce') if pop else pd.Series(dtype=float)
+              sub=(vals>0)&(vals<50000) if pop else pd.Series(False,index=df.index)
+              results.append((label,len(df),int((vals>0).sum()) if pop else 0,int(sub.sum()),pop,name,country,unlocid,list(df.columns)))
+              print(f'{label}: rows={len(df)} positive={int((vals>0).sum()) if pop else 0} sub50k={int(sub.sum())} pop={pop} name={name} country={country} unlocid={unlocid}')
+              print(' columns=',list(df.columns))
               if int(sub.sum()):
-                  fields=[c for c in (name,unlocid,pop,unique) if c]
+                  fields=[c for c in (name,country,unlocid,pop) if c]
                   print(df.loc[sub,fields].head(10).to_string(index=False))
-          print('WUP expansion source audit complete.')
-          print('Summary:',summary)
+
+          print('WUP-DEGURBA layer audit complete.')
+          print('SUMMARY')
+          for row in results: print(row[:8])
           PY
