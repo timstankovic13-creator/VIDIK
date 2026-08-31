@@ -20,10 +20,19 @@ jobs:
           from urllib.parse import urljoin, urlsplit, urlunsplit, quote
           from urllib.request import Request, urlopen
           from pathlib import Path
-          import hashlib, json, os
+          import hashlib, json, os, time
           page='https://population.un.org/wup/downloads?tab=Cities'
-          req=Request(page, headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
-          html=urlopen(req, timeout=60).read()
+          def fetch(url, timeout=120, attempts=4):
+              last=None
+              for attempt in range(1, attempts+1):
+                  try:
+                      req=Request(url, headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
+                      with urlopen(req, timeout=timeout) as r: return r.read()
+                  except Exception as exc:
+                      last=exc
+                      if attempt < attempts: time.sleep(10 * attempt)
+              raise RuntimeError(f'WUP download failed after {attempts} attempts: {url}: {last}')
+          html=fetch(page, timeout=60)
           Path('/tmp/wup/output/download-page.html').write_bytes(html)
           class P(HTMLParser):
               def __init__(self): super().__init__(); self.links=[]
@@ -38,29 +47,22 @@ jobs:
               if 'population.un.org' not in u or not ('WUP2025' in u or 'wup2025' in u): continue
               if not any(x in u.lower() for x in ('.csv','.zip','.xlsx','.xls')): continue
               s=urlsplit(u)
-              # Encode spaces and other unsafe path characters while preserving the URL structure.
               safe_path=quote(s.path, safe='/,:;@%+$&=')
-              u=urlunsplit((s.scheme,s.netloc,safe_path,s.query,s.fragment))
-              links.append(u)
+              links.append(urlunsplit((s.scheme,s.netloc,safe_path,s.query,s.fragment)))
           links=sorted(set(links))
           if not links: raise SystemExit('no-official-wup-2025-download-links-found')
           Path('/tmp/wup/output/catalog.json').write_text(json.dumps({'source_page':page,'links':links},indent=2)+'\n',encoding='utf-8')
           print('official WUP links discovered:',len(links))
           for u in links: print(u)
-          PY
-          python3 - <<'PY'
-          import json,urllib.request,hashlib,os
-          from pathlib import Path
-          cat=json.load(open('/tmp/wup/output/catalog.json'))
           out=Path('/tmp/wup/raw')
-          for i,u in enumerate(cat['links']):
+          for i,u in enumerate(links):
               name=os.path.basename(u.split('?',1)[0]) or f'wup-{i}'
-              p=out/name
-              req=urllib.request.Request(u,headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
-              with urllib.request.urlopen(req,timeout=120) as r: p.write_bytes(r.read())
-              h=hashlib.sha256(p.read_bytes()).hexdigest()
-              if p.stat().st_size == 0: raise SystemExit(f'empty-download:{name}')
-              print(f'{name} sha256={h} bytes={p.stat().st_size}')
+              data=fetch(u, timeout=300)
+              pth=out/name
+              pth.write_bytes(data)
+              if pth.stat().st_size == 0: raise SystemExit(f'empty-download:{name}')
+              h=hashlib.sha256(data).hexdigest()
+              print(f'{name} sha256={h} bytes={pth.stat().st_size}')
           PY
       - name: Build immutable WUP source manifest
         shell: bash
