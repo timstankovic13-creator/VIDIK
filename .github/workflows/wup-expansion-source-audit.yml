@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet requests pyogrio pandas geopandas
+          python3 -m pip install --quiet requests pandas geopandas
           python3 - <<'PY'
           import io, zipfile
           from pathlib import Path
@@ -36,20 +36,39 @@ jobs:
           if not shp_names: raise SystemExit('wup-no-shapefiles-in-verified-archive')
           out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True); z.extractall(out)
           shps=list(out.rglob('*.shp')); print('Extracted shapefiles:',[str(p.relative_to(out)) for p in shps])
-          results=[]
           for shp in shps:
               label=shp.stem.upper(); df=gpd.read_file(shp)
               cols={str(c).upper():c for c in df.columns}
               pop=next((cols[k] for k in ('POP','POP2025','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
-              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN','NAME_ENGLISH') if k in cols),None)
-              country=next((cols[k] for k in ('COUNTRY','CNTR_NAME','COUNTRY_NAME','CNTR') if k in cols),None)
-              unlocid=next((cols[k] for k in ('UNLOCID','UNLOC_ID','UN_LOC_ID') if k in cols),None)
               if not pop: raise SystemExit(f'wup-population-field-not-found:{label}:columns={list(df.columns)}')
               vals=pd.to_numeric(df[pop],errors='coerce'); sub=(vals>0)&(vals<50000)
-              results.append((label,len(df),int((vals>0).sum()),int(sub.sum()),pop,name,country,unlocid))
-              print(f'{label}: rows={len(df)} positive={int((vals>0).sum())} sub50k={int(sub.sum())} pop={pop} name={name} country={country} unlocid={unlocid}')
-              print(' columns=',list(df.columns))
-              if int(sub.sum()):
-                  fields=[c for c in (name,country,unlocid,pop) if c]; print(df.loc[sub,fields].head(10).to_string(index=False))
-          print('WUP-DEGURBA layer audit complete.'); print('SUMMARY'); [print(x) for x in results]
+              print(f'\n=== {label} ===')
+              print('rows=',len(df),'positive=',int((vals>0).sum()),'sub50k=',int(sub.sum()),'pop_field=',pop)
+              print('columns=',list(df.columns))
+              # Identify likely classification/category fields and show their sub-50k counts.
+              for c in df.columns:
+                  u=str(c).upper()
+                  if u in {'POP','POP2025','POP_2025','E2025_POP','POP_E2025','GEOMETRY'}: continue
+                  s=df.loc[sub,c].dropna().astype(str)
+                  if s.empty: continue
+                  nun=s.nunique()
+                  if nun<=100:
+                      vc=s.value_counts().head(30)
+                      print(f'CATEGORY {c} unique={nun} sub50k_count={len(s)}')
+                      for k,v in vc.items():
+                          marker='  <-- 4690' if int(v)==4690 else ''
+                          print(f'  {k!r}: {int(v)}{marker}')
+              # Numeric threshold diagnostics that could explain the historical contract.
+              for c in df.columns:
+                  u=str(c).upper()
+                  if u==str(pop).upper(): continue
+                  num=pd.to_numeric(df[c],errors='coerce')
+                  if num.notna().sum()>0 and num.nunique(dropna=True)<=100:
+                      counts=[]
+                      for value in sorted(num.dropna().unique()):
+                          n=int(((num==value)&sub).sum())
+                          if n: counts.append((value,n))
+                      if counts:
+                          print(f'NUMERIC-CATEGORY {c}: {counts[:50]}')
+          print('\nWUP classification audit complete. No 4690 assertion has been added.')
           PY
