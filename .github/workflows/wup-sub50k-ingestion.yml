@@ -11,8 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install geospatial dependencies
-        run: |
-          python3 -m pip install --disable-pip-version-check geopandas pyogrio
+        run: python3 -m pip install --disable-pip-version-check geopandas pyogrio
       - name: Discover and download authoritative GHS-WUP-DEGURBA 2025 vector
         shell: bash
         run: |
@@ -21,33 +20,57 @@ jobs:
           python3 - <<'PY'
           import re, requests
           from pathlib import Path
-          page='https://human-settlement.emergency.copernicus.eu/GHSWUPDownload.php?ds=WUPDEGURBA'
+          page='https://human-settlement.emergency.copernicus.eu/ghs_wup_degurba_r2025a.php'
           html=requests.get(page,timeout=60).text
-          urls=re.findall(r'https?://[^\"\'\s<>]+',html)
-          candidates=[u for u in urls if 'DEGURBA' in u.upper() and (u.lower().endswith('.zip') or 'download' in u.lower())]
-          if not candidates:
-              raise SystemExit('wup-degurba-download-link-not-discovered')
+          # The official product page is the source of truth. Search both absolute
+          # and relative links because the site has changed its download endpoint.
+          raw_links=re.findall(r'''(?:href|src)=["']([^"']+)["']''',html,re.I)
+          candidates=[]
+          for raw in raw_links:
+              u=raw.replace('&amp;','&')
+              if not re.search(r'(DEGURBA|WUP)',u,re.I): continue
+              if not re.search(r'(zip|shp|gpkg|download)',u,re.I): continue
+              if u.startswith('/'):
+                  u='https://human-settlement.emergency.copernicus.eu'+u
+              elif not u.startswith('http'):
+                  u='https://human-settlement.emergency.copernicus.eu/'+u.lstrip('./')
+              candidates.append(u)
+          # Also include the current JRC FTP directory as a fallback source of
+          # published DEGURBA files.
+          ftp='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/'
+          idx=requests.get(ftp,timeout=60).text
+          for href in re.findall(r'href=["']([^"']+)["']',idx,re.I):
+              if href.startswith('GHS_WUP_DEGURBA_E2025'):
+                  candidates.append(ftp+href)
+          candidates=list(dict.fromkeys(candidates))
           print('Discovered candidate links:', *candidates, sep='\n- ')
           for u in candidates:
               try:
-                  r=requests.get(u,timeout=120,stream=True)
+                  r=requests.get(u,timeout=180,stream=True)
                   r.raise_for_status()
-                  p=Path('/tmp/wup/raw/source.zip')
+                  p=Path('/tmp/wup/raw/source.bin')
                   with p.open('wb') as f:
                       for chunk in r.iter_content(1024*1024):
                           if chunk: f.write(chunk)
-                  if p.stat().st_size > 100000:
+                  ctype=r.headers.get('content-type','')
+                  if p.stat().st_size > 100000 and ('text/html' not in ctype.lower()):
                       print('Selected source:',u)
                       break
               except Exception as e:
                   print('candidate failed:',u,e)
           else:
-              raise SystemExit('wup-degurba-download-failed')
+              raise SystemExit('wup-degurba-vector-download-not-discovered')
           PY
-          test -s /tmp/wup/raw/source.zip
-          sha256sum /tmp/wup/raw/source.zip | tee /tmp/wup/output/source.sha256
-          unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
-          find /tmp/wup/raw/unpacked -maxdepth 4 -type f -print
+          test -s /tmp/wup/raw/source.bin
+          sha256sum /tmp/wup/raw/source.bin | tee /tmp/wup/output/source.sha256
+          file /tmp/wup/raw/source.bin
+          mkdir -p /tmp/wup/raw/unpacked
+          if file /tmp/wup/raw/source.bin | grep -qi 'Zip archive'; then
+            unzip -q /tmp/wup/raw/source.bin -d /tmp/wup/raw/unpacked
+          else
+            cp /tmp/wup/raw/source.bin /tmp/wup/raw/unpacked/source.bin
+          fi
+          find /tmp/wup/raw/unpacked -maxdepth 5 -type f -print
       - name: Discover 2025 settlement entities below 50k
         shell: bash
         run: |
@@ -57,33 +80,24 @@ jobs:
           import geopandas as gpd, json, hashlib, re
           root=Path('/tmp/wup/raw/unpacked')
           shp=next(iter(sorted(root.rglob('*.shp'))),None)
-          if shp is None:
-              raise SystemExit('wup-degurba-vector-not-found')
+          if shp is None: raise SystemExit('wup-degurba-vector-not-found')
           gdf=gpd.read_file(shp)
-          print('Columns:', list(gdf.columns))
-          print('Rows:', len(gdf))
+          print('Columns:',list(gdf.columns)); print('Rows:',len(gdf))
           cols={re.sub(r'[^a-z0-9]+','_',str(c).lower()).strip('_'):c for c in gdf.columns}
           pop=next((cols[k] for k in cols if k in ('population','pop','pop_2025','population_2025')),None)
           typ=next((cols[k] for k in cols if k in ('class','class_code','degurba','degurba_class','type')),None)
           country=next((cols[k] for k in cols if k in ('country','country_name','cntr_code')),None)
           name=next((cols[k] for k in cols if k in ('name','uc_name','city','city_name','unlocname','unloc_name')),None)
-          if pop is None:
-              raise SystemExit('wup-degurba-population-column-not-found')
+          if pop is None: raise SystemExit('wup-degurba-population-column-not-found')
           sub=gdf[gdf[pop].notna() & (gdf[pop].astype(float)>0) & (gdf[pop].astype(float)<50000)].copy()
-          print('2025 sub-50k settlement candidates:',len(sub))
-          print('Target previously assumed by VIDIK:',4690)
-          if typ is not None:
-              print('Entity-type distribution:')
-              print(sub[typ].value_counts(dropna=False).to_string())
-          out=[]
-          for _,r in sub.iterrows():
-              out.append({'name':str(r[name]) if name is not None else '', 'country':str(r[country]) if country is not None else '', 'population':float(r[pop]), 'entity_type':str(r[typ]) if typ is not None else ''})
+          print('2025 sub-50k settlement candidates:',len(sub)); print('Target previously assumed by VIDIK:',4690)
+          if typ is not None: print(sub[typ].value_counts(dropna=False).to_string())
+          out=[{'name':str(r[name]) if name is not None else '','country':str(r[country]) if country is not None else '','population':float(r[pop]),'entity_type':str(r[typ]) if typ is not None else ''} for _,r in sub.iterrows()]
           out.sort(key=lambda x:(x['country'].lower(),x['name'].lower(),x['population']))
           raw=json.dumps(out,ensure_ascii=False,indent=2)+'\n'
           Path('/tmp/wup/output/candidates.json').write_text(raw,encoding='utf-8')
           Path('/tmp/wup/output/candidates.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'\n')
-          # This discovery job intentionally does not assert 4,690. The previous
-          # assertion was invalid because MTUC is a >=50k urban-centre product.
+          if not out: raise SystemExit('wup-degurba-no-sub50k-settlements')
           PY
       - name: Upload validated source discovery artifact
         uses: actions/upload-artifact@v4
