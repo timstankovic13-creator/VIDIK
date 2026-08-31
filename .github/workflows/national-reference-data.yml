@@ -71,22 +71,29 @@ jobs:
                   r=csv.reader(f, strict=False)
                   h=next(r, None)
                   assert h and any(x.strip() for x in h), f'empty-or-invalid-header:{p}'
-                  expected=len(h); n=1; blank=0; nonempty=0
+                  expected=len(h); n=1; blank=0; normalized=0; nonempty=0
                   for row in r:
                       n += 1
                       if len(row) == 0:
                           blank += 1
                           continue
                       nonempty += 1
+                      # StatCan source CSVs can contain a trailing delimiter on an
+                      # otherwise valid logical record. Normalize only empty
+                      # trailing fields; never discard non-empty data.
+                      original_len=len(row)
+                      while len(row) > expected and row[-1] == '':
+                          row.pop()
+                          normalized += 1
                       if not is_metadata and len(row) != expected:
-                          raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={len(row)}')
+                          raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={original_len}:nonempty-extra-data')
                       if is_metadata and not any(str(x).strip() for x in row):
                           raise AssertionError(f'empty-metadata-record:{p}:record={n}')
-              if n <= 1 or nonempty == 0:
-                  raise AssertionError(f'empty-data-file:{p}')
+                  if n <= 1 or nonempty == 0:
+                      raise AssertionError(f'empty-data-file:{p}')
               mode='metadata' if is_metadata else 'data'
-              print(f'validated:{p}:type={mode}:records={n-1}:blank-records-skipped={blank}:header-columns={expected}')
-          print(f'StatCan structural validation PASS: {len(files)} CSV files; data schemas strict; metadata records parsed with metadata-specific validation')
+              print(f'validated:{p}:type={mode}:records={n-1}:blank-records-skipped={blank}:trailing-empty-fields-normalized={normalized}:header-columns={expected}')
+          print(f'StatCan structural validation PASS: {len(files)} CSV files; logical records validated; only empty trailing fields normalized')
           PY
       - name: Publish raw-source inventory artifact
         uses: actions/upload-artifact@v4
