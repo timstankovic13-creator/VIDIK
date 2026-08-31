@@ -8,86 +8,122 @@ permissions:
 jobs:
   source-validation:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Install geospatial dependencies
-        run: python3 -m pip install --disable-pip-version-check geopandas pyogrio
-      - name: Download authoritative GHS-WUP-DEGURBA 2025 vector from JRC
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/wup/raw /tmp/wup/output
-          python3 - <<'PY'
-          import hashlib, time, urllib.request, zipfile
-          from pathlib import Path
 
-          url=('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
-               'GHS_WUP_DEGURBA_GLOBE_R2025A/'
-               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/V1-0/'
-               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip')
-          out=Path('/tmp/wup/raw/source.zip')
-          last=None
-          for attempt in range(1,6):
-              try:
-                  print(f'Downloading authoritative JRC source (attempt {attempt}/5)')
-                  req=urllib.request.Request(url,headers={'User-Agent':'VIDIK-WUP-ingestion/1.0'})
-                  with urllib.request.urlopen(req,timeout=300) as r, out.open('wb') as f:
-                      while True:
-                          chunk=r.read(1024*1024)
-                          if not chunk: break
-                          f.write(chunk)
-                  if not zipfile.is_zipfile(out):
-                      raise RuntimeError('downloaded artifact is not a valid ZIP')
-                  if out.stat().st_size < 100000:
-                      raise RuntimeError(f'downloaded artifact unexpectedly small: {out.stat().st_size}')
-                  break
-              except Exception as e:
-                  last=e
-                  print('download failed:',repr(e))
-                  if attempt < 5: time.sleep(2**attempt)
-          else:
-              raise SystemExit(f'jrc-wup-download-failed:{last}')
-          digest=hashlib.sha256(out.read_bytes()).hexdigest()
-          print('Selected source:',url)
-          print('Source SHA-256:',digest)
-          Path('/tmp/wup/output/source.url').write_text(url+'\n')
-          Path('/tmp/wup/output/source.sha256').write_text(digest+'\n')
-          PY
-          test -s /tmp/wup/raw/source.zip
-          mkdir -p /tmp/wup/raw/unpacked
-          unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
-          find /tmp/wup/raw/unpacked -maxdepth 8 -type f -print
-      - name: Discover 2025 settlement entities below 50k
+      - name: Install workbook parser
+        run: python3 -m pip install --disable-pip-version-check openpyxl
+
+      - name: Download authoritative WUP 2025 F21 city workbook
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wup/output
+          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 \
+            -A 'VIDIK/9.3 WUP sub50k reconciliation' \
+            -o /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx \
+            'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+          test -s /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx
+          sha256sum /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx | tee /tmp/wup/output/wup-f21.sha256
+
+      - name: Derive canonical WUP urban-centre sub-50k universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          from pathlib import Path
-          import geopandas as gpd, json, hashlib, re
-          root=Path('/tmp/wup/raw/unpacked')
-          shp=next(iter(sorted(root.rglob('*.shp'))),None)
-          if shp is None: raise SystemExit('wup-degurba-vector-not-found')
-          gdf=gpd.read_file(shp)
-          print('Columns:',list(gdf.columns)); print('Rows:',len(gdf))
-          cols={re.sub(r'[^a-z0-9]+','_',str(c).lower()).strip('_'):c for c in gdf.columns}
-          pop=next((cols[k] for k in cols if k in ('population','pop','pop_2025','population_2025')),None)
-          typ=next((cols[k] for k in cols if k in ('class','class_code','degurba','degurba_class','type')),None)
-          country=next((cols[k] for k in cols if k in ('country','country_name','cntr_code')),None)
-          name=next((cols[k] for k in cols if k in ('name','uc_name','city','city_name','unlocname','unloc_name')),None)
-          if pop is None: raise SystemExit('wup-degurba-population-column-not-found')
-          sub=gdf[gdf[pop].notna() & (gdf[pop].astype(float)>0) & (gdf[pop].astype(float)<50000)].copy()
-          print('2025 sub-50k settlement candidates:',len(sub)); print('Target previously assumed by VIDIK:',4690)
-          if typ is not None: print(sub[typ].value_counts(dropna=False).to_string())
-          out=[{'name':str(r[name]) if name is not None else '','country':str(r[country]) if country is not None else '','population':float(r[pop]),'entity_type':str(r[typ]) if typ is not None else ''} for _,r in sub.iterrows()]
-          out.sort(key=lambda x:(x['country'].lower(),x['name'].lower(),x['population']))
-          raw=json.dumps(out,ensure_ascii=False,indent=2)+'\n'
-          Path('/tmp/wup/output/candidates.json').write_text(raw,encoding='utf-8')
-          Path('/tmp/wup/output/candidates.sha256').write_text(hashlib.sha256(raw.encode()).hexdigest()+'\n')
-          if not out: raise SystemExit('wup-degurba-no-sub50k-settlements')
+          import hashlib,json,math,os,re
+          from openpyxl import load_workbook
+
+          p='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+          wb=load_workbook(p,read_only=True,data_only=True)
+          if 'Data' not in wb.sheetnames:
+              raise SystemExit(f'Expected Data sheet, got {wb.sheetnames}')
+          ws=wb['Data']
+
+          def clean(v):
+              return '' if v is None else str(v).strip()
+          def norm(v):
+              return re.sub(r'[^a-z0-9]+','_',clean(v).lower()).strip('_')
+
+          header=None
+          for ri,row in enumerate(ws.iter_rows(values_only=True)):
+              if ri >= 500: break
+              loc=city=pop=None
+              for ci,v in enumerate(row):
+                  k=norm(v)
+                  if k in ('location','location_name'): loc=ci
+                  elif k in ('city_name','city','cities'): city=ci
+                  elif k=='2025' or k.startswith('2025_'): pop=ci
+              if loc is not None and city is not None and pop is not None:
+                  header=(ri,loc,city,pop); break
+              if ri >= 499: break
+          if header is None:
+              raise SystemExit('Could not identify WUP F21 Data fields Location, City_Name, 2025')
+
+          hi,loc_i,city_i,pop_i=header
+          records=[]
+          skipped=0
+          for row_number,row in enumerate(ws.iter_rows(values_only=True),start=1):
+              if row_number <= hi+1: continue
+              if max(loc_i,city_i,pop_i) >= len(row):
+                  skipped += 1
+                  continue
+              country,city,raw=clean(row[loc_i]),clean(row[city_i]),row[pop_i]
+              if not country or not city:
+                  skipped += 1
+                  continue
+              try:
+                  value=float(str(raw).replace(',','').strip())
+              except (TypeError,ValueError):
+                  skipped += 1
+                  continue
+              # WUP F21 population is in thousands: 50 means 50,000.
+              if math.isfinite(value) and value > 0 and value < 50:
+                  records.append({'country':country,'name':city,'population_thousands':value})
+
+          if not records:
+              raise SystemExit('wup-f21-produced-no-sub50k-records')
+
+          # Deterministically collapse only exact repeats; preserve legitimate
+          # same-name records where the population differs.
+          seen=set(); out=[]; duplicate_exact=0
+          for r in records:
+              key=(norm(r['country']),norm(r['name']),r['population_thousands'])
+              if key in seen:
+                  duplicate_exact += 1
+                  continue
+              seen.add(key); out.append(r)
+          out.sort(key=lambda r:(norm(r['country']),norm(r['name']),r['population_thousands']))
+
+          expected=4690
+          print('2025 WUP sub-50k canonical urban-centre records:',len(out))
+          print('Expected VIDIK expansion universe:',expected)
+          if len(out) != expected:
+              raise SystemExit(f'sub50k-wup-f21-count-mismatch:{len(out)}:expected:{expected}')
+
+          report={
+            'dataset':'WUP2025-F21-DEGURBA-Cities_Pop',
+            'sheet':'Data',
+            'population_field':'2025',
+            'population_units':'thousands',
+            'coverage_rule':'WUP urban centres with population < 50,000',
+            'record_count':len(out),
+            'expected_records':expected,
+            'duplicate_exact_rows_collapsed':duplicate_exact,
+            'skipped_rows':skipped,
+            'source_sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),
+            'source_bytes':os.path.getsize(p),
+            'status':'validated-canonical-sub50k-universe'
+          }
+          json.dump(report,open('/tmp/wup/output/sub50k-reconciliation-report.json','w'),indent=2)
+          json.dump(out,open('/tmp/wup/output/sub50k-canonical.json','w'),ensure_ascii=False,indent=2)
+          print(json.dumps(report,indent=2))
           PY
-      - name: Upload validated source discovery artifact
+
+      - name: Upload validated sub-50k universe
         uses: actions/upload-artifact@v4
         with:
-          name: vidik-wup-sub50k-source-discovery
+          name: vidik-wup-sub50k-canonical-universe
           path: /tmp/wup/output/
           retention-days: 30
