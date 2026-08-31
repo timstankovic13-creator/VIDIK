@@ -1,0 +1,64 @@
+name: 4,690 Population Enrichment and Reconciliation
+on:
+  push:
+    branches:
+      - feat/live-municipal-adapters-wup-expansion
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install enrichment dependencies
+        run: python3 -m pip install --quiet requests openpyxl
+      - name: Build and validate enriched 4,690 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/wup-4690-enrichment.py --out /tmp/wup-4690-enriched.json --report /tmp/wup-4690-enrichment-report.json
+      - name: Validate canonical identity and population contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, math
+          p='/tmp/wup-4690-enriched.json'
+          rows=json.load(open(p,encoding='utf-8'))
+          assert len(rows)==4690, len(rows)
+          ids=set()
+          for r in rows:
+              key=(r['country'].casefold(),r['city'].casefold(),str(r['wup_city_code']),str(r['source_row_index']))
+              assert key not in ids, key
+              ids.add(key)
+              pop=float(r['population'])
+              assert math.isfinite(pop) and 0 < pop < 50000, key
+              assert r.get('population_source') == 'JRC GHS-WUP-MTUC R2025A', key
+              assert r.get('jrc_id'), key
+              assert r.get('jrc_lat') is not None and r.get('jrc_lon') is not None, key
+              assert r.get('coordinate_max_abs_delta', 999) <= 1.0, key
+          print('CANONICAL_ENRICHED_4690=PASS')
+          PY
+      - name: Compute canonical manifest hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum /tmp/wup-4690-enriched.json | tee /tmp/wup-4690-enriched.sha256
+          cp /tmp/wup-4690-enrichment-report.json /tmp/wup-4690-enrichment-report.json
+      - name: Upload candidate manifest, hash, and reconciliation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: wup-4690-enriched-canonical-candidate
+          path: |
+            /tmp/wup-4690-enriched.json
+            /tmp/wup-4690-enriched.sha256
+            /tmp/wup-4690-enrichment-report.json
+            scripts/wup-4690-enrichment.py
+      - name: Keep live ingestion fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f data/reference/wup-sub50k-canonical.json
+          echo 'Population enrichment artifact produced; repository ingestion remains fail-closed until manifest review and hash acceptance.'
