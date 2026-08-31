@@ -12,80 +12,51 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install geospatial dependencies
         run: python3 -m pip install --disable-pip-version-check geopandas pyogrio
-      - name: Discover and download authoritative GHS-WUP-DEGURBA 2025 vector
+      - name: Download authoritative GHS-WUP-DEGURBA 2025 vector from JRC
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/wup/raw /tmp/wup/output
           python3 - <<'PY'
-          import re, requests, zipfile
+          import hashlib, time, urllib.request, zipfile
           from pathlib import Path
-          page='https://human-settlement.emergency.copernicus.eu/ghs_wup_degurba_r2025a.php'
-          html=requests.get(page,timeout=60).text
-          raw_links=re.findall(r'''(?:href|src)=["']([^"']+)["']''',html,re.I)
-          candidates=[]
-          def add_link(u, base=None):
-              u=u.replace('&amp;','&')
-              if base and not u.startswith(('http://','https://')):
-                  u=requests.compat.urljoin(base,u)
-              if not u.startswith(('http://','https://')):
-                  u='https://human-settlement.emergency.copernicus.eu/'+u.lstrip('./')
-              candidates.append(u)
-          for raw in raw_links:
-              if re.search(r'(DEGURBA|WUP)',raw,re.I) and re.search(r'(zip|shp|gpkg|download)',raw,re.I):
-                  add_link(raw)
 
-          ftp='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/'
-          top=requests.get(ftp,timeout=60).text
-          top_links=re.findall(r'''href=["']([^"']+)["']''',top,re.I)
-          for href in top_links:
-              if href.startswith('GHS_WUP_DEGURBA_E2025'):
-                  directory=requests.compat.urljoin(ftp,href)
-                  directory_html=requests.get(directory,timeout=60).text
-                  for child in re.findall(r'''href=["']([^"']+)["']''',directory_html,re.I):
-                      if child.lower().endswith('.zip'):
-                          add_link(child,directory)
-                      elif 'v1-0' in child.lower() or 'v1_0' in child.lower():
-                          release=requests.compat.urljoin(directory,child)
-                          release_html=requests.get(release,timeout=60).text
-                          for z in re.findall(r'''href=["']([^"']+\.zip)["']''',release_html,re.I):
-                              add_link(z,release)
-
-          # The currently published R2025A Globe 54009 release path is also
-          # retained as an explicit fallback so directory HTML changes do not
-          # silently break reproducible ingestion.
-          candidates.append(
-              ftp+'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/V1-0/'
-              'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip'
-          )
-          candidates=list(dict.fromkeys(candidates))
-          print('Discovered candidate links:', *candidates, sep='\n- ')
-          selected=None
-          for u in candidates:
+          url=('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
+               'GHS_WUP_DEGURBA_GLOBE_R2025A/'
+               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/V1-0/'
+               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip')
+          out=Path('/tmp/wup/raw/source.zip')
+          last=None
+          for attempt in range(1,6):
               try:
-                  r=requests.get(u,timeout=300,stream=True,allow_redirects=True)
-                  r.raise_for_status()
-                  p=Path('/tmp/wup/raw/source.bin')
-                  with p.open('wb') as f:
-                      for chunk in r.iter_content(1024*1024):
-                          if chunk: f.write(chunk)
-                  ctype=r.headers.get('content-type','').lower()
-                  if p.stat().st_size > 100000 and ('text/html' not in ctype) and zipfile.is_zipfile(p):
-                      selected=u
-                      break
-                  print('candidate rejected (not a valid ZIP):',u,'content-type=',ctype,'size=',p.stat().st_size)
+                  print(f'Downloading authoritative JRC source (attempt {attempt}/5)')
+                  req=urllib.request.Request(url,headers={'User-Agent':'VIDIK-WUP-ingestion/1.0'})
+                  with urllib.request.urlopen(req,timeout=300) as r, out.open('wb') as f:
+                      while True:
+                          chunk=r.read(1024*1024)
+                          if not chunk: break
+                          f.write(chunk)
+                  if not zipfile.is_zipfile(out):
+                      raise RuntimeError('downloaded artifact is not a valid ZIP')
+                  if out.stat().st_size < 100000:
+                      raise RuntimeError(f'downloaded artifact unexpectedly small: {out.stat().st_size}')
+                  break
               except Exception as e:
-                  print('candidate failed:',u,e)
-          if selected is None:
-              raise SystemExit('wup-degurba-vector-download-not-discovered')
-          print('Selected source:',selected)
+                  last=e
+                  print('download failed:',repr(e))
+                  if attempt < 5: time.sleep(2**attempt)
+          else:
+              raise SystemExit(f'jrc-wup-download-failed:{last}')
+          digest=hashlib.sha256(out.read_bytes()).hexdigest()
+          print('Selected source:',url)
+          print('Source SHA-256:',digest)
+          Path('/tmp/wup/output/source.url').write_text(url+'\n')
+          Path('/tmp/wup/output/source.sha256').write_text(digest+'\n')
           PY
-          test -s /tmp/wup/raw/source.bin
-          sha256sum /tmp/wup/raw/source.bin | tee /tmp/wup/output/source.sha256
-          file /tmp/wup/raw/source.bin
+          test -s /tmp/wup/raw/source.zip
           mkdir -p /tmp/wup/raw/unpacked
-          unzip -q /tmp/wup/raw/source.bin -d /tmp/wup/raw/unpacked
-          find /tmp/wup/raw/unpacked -maxdepth 6 -type f -print
+          unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
+          find /tmp/wup/raw/unpacked -maxdepth 8 -type f -print
       - name: Discover 2025 settlement entities below 50k
         shell: bash
         run: |
