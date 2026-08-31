@@ -23,45 +23,82 @@ jobs:
           test -s /tmp/wup/raw/source.zip
           sha256sum /tmp/wup/raw/source.zip | tee /tmp/wup/output/source.sha256
           unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
-          find /tmp/wup/raw/unpacked -maxdepth 2 -type f -print
+          find /tmp/wup/raw/unpacked -maxdepth 3 -type f -print
       - name: Extract 2025 urban-centre records below 50k
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import csv, json, openpyxl, hashlib
+          import csv, json, openpyxl, hashlib, re
           root=Path('/tmp/wup/raw/unpacked')
           candidates=[]
-          for p in root.rglob('*'):
-              if p.suffix.lower() == '.xlsx':
-                  wb=openpyxl.load_workbook(p, read_only=True, data_only=True)
+
+          def norm(v):
+              return re.sub(r'[^a-z0-9]+','_',str(v or '').strip().lower()).strip('_')
+
+          def find_columns(headers):
+              h={norm(v):i for i,v in enumerate(headers)}
+              year_i=next((i for k,i in h.items() if k in ('year','epoch','selectyear') or k.endswith('_year')),None)
+              pop_i=next((i for k,i in h.items() if k in ('pop','population','pop_2025','population_2025') or k.startswith('pop_')),None)
+              city_i=next((i for k,i in h.items() if k in ('city','city_name','name','unlocname','unloc_name','uc_name','urban_centre','urban_center')),None)
+              country_i=next((i for k,i in h.items() if k in ('country','country_name','unloc_country','un_country','location','unlocname','unloc_name')),None)
+              return year_i,pop_i,city_i,country_i
+
+          def consume(rows, source):
+              global candidates
+              buffered=[]
+              for _ in range(30):
+                  try: buffered.append(next(rows))
+                  except StopIteration: break
+              header_pos=None; cols=None
+              for pos,row in enumerate(buffered):
+                  y,p,c,co=find_columns(row)
+                  if y is not None and p is not None:
+                      header_pos=pos; cols=(y,p,c,co); break
+              if header_pos is None:
+                  return False
+              y,p,c,co=cols
+              for row in buffered[header_pos+1:]:
+                  handle(row,y,p,c,co,source)
+              for row in rows: handle(row,y,p,c,co,source)
+              return True
+
+          def handle(row,y,p,c,co,source):
+              if len(row) <= max(y,p): return
+              try:
+                  year=int(float(row[y]))
+                  pop=float(row[p])
+              except Exception: return
+              if year != 2025 or not (0 < pop < 50000): return
+              city=str(row[c]).strip() if c is not None and c < len(row) else ''
+              country=str(row[co]).strip() if co is not None and co < len(row) else ''
+              # The MTUC statistics identify the urban centre with UNLocName; retain it
+              # as a deterministic fallback when a separate city field is absent.
+              if not city and co is not None and c is None and co < len(row): city=country
+              if city and country:
+                  candidates.append({'city':city,'country':country,'population':pop,'source':source})
+
+          found=False
+          for pth in sorted(root.rglob('*')):
+              if pth.suffix.lower() == '.xlsx':
+                  wb=openpyxl.load_workbook(pth, read_only=True, data_only=True)
                   for ws in wb.worksheets:
-                      rows=ws.iter_rows(values_only=True)
-                      try: headers=[str(x).strip() if x is not None else '' for x in next(rows)]
-                      except StopIteration: continue
-                      lower={h.lower():i for i,h in enumerate(headers)}
-                      year_i=next((i for h,i in lower.items() if h in ('year','selectyear')),None)
-                      pop_i=next((i for h,i in lower.items() if h.startswith('pop') or h=='population'),None)
-                      city_i=next((i for h,i in lower.items() if h in ('city_name','city','unlocname','unloc_name')),None)
-                      country_i=next((i for h,i in lower.items() if h in ('unlocname','location','country','unloc_name')),None)
-                      if year_i is None or pop_i is None: continue
-                      for row in rows:
-                          if not row or len(row)<=max(year_i,pop_i): continue
-                          try: year=int(float(row[year_i]))
-                          except Exception: continue
-                          if year != 2025: continue
-                          try: pop=float(row[pop_i])
-                          except Exception: continue
-                          if not (0 < pop < 50000): continue
-                          city = row[city_i] if city_i is not None and city_i < len(row) else None
-                          country = row[country_i] if country_i is not None and country_i < len(row) else None
-                          candidates.append({'city':str(city or '').strip(),'country':str(country or '').strip(),'population':pop})
-          # De-duplicate exact identity and fail closed on missing identity.
+                      found = consume(iter(ws.iter_rows(values_only=True)), str(pth)) or found
+              elif pth.suffix.lower() in ('.csv','.txt'):
+                  with pth.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
+                      sample=f.read(8192); f.seek(0)
+                      try: dialect=csv.Sniffer().sniff(sample)
+                      except Exception: dialect=csv.excel
+                      found = consume(csv.reader(f,dialect), str(pth)) or found
+
+          if not found:
+              raise SystemExit('wup-statistics-schema-not-discovered')
+
           out=[]; seen=set()
           for r in candidates:
               key=(r['country'].lower(),r['city'].lower())
-              if not r['city'] or not r['country'] or key in seen: continue
+              if key in seen: continue
               seen.add(key); out.append(r)
           out.sort(key=lambda r:(r['country'].lower(),r['city'].lower()))
           Path('/tmp/wup/output/candidates.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
