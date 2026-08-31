@@ -1,0 +1,61 @@
+name: WUP Expansion Source Audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit authoritative 2025 settlement entity source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet requests pyogrio pandas openpyxl
+          python3 - <<'PY'
+          import io, re, zipfile
+          from pathlib import Path
+          import requests
+          import pandas as pd
+          import pyogrio
+
+          base='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
+          idx=requests.get(base,timeout=60); idx.raise_for_status()
+          links=re.findall(r'href=["\']([^"\']+)["\']',idx.text,re.I)
+          wanted=[]
+          for typ in ('UC','DUC','SDUC','RC'):
+              matches=[x for x in links if f'_{typ}_V1_0.shp' in x]
+              if not matches:
+                  raise SystemExit(f'wup-source-layer-not-found:{typ}')
+              wanted.append((typ,matches[0]))
+          print('Authoritative WUP-DEGURBA directory:',base)
+          print('Discovered layers:',wanted)
+
+          out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True)
+          summary=[]
+          for typ,link in wanted:
+              url=link if link.startswith('http') else base+link
+              r=requests.get(url,timeout=180); r.raise_for_status()
+              z=zipfile.ZipFile(io.BytesIO(r.content))
+              z.extractall(out/typ)
+              shp=next((p for p in (out/typ).glob('*.shp')),None)
+              if shp is None: raise SystemExit(f'wup-shapefile-missing:{typ}')
+              df=pyogrio.read_dataframe(shp)
+              cols={str(c).upper():c for c in df.columns}
+              pop=next((cols[k] for k in ('POP2025','POP','POP_2025') if k in cols),None)
+              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME') if k in cols),None)
+              country=next((cols[k] for k in ('UNLOCID','COUNTRY','UNLOCNAME') if k in cols),None)
+              if not pop or not name: raise SystemExit(f'wup-schema-missing:{typ}:columns={list(df.columns)}')
+              vals=pd.to_numeric(df[pop],errors='coerce')
+              positive=(vals>0)
+              sub=(vals>0)&(vals<50000)
+              summary.append((typ,len(df),int(positive.sum()),int(sub.sum())))
+              print(f'{typ}: rows={len(df)} positive={int(positive.sum())} sub50k={int(sub.sum())} pop_field={pop} name_field={name} country_field={country}')
+              if int(sub.sum()):
+                  sample=df.loc[sub,[c for c in (name,country,pop) if c]].head(10)
+                  print(sample.to_string(index=False))
+          print('WUP expansion source audit complete.')
+          print('Summary:',summary)
+          PY
