@@ -1,34 +1,48 @@
 # VIDIK 4,690 Expansion Universe — Source Provenance Checkpoint
 
-Status: **UNPROVEN / FAIL-CLOSED**
+Status: **SOURCE IDENTIFIED / INGESTION FAIL-CLOSED**
 
-## What is established
+## Proven source
 
-- PR #10 deliberately made the 4,690 expansion gate fail closed until an authoritative source artifact is supplied and validated.
-- The authoritative 2025 GHS-WUP-DEGURBA source contains four 2025 settlement-entity layers: UC, DUC, SDUC and RC.
-- WUP-DEGURBA 2025 does **not** define the 4,690 expansion universe as a simple `<50,000` WUP urban-centre set.
-- The green reconstruction audit tested common population bands and pairwise layer combinations and found no exact 4,690 rule.
-- The UC layer has a 50,000-person minimum by the Degree of Urbanisation definition, so UC cannot supply a sub-50k universe.
+The 4,690-record expansion universe is not a synthetic WUP-DEGURBA/JRC population filter. It is the exact set of rows in the official UN WUP 2025 F21-DEGURBA-Cities_Pop source whose 2025 population field is blank.
 
-## Required before ingestion
+- Source: UN DESA, World Urbanization Prospects 2025, F21-DEGURBA-Cities_Pop
+- Source URL: https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx
+- Source SHA-256: `3a96030d87aec6c1c50f658d5321067d6345e1ab936c5d2854524f972caa75c0`
+- Total F21 data rows: **16,828**
+- Rows with 2025 population >=50,000: **12,138**
+- Rows with blank 2025 population: **4,690**
+- The 4,690 extension rows are identified deterministically by their original F21 source-row index.
 
-1. Identify the actual authoritative source that defines the intended 4,690-record universe.
-2. Record the source URL/PID, dataset version, retrieval date, selection rule, and source checksum.
-3. Reproduce exactly 4,690 unique records from that source.
-4. Store the resulting canonical manifest as an immutable source artifact.
-5. Reconcile the manifest against WUP-DEGURBA/MTUC for population, geography, identifiers and provenance where possible.
-6. Only then replace the fail-closed expansion gate with the validated manifest and enable live ingestion.
+This was independently verified against the supplied F21 workbook: the 4,690 source-row indices in `VIDIK_WUP2025_Full_16828_Urban_Centre_Census_v1.xlsx` exactly equal the 4,690 F21 rows whose 2025 field is blank.
+
+## What this proves
+
+The historical VIDIK number **4,690 is real and reproducible from the original WUP F21 frame**. The earlier attempt to derive it from the JRC DEGURBA settlement layers was the wrong level of the data model.
+
+The official WUP 2025 download centre describes F21 as the city-population table for cities with 50,000 inhabitants or more; the supplied F21 workbook nevertheless contains 16,828 frame rows, including the 4,690 blank-2025 extension rows used by the VIDIK full-frame census.
+
+## Important boundary
+
+The 4,690 rows have **no reported 2025 population in F21**. Therefore source identity is proven, but population is not. The live-ingestion gate remains fail-closed until each extension record receives an independently sourced population value and passes geographic/municipal reconciliation.
+
+No population values are invented or inferred merely to satisfy the 4,690 count.
+
+## Reproducibility
+
+`scripts/wup-expansion-source.py` downloads the authoritative F21 workbook, verifies the source checksum, verifies the 16,828/12,138/4,690 counts, verifies unique country/city identity, and deterministically emits the 4,690-record manifest with original source-row indices.
+
+## Next gates before live ingestion
+
+1. Generate the canonical 4,690 manifest from F21.
+2. Acquire independent population values for those records.
+3. Reconcile WUP/JRC geography and identifiers where available.
+4. Validate municipality/government crosswalks.
+5. Hash the completed population-enriched manifest.
+6. Only then replace the fail-closed ingestion gate.
 
 ## Do not do
 
-- Do not manufacture records from WUP-DEGURBA to hit 4,690.
-- Do not choose an arbitrary population threshold because it happens to produce a desired count.
-- Do not treat a count match as provenance proof.
-- Do not weaken the existing fail-closed gate.
-
-## Authoritative WUP references
-
-- GHS-WUP-DEGURBA R2025A: https://human-settlement.emergency.copernicus.eu/ghs_wup_degurba_r2025a.php
-- GHS-WUP-MTUC R2025A: https://human-settlement.emergency.copernicus.eu/ghs_wup_mtuc_r2025a.php
-- JRC WUP-DEGURBA dataset PID: 10.2905/1c049178-ab00-4bbc-b638-3e3c19daaacb
-- JRC WUP-MTUC dataset PID: 10.2905/1ea967e5-bedc-4cf3-a0b0-3851742ee7e2
+- Do not derive the 4,690 from JRC UC/DUC/SDUC/RC counts.
+- Do not invent or impute population values without an explicit external source and provenance.
+- Do not enable live ingestion merely because the row count is 4,690.
