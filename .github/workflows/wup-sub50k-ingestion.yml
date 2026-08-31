@@ -34,53 +34,72 @@ jobs:
           unzip -q /tmp/wup/raw/mtuc.zip -d /tmp/wup/raw/unpacked
           find /tmp/wup/raw/unpacked -type f -maxdepth 8 -print
 
+      - name: Install XLSX parser
+        shell: bash
+        run: python3 -m pip install --disable-pip-version-check --no-input openpyxl
+
       - name: Derive canonical WUP urban-centre sub-50k universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import csv,hashlib,json,math,os,re
+          import hashlib,json,math,re
           from pathlib import Path
+          from openpyxl import load_workbook
           root=Path('/tmp/wup/raw/unpacked')
-          files=sorted([p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in {'.csv','.txt'}])
-          if not files: raise SystemExit('wup-mtuc-statistics-csv-not-found')
+          files=sorted([p for p in root.rglob('*') if p.is_file() and p.suffix.lower()=='.xlsx'])
+          if not files: raise SystemExit('wup-mtuc-statistics-xlsx-not-found')
           def norm(v): return re.sub(r'[^a-z0-9]+','_',str(v or '').strip().lower()).strip('_')
-          def read_header(p):
-              with p.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
-                  for row in csv.reader(f):
-                      if any(str(x).strip() for x in row): return row
-              return []
-          chosen=None; schema=None
+          def find_header(ws):
+              best=None
+              for row in ws.iter_rows(min_row=1,max_row=min(ws.max_row,80),values_only=True):
+                  vals=[str(x).strip() if x is not None else '' for x in row]
+                  score=sum(bool(norm(x)) for x in vals)
+                  keys={norm(x) for x in vals if x}
+                  if score>=3 and any(k in keys for k in {'pop_2025','population_2025','pop2025','population2025','pop'}):
+                      best=vals; break
+              return best
+          chosen=None; ws=None; header=None
           for p in files:
-              h=read_header(p); keys={norm(x) for x in h}
-              pop=next((x for x in h if norm(x) in {'pop_2025','population_2025','population','pop'}),None)
-              name=next((x for x in h if norm(x) in {'name','uc_name','city_name','city','unlocname','unloc_name'}),None)
-              country=next((x for x in h if norm(x) in {'country','country_name','cntr_code','country_code'}),None)
-              if pop and name and country:
-                  chosen=p; schema=(h,pop,name,country); break
-          if chosen is None: raise SystemExit('wup-mtuc-schema-not-found')
-          h,pop_col,name_col,country_col=schema
-          idx={k:i for i,k in enumerate(h)}
+              wb=load_workbook(p,read_only=True,data_only=True)
+              for s in wb.sheetnames:
+                  sh=wb[s]; h=find_header(sh)
+                  if h:
+                      chosen=p; ws=sh; header=h; break
+              if chosen: break
+          if chosen is None: raise SystemExit('wup-mtuc-xlsx-schema-not-found')
+          def pick(candidates):
+              wanted=set(candidates)
+              for i,v in enumerate(header):
+                  if norm(v) in wanted: return i
+              return None
+          pop_i=pick(['pop_2025','population_2025','pop2025','population2025','pop'])
+          name_i=pick(['name','uc_name','city_name','city','unlocname','unloc_name','urban_centre_name','urban_center_name'])
+          country_i=pick(['country','country_name','cntr_code','country_code','iso3','iso3_code'])
+          if pop_i is None or name_i is None or country_i is None:
+              raise SystemExit('wup-mtuc-xlsx-required-columns-not-found:' + json.dumps({'header':header,'population_index':pop_i,'name_index':name_i,'country_index':country_i}))
           records=[]; skipped=0
-          with chosen.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
-              for row in csv.DictReader(f):
-                  try: pop=float(str(row.get(pop_col,'')).replace(',','').strip())
-                  except (TypeError,ValueError): skipped+=1; continue
-                  if not math.isfinite(pop) or pop<=0 or pop>=50000: continue
-                  country=str(row.get(country_col,'')).strip(); name=str(row.get(name_col,'')).strip()
-                  if not country or not name: skipped+=1; continue
-                  records.append({'country':country,'name':name,'population_2025':pop})
+          for row in ws.iter_rows(min_row=2,values_only=True):
+              try: pop=float(row[pop_i])
+              except (TypeError,ValueError,IndexError): skipped+=1; continue
+              if not math.isfinite(pop) or pop<=0 or pop>=50000: continue
+              try: country=str(row[country_i]).strip(); name=str(row[name_i]).strip()
+              except IndexError: skipped+=1; continue
+              if not country or not name: skipped+=1; continue
+              records.append({'country':country,'name':name,'population_2025':pop})
           seen=set(); out=[]; dup=0
           for r in records:
               key=(norm(r['country']),norm(r['name']),r['population_2025'])
               if key in seen: dup+=1; continue
               seen.add(key); out.append(r)
           out.sort(key=lambda r:(norm(r['country']),norm(r['name']),r['population_2025']))
-          print('Statistics file:',chosen)
+          print('Statistics workbook:',chosen)
+          print('Worksheet:',ws.title)
+          print('Header:',header)
           print('2025 WUP-MTUC sub-50k candidates:',len(out))
           print('Expected VIDIK expansion universe:',4690)
           if len(out)!=4690: raise SystemExit(f'sub50k-wup-mtuc-count-mismatch:{len(out)}:expected:4690')
-          report={'dataset':'GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics','source_file':str(chosen.relative_to(root)),'population_field':pop_col,'coverage_rule':'WUP urban centres with 2025 population < 50,000','record_count':len(out),'expected_records':4690,'duplicate_exact_rows_collapsed':dup,'skipped_rows':skipped,'source_zip_sha256':hashlib.sha256(open('/tmp/wup/raw/mtuc.zip','rb').read()).hexdigest(),'status':'validated-canonical-sub50k-universe'}
+          report={'dataset':'GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics','source_file':str(chosen.relative_to(root)),'worksheet':ws.title,'header':header,'population_field':header[pop_i],'name_field':header[name_i],'country_field':header[country_i],'coverage_rule':'WUP urban centres with 2025 population < 50,000','record_count':len(out),'expected_records':4690,'duplicate_exact_rows_collapsed':dup,'skipped_rows':skipped,'source_zip_sha256':hashlib.sha256(Path('/tmp/wup/raw/mtuc.zip').read_bytes()).hexdigest(),'status':'validated-canonical-sub50k-universe'}
           json.dump(report,open('/tmp/wup/output/sub50k-reconciliation-report.json','w'),indent=2)
           json.dump(out,open('/tmp/wup/output/sub50k-canonical.json','w'),ensure_ascii=False,indent=2)
           print(json.dumps(report,indent=2))
