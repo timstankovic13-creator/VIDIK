@@ -49,7 +49,16 @@ def build(source, output):
     if len(rows)-1 != EXPECTED_TOTAL: raise SystemExit(f'wup-f21-row-count:{len(rows)-1}:expected:{EXPECTED_TOTAL}')
     if existing != EXPECTED_EXISTING: raise SystemExit(f'wup-f21-existing-count:{existing}:expected:{EXPECTED_EXISTING}')
     if blank != EXPECTED_EXTENSION: raise SystemExit(f'wup-f21-extension-count:{blank}:expected:{EXPECTED_EXTENSION}')
-    if len({(r['country'].casefold(),r['city'].casefold()) for r in records}) != EXPECTED_EXTENSION:
+    identity_keys = {
+        (
+            r['country'].casefold(),
+            r['city'].casefold(),
+            str(r['wup_city_code']).strip(),
+            r['source_row_index'],
+        )
+        for r in records
+    }
+    if len(identity_keys) != EXPECTED_EXTENSION:
         raise SystemExit('wup-f21-extension-duplicate-identity')
     Path(output).write_text(json.dumps(records,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({'source':SOURCE_URL,'sha256':digest,'total_rows':EXPECTED_TOTAL,'existing_ge_50k':existing,'extension_rows':blank,'output':output},indent=2))
