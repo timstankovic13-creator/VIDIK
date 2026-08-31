@@ -5,7 +5,10 @@ test.describe('municipal source lineage decision path', () => {
     test(`${city} source contract reaches decision state`, async ({ page }) => {
       await page.goto('/');
       await page.selectOption('#city', city);
-      await page.waitForFunction(() => window.VIDIK_92_INTEGRATION?.status === 'READY');
+      await page.waitForFunction(expected => {
+        const s = window.VIDIK_92_INTEGRATION;
+        return s?.status === 'READY' && s?.decision?.city === expected;
+      }, city);
       const result = await page.evaluate(() => {
         const s = window.VIDIK_92_INTEGRATION;
         return { decision: s.decision, sourceLineage: s.sourceLineage };
