@@ -3,7 +3,7 @@ name: VIDIK 9.3 Browser Acceptance
 on:
   workflow_dispatch:
   push:
-    branches: [main, v9.1.3-modular, 'prep/**']
+    branches: [main, v9.1.3-modular, 'prep/**', 'feat/geonames-worldpop-decision-inputs-v2']
   pull_request:
     branches: [main]
 
