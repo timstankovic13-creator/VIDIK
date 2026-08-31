@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { ADAPTERS, adapterFor, normalizeRecords, provenance } = require('../scripts/municipal-adapters');
+const { ADAPTERS, adapterFor, normalizeRecords, provenance, validateCatalog } = require('../scripts/municipal-adapters');
 const { validateExpansion, EXPECTED_RECORDS } = require('../scripts/wup-expansion');
 
 for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
@@ -20,4 +20,10 @@ assert.throws(() => validateExpansion([]), /expansion-record-count/);
 const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({ city: `Test-${i}`, country: 'Canada', population: 1000 + i }));
 assert.deepStrictEqual(validateExpansion(records), { enabled: true, records: EXPECTED_RECORDS });
 assert.throws(() => validateExpansion(records.map((r, i) => i === 0 ? { ...r, population: 50000 } : r)), /expansion-invalid-population/);
+
+// Melbourne's documented Explore API exposes records; accept both observed response keys.
+assert.strictEqual(validateCatalog('Melbourne', { results: [{ id: 1 }] }), true);
+assert.strictEqual(validateCatalog('Melbourne', { records: [{ id: 1 }] }), true);
+assert.throws(() => validateCatalog('Melbourne', { total_count: 1 }), /melbourne-catalog-shape-invalid/);
+
 console.log('municipal-adapter-and-wup-contracts: PASS');
