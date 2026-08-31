@@ -26,7 +26,7 @@ jobs:
           if not zipfile.is_zipfile(p): raise SystemExit('wup-mtuc-download-not-zip')
           if p.stat().st_size < 1000000: raise SystemExit(f'wup-mtuc-download-too-small:{p.stat().st_size}')
           d=hashlib.sha256(p.read_bytes()).hexdigest()
-          print('Selected source:',url if False else 'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip')
+          print('Selected source:', 'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip')
           print('Source SHA-256:',d)
           Path('/tmp/wup/output/source.url').write_text('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip\n')
           Path('/tmp/wup/output/source.sha256').write_text(d+'\n')
@@ -38,12 +38,12 @@ jobs:
         shell: bash
         run: python3 -m pip install --disable-pip-version-check --no-input openpyxl
 
-      - name: Derive canonical WUP urban-centre sub-50k universe
+      - name: Inspect and derive canonical WUP urban-centre sub-50k universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib,json,math,re
+          import hashlib,json,math,re,collections
           from pathlib import Path
           from openpyxl import load_workbook
           root=Path('/tmp/wup/raw/unpacked')
@@ -54,47 +54,57 @@ jobs:
               for row in ws.iter_rows(min_row=1,max_row=min(ws.max_row,80),values_only=True):
                   vals=[str(x).strip() if x is not None else '' for x in row]
                   keys={norm(x) for x in vals if x}
-                  if {'id_mtuc','unlocid','unlocname','year','pop'}.issubset(keys):
-                      return vals
+                  if {'id_mtuc','unlocid','unlocname','year','pop'}.issubset(keys): return vals
               return None
           chosen=None; ws=None; header=None
           for p in files:
               wb=load_workbook(p,read_only=True,data_only=True)
               for s in wb.sheetnames:
                   sh=wb[s]; h=find_header(sh)
-                  if h:
-                      chosen=p; ws=sh; header=h; break
+                  if h: chosen=p; ws=sh; header=h; break
               if chosen: break
           if chosen is None: raise SystemExit('wup-mtuc-xlsx-schema-not-found')
           index={norm(v):i for i,v in enumerate(header) if v}
           required=['id_mtuc','unlocid','unlocname','year','pop']
           missing=[k for k in required if k not in index]
           if missing: raise SystemExit('wup-mtuc-xlsx-required-columns-not-found:'+json.dumps({'missing':missing,'header':header}))
+          year_counts=collections.Counter(); pop_values=[]; rows=0; valid_identity=0; candidates_all_years=[]
           records=[]; skipped=0
           for row in ws.iter_rows(min_row=2,values_only=True):
-              try:
-                  year=float(row[index['year']]); pop=float(row[index['pop']])
-              except (TypeError,ValueError,IndexError): skipped+=1; continue
-              if not math.isfinite(year) or int(year)!=2025: continue
-              if not math.isfinite(pop) or pop<=0 or pop>=50000: continue
-              try:
-                  mtuc=str(row[index['id_mtuc']]).strip()
-                  unlocid=str(row[index['unlocid']]).strip()
-                  unlocname=str(row[index['unlocname']]).strip()
+              rows+=1
+              try: year_raw=row[index['year']]; pop_raw=row[index['pop']]
               except IndexError: skipped+=1; continue
-              if not mtuc or not unlocid or not unlocname: skipped+=1; continue
-              records.append({'id_mtuc':mtuc,'unlocid':unlocid,'name':unlocname,'population_2025':pop})
+              try: year=float(year_raw); pop=float(pop_raw)
+              except (TypeError,ValueError): skipped+=1; continue
+              if math.isfinite(year): year_counts[int(year)]+=1
+              if math.isfinite(pop): pop_values.append(pop)
+              try:
+                  mtuc=str(row[index['id_mtuc']] or '').strip(); unlocid=str(row[index['unlocid']] or '').strip(); name=str(row[index['unlocname']] or '').strip()
+              except IndexError: skipped+=1; continue
+              if mtuc and unlocid and name: valid_identity+=1
+              if math.isfinite(pop) and 0<pop<50000 and mtuc and unlocid and name:
+                  candidates_all_years.append((int(year) if math.isfinite(year) else None,mtuc,unlocid,name,pop))
+              if math.isfinite(year) and int(year)==2025 and math.isfinite(pop) and 0<pop<50000 and mtuc and unlocid and name:
+                  records.append({'id_mtuc':mtuc,'unlocid':unlocid,'name':name,'population_2025':pop})
+          print('Statistics workbook:',chosen)
+          print('Worksheet:',ws.title)
+          print('Header:',header)
+          print('Rows inspected:',rows)
+          print('Valid identity rows:',valid_identity)
+          print('Year distribution:',dict(sorted(year_counts.items())))
+          if pop_values: print('POP range:',min(pop_values),max(pop_values))
+          print('All-year positive sub-50k candidates:',len(candidates_all_years))
+          print('2025 WUP-MTUC sub-50k candidates:',len(records))
+          print('Expected VIDIK expansion universe:',4690)
+          if len(records)==0:
+              sample=[{'year':y,'id_mtuc':m,'unlocid':u,'name':n,'pop':p} for y,m,u,n,p in candidates_all_years[:10]]
+              raise SystemExit('wup-mtuc-zero-2025-candidates:'+json.dumps({'year_distribution':dict(sorted(year_counts.items())),'pop_range':[min(pop_values),max(pop_values)] if pop_values else None,'all_year_sub50k':len(candidates_all_years),'sample_sub50k':sample},ensure_ascii=False))
           seen=set(); out=[]; dup=0
           for r in records:
               key=(r['id_mtuc'],r['unlocid'])
               if key in seen: dup+=1; continue
               seen.add(key); out.append(r)
           out.sort(key=lambda r:(norm(r['unlocid']),norm(r['name']),r['population_2025'],r['id_mtuc']))
-          print('Statistics workbook:',chosen)
-          print('Worksheet:',ws.title)
-          print('Header:',header)
-          print('2025 WUP-MTUC sub-50k candidates:',len(out))
-          print('Expected VIDIK expansion universe:',4690)
           if len(out)!=4690: raise SystemExit(f'sub50k-wup-mtuc-count-mismatch:{len(out)}:expected:4690')
           report={'dataset':'GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics','source_file':str(chosen.relative_to(root)),'worksheet':ws.title,'header':header,'population_field':header[index['pop']],'year_field':header[index['year']],'identity_fields':[header[index['id_mtuc']],header[index['unlocid']],header[index['unlocname']]],'coverage_rule':'WUP urban centres with Year=2025 and 0<POP<50,000','record_count':len(out),'expected_records':4690,'duplicate_identity_rows_collapsed':dup,'skipped_rows':skipped,'source_zip_sha256':hashlib.sha256(Path('/tmp/wup/raw/mtuc.zip').read_bytes()).hexdigest(),'status':'validated-canonical-sub50k-universe'}
           json.dump(report,open('/tmp/wup/output/sub50k-reconciliation-report.json','w'),indent=2)
