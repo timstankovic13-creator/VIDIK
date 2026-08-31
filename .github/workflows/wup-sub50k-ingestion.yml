@@ -12,110 +12,75 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install workbook parser
-        run: python3 -m pip install --disable-pip-version-check openpyxl
-
-      - name: Download authoritative WUP 2025 F21 city workbook
+      - name: Download authoritative GHSL WUP-MTUC R2025A statistics
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/wup/output
-          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 \
-            -A 'VIDIK/9.3 WUP sub50k reconciliation' \
-            -o /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx \
-            'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
-          test -s /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx
-          sha256sum /tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx | tee /tmp/wup/output/wup-f21.sha256
+          mkdir -p /tmp/wup/raw /tmp/wup/output
+          url='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip'
+          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 -A 'VIDIK-WUP-ingestion/1.0' -o /tmp/wup/raw/mtuc.zip "$url"
+          python3 - <<'PY'
+          import hashlib,zipfile
+          from pathlib import Path
+          p=Path('/tmp/wup/raw/mtuc.zip')
+          if not zipfile.is_zipfile(p): raise SystemExit('wup-mtuc-download-not-zip')
+          if p.stat().st_size < 1000000: raise SystemExit(f'wup-mtuc-download-too-small:{p.stat().st_size}')
+          d=hashlib.sha256(p.read_bytes()).hexdigest()
+          print('Selected source:', 'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip')
+          print('Source SHA-256:',d)
+          Path('/tmp/wup/output/source.url').write_text('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip\n')
+          Path('/tmp/wup/output/source.sha256').write_text(d+'\n')
+          PY
+          unzip -q /tmp/wup/raw/mtuc.zip -d /tmp/wup/raw/unpacked
+          find /tmp/wup/raw/unpacked -type f -maxdepth 8 -print
 
       - name: Derive canonical WUP urban-centre sub-50k universe
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib,json,math,os,re
-          from openpyxl import load_workbook
-
-          p='/tmp/wup/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
-          wb=load_workbook(p,read_only=True,data_only=True)
-          if 'Data' not in wb.sheetnames:
-              raise SystemExit(f'Expected Data sheet, got {wb.sheetnames}')
-          ws=wb['Data']
-
-          def clean(v):
-              return '' if v is None else str(v).strip()
-          def norm(v):
-              return re.sub(r'[^a-z0-9]+','_',clean(v).lower()).strip('_')
-
-          header=None
-          for ri,row in enumerate(ws.iter_rows(values_only=True)):
-              if ri >= 500: break
-              loc=city=pop=None
-              for ci,v in enumerate(row):
-                  k=norm(v)
-                  if k in ('location','location_name'): loc=ci
-                  elif k in ('city_name','city','cities'): city=ci
-                  elif k=='2025' or k.startswith('2025_'): pop=ci
-              if loc is not None and city is not None and pop is not None:
-                  header=(ri,loc,city,pop); break
-              if ri >= 499: break
-          if header is None:
-              raise SystemExit('Could not identify WUP F21 Data fields Location, City_Name, 2025')
-
-          hi,loc_i,city_i,pop_i=header
-          records=[]
-          skipped=0
-          for row_number,row in enumerate(ws.iter_rows(values_only=True),start=1):
-              if row_number <= hi+1: continue
-              if max(loc_i,city_i,pop_i) >= len(row):
-                  skipped += 1
-                  continue
-              country,city,raw=clean(row[loc_i]),clean(row[city_i]),row[pop_i]
-              if not country or not city:
-                  skipped += 1
-                  continue
-              try:
-                  value=float(str(raw).replace(',','').strip())
-              except (TypeError,ValueError):
-                  skipped += 1
-                  continue
-              # WUP F21 population is in thousands: 50 means 50,000.
-              if math.isfinite(value) and value > 0 and value < 50:
-                  records.append({'country':country,'name':city,'population_thousands':value})
-
-          if not records:
-              raise SystemExit('wup-f21-produced-no-sub50k-records')
-
-          # Deterministically collapse only exact repeats; preserve legitimate
-          # same-name records where the population differs.
-          seen=set(); out=[]; duplicate_exact=0
+          import csv,hashlib,json,math,os,re
+          from pathlib import Path
+          root=Path('/tmp/wup/raw/unpacked')
+          files=sorted([p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in {'.csv','.txt'}])
+          if not files: raise SystemExit('wup-mtuc-statistics-csv-not-found')
+          def norm(v): return re.sub(r'[^a-z0-9]+','_',str(v or '').strip().lower()).strip('_')
+          def read_header(p):
+              with p.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
+                  for row in csv.reader(f):
+                      if any(str(x).strip() for x in row): return row
+              return []
+          chosen=None; schema=None
+          for p in files:
+              h=read_header(p); keys={norm(x) for x in h}
+              pop=next((x for x in h if norm(x) in {'pop_2025','population_2025','population','pop'}),None)
+              name=next((x for x in h if norm(x) in {'name','uc_name','city_name','city','unlocname','unloc_name'}),None)
+              country=next((x for x in h if norm(x) in {'country','country_name','cntr_code','country_code'}),None)
+              if pop and name and country:
+                  chosen=p; schema=(h,pop,name,country); break
+          if chosen is None: raise SystemExit('wup-mtuc-schema-not-found')
+          h,pop_col,name_col,country_col=schema
+          idx={k:i for i,k in enumerate(h)}
+          records=[]; skipped=0
+          with chosen.open('r',encoding='utf-8-sig',errors='replace',newline='') as f:
+              for row in csv.DictReader(f):
+                  try: pop=float(str(row.get(pop_col,'')).replace(',','').strip())
+                  except (TypeError,ValueError): skipped+=1; continue
+                  if not math.isfinite(pop) or pop<=0 or pop>=50000: continue
+                  country=str(row.get(country_col,'')).strip(); name=str(row.get(name_col,'')).strip()
+                  if not country or not name: skipped+=1; continue
+                  records.append({'country':country,'name':name,'population_2025':pop})
+          seen=set(); out=[]; dup=0
           for r in records:
-              key=(norm(r['country']),norm(r['name']),r['population_thousands'])
-              if key in seen:
-                  duplicate_exact += 1
-                  continue
+              key=(norm(r['country']),norm(r['name']),r['population_2025'])
+              if key in seen: dup+=1; continue
               seen.add(key); out.append(r)
-          out.sort(key=lambda r:(norm(r['country']),norm(r['name']),r['population_thousands']))
-
-          expected=4690
-          print('2025 WUP sub-50k canonical urban-centre records:',len(out))
-          print('Expected VIDIK expansion universe:',expected)
-          if len(out) != expected:
-              raise SystemExit(f'sub50k-wup-f21-count-mismatch:{len(out)}:expected:{expected}')
-
-          report={
-            'dataset':'WUP2025-F21-DEGURBA-Cities_Pop',
-            'sheet':'Data',
-            'population_field':'2025',
-            'population_units':'thousands',
-            'coverage_rule':'WUP urban centres with population < 50,000',
-            'record_count':len(out),
-            'expected_records':expected,
-            'duplicate_exact_rows_collapsed':duplicate_exact,
-            'skipped_rows':skipped,
-            'source_sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),
-            'source_bytes':os.path.getsize(p),
-            'status':'validated-canonical-sub50k-universe'
-          }
+          out.sort(key=lambda r:(norm(r['country']),norm(r['name']),r['population_2025']))
+          print('Statistics file:',chosen)
+          print('2025 WUP-MTUC sub-50k candidates:',len(out))
+          print('Expected VIDIK expansion universe:',4690)
+          if len(out)!=4690: raise SystemExit(f'sub50k-wup-mtuc-count-mismatch:{len(out)}:expected:4690')
+          report={'dataset':'GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics','source_file':str(chosen.relative_to(root)),'population_field':pop_col,'coverage_rule':'WUP urban centres with 2025 population < 50,000','record_count':len(out),'expected_records':4690,'duplicate_exact_rows_collapsed':dup,'skipped_rows':skipped,'source_zip_sha256':hashlib.sha256(open('/tmp/wup/raw/mtuc.zip','rb').read()).hexdigest(),'status':'validated-canonical-sub50k-universe'}
           json.dump(report,open('/tmp/wup/output/sub50k-reconciliation-report.json','w'),indent=2)
           json.dump(out,open('/tmp/wup/output/sub50k-canonical.json','w'),ensure_ascii=False,indent=2)
           print(json.dumps(report,indent=2))
