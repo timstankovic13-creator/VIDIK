@@ -1,0 +1,80 @@
+name: WUP Sub-50k Source Ingestion
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feat/live-municipal-adapters-wup-expansion']
+permissions:
+  contents: read
+jobs:
+  source-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: python3 -m pip install --disable-pip-version-check openpyxl
+      - name: Download authoritative GHS-WUP 2025 MTUC statistics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wup/raw /tmp/wup/output
+          curl --fail --location --retry 4 --retry-delay 10 --retry-all-errors \
+            'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_MTUC_GLOBE_R2025A/V1-1/GHS_WUP_MTUC_GLOBE_R2025A_V1_1_statistics.zip' \
+            --output /tmp/wup/raw/source.zip
+          test -s /tmp/wup/raw/source.zip
+          sha256sum /tmp/wup/raw/source.zip | tee /tmp/wup/output/source.sha256
+          unzip -q /tmp/wup/raw/source.zip -d /tmp/wup/raw/unpacked
+          find /tmp/wup/raw/unpacked -maxdepth 2 -type f -print
+      - name: Extract 2025 urban-centre records below 50k
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import csv, json, openpyxl, hashlib
+          root=Path('/tmp/wup/raw/unpacked')
+          candidates=[]
+          for p in root.rglob('*'):
+              if p.suffix.lower() == '.xlsx':
+                  wb=openpyxl.load_workbook(p, read_only=True, data_only=True)
+                  for ws in wb.worksheets:
+                      rows=ws.iter_rows(values_only=True)
+                      try: headers=[str(x).strip() if x is not None else '' for x in next(rows)]
+                      except StopIteration: continue
+                      lower={h.lower():i for i,h in enumerate(headers)}
+                      year_i=next((i for h,i in lower.items() if h in ('year','selectyear')),None)
+                      pop_i=next((i for h,i in lower.items() if h.startswith('pop') or h=='population'),None)
+                      city_i=next((i for h,i in lower.items() if h in ('city_name','city','unlocname','unloc_name')),None)
+                      country_i=next((i for h,i in lower.items() if h in ('unlocname','location','country','unloc_name')),None)
+                      if year_i is None or pop_i is None: continue
+                      for row in rows:
+                          if not row or len(row)<=max(year_i,pop_i): continue
+                          try: year=int(float(row[year_i]))
+                          except Exception: continue
+                          if year != 2025: continue
+                          try: pop=float(row[pop_i])
+                          except Exception: continue
+                          if not (0 < pop < 50000): continue
+                          city = row[city_i] if city_i is not None and city_i < len(row) else None
+                          country = row[country_i] if country_i is not None and country_i < len(row) else None
+                          candidates.append({'city':str(city or '').strip(),'country':str(country or '').strip(),'population':pop})
+          # De-duplicate exact identity and fail closed on missing identity.
+          out=[]; seen=set()
+          for r in candidates:
+              key=(r['country'].lower(),r['city'].lower())
+              if not r['city'] or not r['country'] or key in seen: continue
+              seen.add(key); out.append(r)
+          out.sort(key=lambda r:(r['country'].lower(),r['city'].lower()))
+          Path('/tmp/wup/output/candidates.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('2025 sub-50k candidates:',len(out))
+          print('Expected VIDIK expansion universe:',4690)
+          if len(out) != 4690:
+              raise SystemExit(f'sub50k-source-count-mismatch:{len(out)}:expected:4690')
+          raw=Path('/tmp/wup/output/candidates.json').read_bytes()
+          Path('/tmp/wup/output/candidates.sha256').write_text(hashlib.sha256(raw).hexdigest()+'\n')
+          PY
+      - name: Upload validated expansion source
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-wup-sub50k-validated-source
+          path: /tmp/wup/output/
+          retention-days: 30
