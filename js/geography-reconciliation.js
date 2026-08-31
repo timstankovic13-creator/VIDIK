@@ -20,7 +20,7 @@ const VIDIK_GEOGRAPHY={
 function geoNorm(value){return String(value??'').trim().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();}
 function validNumber(v){return Number.isFinite(Number(v));}
 function validGeoRecord(r){return r&&String(r.geonameid??'').trim()&&String(r.name??'').trim()&&validNumber(r.latitude)&&validNumber(r.longitude)&&String(r.country_code??'').trim();}
-function score(input,r){
+function geoMatchScore(input,r){
   const city=geoNorm(input.city), name=geoNorm(r.name);
   if(city&&city===name)return 1;
   const aliases=Array.isArray(r.alternate_names)?r.alternate_names.map(geoNorm):[];
@@ -31,7 +31,7 @@ function reconcileGeography(input,gazetteer,worldpop=[]){
   if(!input||!String(input.city??'').trim()||!Array.isArray(gazetteer))return {status:VIDIK_GEOGRAPHY.status.invalid,reason:'city_and_gazetteer_required',schemaVersion:VIDIK_GEOGRAPHY.schemaVersion};
   const country=String(input.country_code??input.country??'').trim().toUpperCase();
   const valid=gazetteer.filter(validGeoRecord).filter(r=>!country||String(r.country_code).toUpperCase()===country);
-  const ranked=valid.map(r=>({record:r,score:score(input,r)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+  const ranked=valid.map(r=>({record:r,score:geoMatchScore(input,r)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
   if(!ranked.length)return {status:VIDIK_GEOGRAPHY.status.unresolved,reason:'no_admissible_gazetteer_match',schemaVersion:VIDIK_GEOGRAPHY.schemaVersion};
   const top=ranked[0], tied=ranked.filter(x=>x.score===top.score);
   if(tied.length!==1)return {status:VIDIK_GEOGRAPHY.status.ambiguous,reason:'multiple_equal_matches',candidates:tied.map(x=>x.record.geonameid),schemaVersion:VIDIK_GEOGRAPHY.schemaVersion};
