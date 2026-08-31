@@ -17,9 +17,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f data/reference/4690-source-provenance.md
-          grep -q 'UNPROVEN / FAIL-CLOSED' data/reference/4690-source-provenance.md
+          grep -q 'SOURCE IDENTIFIED / INGESTION FAIL-CLOSED' data/reference/4690-source-provenance.md
+          grep -q 'population is not' data/reference/4690-source-provenance.md
           test ! -f data/reference/wup-sub50k-canonical.json
-          echo '4,690 provenance: UNPROVEN / FAIL-CLOSED'
-          echo 'No canonical manifest will be accepted until an authoritative source and deterministic selection rule are proven.'
+          echo '4,690 source identity: PROVEN / population enrichment: PENDING / ingestion: FAIL-CLOSED'
+          echo 'No canonical population manifest will be accepted until independent population enrichment and geographic/municipal reconciliation pass.'
       - name: Run municipal adapter contract tests
         run: npm run test:municipal-contracts
