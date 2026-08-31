@@ -1,0 +1,25 @@
+name: VIDIK Municipal Source Live Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+
+jobs:
+  municipal-source-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Validate municipal adapter contracts
+        run: node tests/municipal-adapters.test.js
+
+      - name: Ingest live municipal source catalogs
+        run: node tests/municipal-live-ingestion.test.js
