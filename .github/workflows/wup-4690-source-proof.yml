@@ -1,0 +1,45 @@
+name: WUP 4,690 Source Proof
+on:
+  push:
+    branches:
+      - feat/live-municipal-adapters-wup-expansion
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prove-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install workbook parser
+        run: python3 -m pip install --disable-pip-version-check openpyxl
+      - name: Download authoritative WUP F21
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o /tmp/WUP2025-F21-DEGURBA-Cities_Pop.xlsx 'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+      - name: Reproduce 4,690 exactly
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wup
+          python3 scripts/wup-expansion-source.py /tmp/WUP2025-F21-DEGURBA-Cities_Pop.xlsx /tmp/wup/wup-sub50k-canonical.json
+      - name: Assert source identity and fail-closed population boundary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          rows=json.load(open('/tmp/wup/wup-sub50k-canonical.json',encoding='utf-8'))
+          assert len(rows)==4690
+          assert len({r['source_row_index'] for r in rows})==4690
+          assert all(r['population'] is None for r in rows)
+          assert all(r['population_status']=='unreported_subthreshold_in_F21' for r in rows)
+          print('WUP-F21-4690-source-frame: PASS')
+          print('Live population enrichment: FAIL-CLOSED')
+          PY
+      - name: Run municipal adapter contracts
+        run: npm run test:municipal-contracts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidik-wup-f21-4690-source-frame
+          path: /tmp/wup/wup-sub50k-canonical.json
+          retention-days: 30
