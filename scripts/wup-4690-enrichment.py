@@ -53,7 +53,7 @@ def enrich(f21,jrc):
  if not all([jcity,jcountry,jyear,jpop,jlat,jlon]): raise SystemExit(f'jrc-schema-mismatch:city={jcity}:country={jcountry}:year={jyear}:pop={jpop}:lat={jlat}:lon={jlon}')
  idx={}
  for r in jrc:
-  try:year=int(float(r.get(jyear))); pop=float(r.get(jpop)); lat=coord(r.get(jlat)); lon=coord(r.get(jlon)))
+  try:year=int(float(r.get(jyear))); pop=float(r.get(jpop)); lat=coord(r.get(jlat)); lon=coord(r.get(jlon))
   except:continue
   if year!=2025 or not math.isfinite(pop) or pop<=0 or pop>=50000 or lat is None or lon is None:continue
   idx.setdefault((norm(r.get(jcountry)),norm(r.get(jcity))),[]).append((r,pop,lat,lon))
