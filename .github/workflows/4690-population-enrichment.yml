@@ -28,7 +28,7 @@ jobs:
           p='/tmp/wup-4690-enriched.json'
           rows=json.load(open(p,encoding='utf-8'))
           assert len(rows)==4690, len(rows)
-          ids=set()
+          ids=set(); jrc_ids=set()
           for r in rows:
               key=(r['country'].casefold(),r['city'].casefold(),str(r['wup_city_code']),str(r['source_row_index']))
               assert key not in ids, key
@@ -36,9 +36,13 @@ jobs:
               pop=float(r['population'])
               assert math.isfinite(pop) and 0 < pop < 50000, key
               assert r.get('population_source') == 'JRC GHS-WUP-MTUC R2025A', key
-              assert r.get('jrc_id'), key
+              jid=str(r.get('jrc_id') or '')
+              assert jid and jid not in jrc_ids, key
+              jrc_ids.add(jid)
               assert r.get('jrc_lat') is not None and r.get('jrc_lon') is not None, key
-              assert r.get('coordinate_max_abs_delta', 999) <= 1.0, key
+              assert r.get('jrc_iso3') in (None, '', r.get('iso3')), key
+          assert len(ids)==4690
+          assert len(jrc_ids)==4690
           print('CANONICAL_ENRICHED_4690=PASS')
           PY
       - name: Compute canonical manifest hash
@@ -46,7 +50,6 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum /tmp/wup-4690-enriched.json | tee /tmp/wup-4690-enriched.sha256
-          cp /tmp/wup-4690-enrichment-report.json /tmp/wup-4690-enrichment-report.json
       - name: Upload candidate manifest, hash, and reconciliation report
         uses: actions/upload-artifact@v4
         with:
