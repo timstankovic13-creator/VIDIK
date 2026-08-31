@@ -1,0 +1,90 @@
+name: WUP 2025 City Universe Audit
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python workbook parser
+        run: python3 -m pip install --disable-pip-version-check openpyxl
+      - name: Download authoritative WUP F21 workbook
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wup
+          curl --fail --location --retry 8 --retry-all-errors --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o /tmp/wup/F21.xlsx 'https://population.un.org/wup/assets/Download/Cities/WUP2025-F21-DEGURBA-Cities_Pop.xlsx'
+      - name: Validate F21 and derive city universe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,math,os,re
+          from openpyxl import load_workbook
+          p='/tmp/wup/F21.xlsx'; wb=load_workbook(p,read_only=True,data_only=True)
+          if 'Data' not in wb.sheetnames: raise SystemExit(f'Expected Data sheet, got {wb.sheetnames}')
+          ws=wb['Data']; rows=list(ws.iter_rows(values_only=True))
+          def clean(v): return '' if v is None else str(v).strip()
+          def norm(v): return re.sub(r'[^a-z0-9]+','_',clean(v).lower()).strip('_')
+          header=None
+          for ri,row in enumerate(rows[:500]):
+              loc=city=pop=None
+              for ci,v in enumerate(row):
+                  k=norm(v)
+                  if k in ('location','location_name'): loc=ci
+                  elif k in ('city_name','city','cities'): city=ci
+                  elif k=='2025' or k.startswith('2025_'): pop=ci
+              if loc is not None and city is not None and pop is not None:
+                  header=(ri,loc,city,pop); break
+          if header is None:
+              for ri,row in enumerate(rows[:500]):
+                  loc=city=pop=None
+                  for ci,v in enumerate(row):
+                      k=norm(v)
+                      if k=='location': loc=ci
+                      elif k=='city_name': city=ci
+                      try:
+                          if float(v)==2025: pop=ci
+                      except (TypeError,ValueError): pass
+                  if loc is not None and city is not None and pop is not None:
+                      header=(ri,loc,city,pop); break
+          if header is None: raise SystemExit('Could not identify WUP F21 Data fields Location, City_Name, 2025')
+          hi,loc_i,city_i,pop_i=header; records=[]
+          for row_number,row in enumerate(rows[hi+1:],start=hi+2):
+              if max(loc_i,city_i,pop_i)>=len(row): continue
+              country,city,raw=clean(row[loc_i]),clean(row[city_i]),row[pop_i]
+              if not country or not city or not norm(city): continue
+              try: value=float(str(raw).replace(',','').strip())
+              except (TypeError,ValueError): continue
+              if math.isfinite(value) and value>=50: records.append((country,city,value,row_number))
+          if not records: raise SystemExit('F21 produced no city records >=50 (population is in thousands)')
+          # City_Name is not a globally unique identifier. The WUP workbook can
+          # legitimately contain multiple urban centres with the same country/city
+          # label but different populations. Only collapse exact repeats; preserve
+          # distinct records rather than treating a name collision as corruption.
+          seen=set(); deduped=[]; duplicate_rows=0
+          for country,city,value,row_number in records:
+              key=(norm(country),norm(city),value)
+              if key in seen:
+                  duplicate_rows += 1
+                  continue
+              seen.add(key); deduped.append((country,city,value,row_number))
+          records=deduped
+          names=[norm(b) for _,b,_,_ in records]
+          ottawa=any(re.search(r'(^|_)ottawa($|_)',x) for x in names); toronto=any(re.search(r'(^|_)toronto($|_)',x) for x in names)
+          if not (ottawa and toronto): raise SystemExit(f'Required cities missing: Ottawa={ottawa}, Toronto={toronto}')
+          report={'dataset':'WUP2025-F21-DEGURBA-Cities_Pop','sheet':'Data','city_field':'City_Name','country_field':'Location','population_field':'2025','population_units':'thousands','header_row':hi+1,'record_count_ge_50k':len(records),'duplicate_exact_rows_collapsed':duplicate_rows,'name_collisions_preserved':True,'contains_ottawa':ottawa,'contains_toronto':toronto,'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'bytes':os.path.getsize(p)}
+          json.dump(report,open('/tmp/wup/city-universe-report.json','w'),indent=2); print(json.dumps(report,indent=2))
+          PY
+      - name: Hash source manifest
+        run: sha256sum /tmp/wup/* > /tmp/wup/source-manifest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vidik-wup-city-universe-audit
+          path: /tmp/wup/*
+          retention-days: 30

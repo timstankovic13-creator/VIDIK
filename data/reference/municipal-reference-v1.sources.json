@@ -1,0 +1,55 @@
+{
+  "pack": "VIDIK Municipal Reference Pack v1",
+  "status": "source-registered",
+  "publisher": "Statistics Canada",
+  "licence": "Open Government Licence - Canada",
+  "sources": [
+    {
+      "id": "statcan-98-10-0002-02",
+      "tier": "municipal-spine",
+      "title": "Population and dwelling counts: Canada, provinces and territories, and census subdivisions (municipalities)",
+      "table": "98-10-0002-02",
+      "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=9810000202",
+      "use": ["population_2021", "population_2016", "population_change", "dwellings", "land_area_km2", "population_density", "population_rank"],
+      "reference_period": "2021 Census",
+      "update_policy": "replace on official revision"
+    },
+    {
+      "id": "statcan-17-10-0155-01",
+      "tier": "population-estimates",
+      "title": "Population estimates, July 1, by census subdivision, 2021 boundaries",
+      "table": "17-10-0155-01",
+      "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1710015501",
+      "csv_url": "https://www150.statcan.gc.ca/n1/tbl/csv/17100155-eng.zip",
+      "use": ["annual_population_estimate"],
+      "reference_period": "annual July 1 estimates",
+      "update_policy": "annual"
+    },
+    {
+      "id": "statcan-35100077",
+      "tier": "public-safety",
+      "title": "Police personnel and selected crime statistics, municipal police services",
+      "table": "35-10-0077-01",
+      "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3510007701",
+      "csv_url": "https://www150.statcan.gc.ca/n1/tbl/csv/35100077-eng.zip",
+      "use": ["police_personnel", "authorized_strength", "officers_per_100k", "hirings_departures", "retirement_eligibility", "selected_crime_statistics"],
+      "reference_period": "2000-2023, 2025",
+      "update_policy": "annual"
+    },
+    {
+      "id": "statcan-98-401-census-profile",
+      "tier": "demographic-socioeconomic",
+      "title": "Census Profile, 2021",
+      "url": "https://www150.statcan.gc.ca/n1/en/catalogue/98-401-X",
+      "use": ["age", "sex", "income", "education", "labour", "housing", "language", "families", "households", "immigration"],
+      "reference_period": "2021 Census",
+      "update_policy": "replace when new census profile is released"
+    }
+  ],
+  "rules": [
+    "Cached reference data must carry source, retrieval timestamp, reference period, dataset version, geography definition, schema version, content hash and provenance ID.",
+    "Live evidence remains authoritative for volatile operational facts.",
+    "No cached value may silently override newer validated evidence.",
+    "Generated extracts must record their parent source ID and transformation version."
+  ]
+}

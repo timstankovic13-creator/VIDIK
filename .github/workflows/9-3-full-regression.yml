@@ -1,0 +1,28 @@
+name: VIDIK 9.3 Full Regression
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci; else npm install --ignore-scripts; fi
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Full Playwright acceptance and hostile suites
+        run: |
+          set -euo pipefail
+          npx playwright test --reporter=line
+# Integrated regression trigger: preserve the validated code baseline while forcing a fresh run.

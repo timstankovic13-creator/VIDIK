@@ -1,0 +1,86 @@
+name: WUP 2025 Official City Ingestion
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official WUP 2025 catalog resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wup/raw /tmp/wup/output
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlsplit, urlunsplit, quote
+          from urllib.request import Request, urlopen
+          from pathlib import Path
+          import hashlib, json, os, time
+          page='https://population.un.org/wup/downloads?tab=Cities'
+          def fetch(url, timeout=120, attempts=4):
+              last=None
+              for attempt in range(1, attempts+1):
+                  try:
+                      req=Request(url, headers={'User-Agent':'VIDIK-WUP-2025-ingestion/1.0'})
+                      with urlopen(req, timeout=timeout) as r: return r.read()
+                  except Exception as exc:
+                      last=exc
+                      if attempt < attempts: time.sleep(10 * attempt)
+              raise RuntimeError(f'WUP download failed after {attempts} attempts: {url}: {last}')
+          html=fetch(page, timeout=60)
+          Path('/tmp/wup/output/download-page.html').write_bytes(html)
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag=='a':
+                      d=dict(attrs); href=d.get('href')
+                      if href: self.links.append(href)
+          p=P(); p.feed(html.decode('utf-8','replace'))
+          links=[]
+          for href in p.links:
+              u=urljoin(page,href)
+              if 'population.un.org' not in u or not ('WUP2025' in u or 'wup2025' in u): continue
+              if not any(x in u.lower() for x in ('.csv','.zip','.xlsx','.xls')): continue
+              s=urlsplit(u)
+              safe_path=quote(s.path, safe='/,:;@%+$&=')
+              links.append(urlunsplit((s.scheme,s.netloc,safe_path,s.query,s.fragment)))
+          links=sorted(set(links))
+          if not links: raise SystemExit('no-official-wup-2025-download-links-found')
+          Path('/tmp/wup/output/catalog.json').write_text(json.dumps({'source_page':page,'links':links},indent=2)+'\n',encoding='utf-8')
+          print('official WUP links discovered:',len(links))
+          for u in links: print(u)
+          out=Path('/tmp/wup/raw')
+          for i,u in enumerate(links):
+              name=os.path.basename(u.split('?',1)[0]) or f'wup-{i}'
+              data=fetch(u, timeout=300)
+              pth=out/name
+              pth.write_bytes(data)
+              if pth.stat().st_size == 0: raise SystemExit(f'empty-download:{name}')
+              h=hashlib.sha256(data).hexdigest()
+              print(f'{name} sha256={h} bytes={pth.stat().st_size}')
+          PY
+      - name: Build immutable WUP source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,glob,os
+          files=[]
+          for p in sorted(glob.glob('/tmp/wup/raw/*')):
+              if os.path.isfile(p):
+                  with open(p,'rb') as f: h=hashlib.sha256(f.read()).hexdigest()
+                  files.append({'file':os.path.basename(p),'sha256':h,'bytes':os.path.getsize(p)})
+          assert files, 'no-wup-source-files'
+          json.dump({'schema_version':'1.0.0','publisher':'United Nations DESA Population Division','dataset':'World Urbanization Prospects 2025','source_page':'https://population.un.org/wup/downloads?tab=Cities','files':files},open('/tmp/wup/output/source-manifest.json','w'),indent=2)
+          PY
+      - name: Upload WUP source artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-wup-2025-official-source
+          path: /tmp/wup/output/
+          retention-days: 30

@@ -1,0 +1,31 @@
+name: VIDIK Staging Smoke and Recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  staging-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Start staging server
+        run: node staging/server.js > /tmp/vidik-staging.log 2>&1 & echo $! > /tmp/vidik.pid
+      - name: Readiness check
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/ready && exit 0; sleep 1; done
+          cat /tmp/vidik-staging.log; exit 1
+      - name: Health check
+        run: curl -fsS http://127.0.0.1:8080/health | tee /tmp/health.json
+      - name: Application smoke check
+        run: curl -fsS http://127.0.0.1:8080/ | grep -q 'VIDIK'
+      - name: Recovery check
+        run: |
+          set -euo pipefail
+          kill -TERM $(cat /tmp/vidik.pid)
+          for i in $(seq 1 10); do if ! kill -0 $(cat /tmp/vidik.pid) 2>/dev/null; then echo 'graceful shutdown PASS'; exit 0; fi; sleep 1; done
+          echo 'recovery/shutdown failure'; cat /tmp/vidik-staging.log; exit 1

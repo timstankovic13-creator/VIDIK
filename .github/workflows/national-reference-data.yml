@@ -1,0 +1,103 @@
+name: National Municipal Reference Data
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prep/**']
+permissions:
+  contents: read
+jobs:
+  download-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download authoritative Statistics Canada tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/statcan/raw /tmp/statcan/unpacked /tmp/statcan/output
+          download() {
+            local id="$1"
+            local out="/tmp/statcan/raw/${id}-eng.zip"
+            for attempt in 1 2 3; do
+              if curl --fail --location --http1.1 --retry 4 --retry-delay 5 --retry-connrefused --connect-timeout 30 --max-time 900 -A 'VIDIK/9.3 data-audit' -o "$out" "https://www150.statcan.gc.ca/n1/tbl/csv/${id}-eng.zip"; then
+                test -s "$out"
+                return 0
+              fi
+              echo "Statistics Canada download attempt ${attempt}/3 failed for ${id}; retrying..."
+              sleep 10
+            done
+            echo "ERROR: authoritative Statistics Canada table ${id} could not be downloaded after retries." >&2
+            exit 1
+          }
+          download 98100002
+          download 17100155
+          download 35100077
+      - name: Verify archives and extract data/metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          for z in /tmp/statcan/raw/*.zip; do unzip -t "$z" >/dev/null; unzip -q "$z" -d "/tmp/statcan/unpacked/$(basename "$z" .zip)"; done
+          find /tmp/statcan/unpacked -type f -name '*.csv' -print | sort
+      - name: Generate source hashes and inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv,glob,hashlib,json,os,sys
+          csv.field_size_limit(sys.maxsize)
+          root='/tmp/statcan'; records=[]
+          for p in sorted(glob.glob(root+'/raw/*.zip')):
+              with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
+              records.append({'file':os.path.basename(p),'sha256':sha,'bytes':os.path.getsize(p)})
+          for p in sorted(glob.glob(root+'/unpacked/**/*.csv',recursive=True)):
+              with open(p,'rb') as f: sha=hashlib.sha256(f.read()).hexdigest()
+              with open(p,encoding='utf-8-sig',newline='') as f:
+                  r=csv.reader(f, strict=False); header=next(r); rows=sum(1 for _ in r)
+              records.append({'file':os.path.relpath(p,root+'/unpacked'),'sha256':sha,'bytes':os.path.getsize(p),'columns':len(header),'rows':rows})
+          json.dump({'schema_version':'1.0.0','publisher':'Statistics Canada','generated_by':'national-reference-data.yml','sources':records},open(root+'/output/source-inventory.json','w'),indent=2)
+          PY
+      - name: Structural validation using Statistics Canada-compatible logical CSV records
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv,glob,os,sys
+          csv.field_size_limit(sys.maxsize)
+          files=glob.glob('/tmp/statcan/unpacked/**/*.csv',recursive=True)
+          assert files, 'no CSV files extracted'
+          for p in files:
+              is_metadata=os.path.basename(p).lower().endswith('_metadata.csv')
+              with open(p,encoding='utf-8-sig',newline='') as f:
+                  r=csv.reader(f, strict=False)
+                  h=next(r, None)
+                  assert h and any(x.strip() for x in h), f'empty-or-invalid-header:{p}'
+                  expected=len(h); n=1; blank=0; normalized=0; nonempty=0
+                  for row in r:
+                      n += 1
+                      if len(row) == 0:
+                          blank += 1
+                          continue
+                      nonempty += 1
+                      # StatCan source CSVs can contain a trailing delimiter on an
+                      # otherwise valid logical record. Normalize only empty
+                      # trailing fields; never discard non-empty data.
+                      original_len=len(row)
+                      while len(row) > expected and row[-1] == '':
+                          row.pop()
+                          normalized += 1
+                      if not is_metadata and len(row) != expected:
+                          raise AssertionError(f'logical-row-width-mismatch:{p}:record={n}:expected={expected}:actual={original_len}:nonempty-extra-data')
+                      if is_metadata and not any(str(x).strip() for x in row):
+                          raise AssertionError(f'empty-metadata-record:{p}:record={n}')
+                  if n <= 1 or nonempty == 0:
+                      raise AssertionError(f'empty-data-file:{p}')
+              mode='metadata' if is_metadata else 'data'
+              print(f'validated:{p}:type={mode}:records={n-1}:blank-records-skipped={blank}:trailing-empty-fields-normalized={normalized}:header-columns={expected}')
+          print(f'StatCan structural validation PASS: {len(files)} CSV files; logical records validated; only empty trailing fields normalized')
+          PY
+      - name: Publish raw-source inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-national-reference-source-inventory
+          path: /tmp/statcan/output/source-inventory.json
+          retention-days: 30

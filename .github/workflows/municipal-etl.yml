@@ -1,0 +1,31 @@
+name: Municipal ETL Validation
+on:
+  push:
+    branches: [main, 'prep/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  statcan-real-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run real Statistics Canada Ottawa fixture through ETL
+        run: |
+          rm -rf /tmp/vidik-etl
+          node scripts/municipal-reference-pack.js \
+            --input data/reference/fixtures/statcan-98100002-real-ottawa.csv \
+            --spine data/reference/fixtures/wup-spine-ottawa.csv \
+            --output /tmp/vidik-etl
+      - name: Assert normalized output and provenance
+        run: |
+          test -s /tmp/vidik-etl/normalized.json
+          test -s /tmp/vidik-etl/source-manifest.json
+          node -e "const m=require('/tmp/vidik-etl/source-manifest.json'); if(m.status!=='validated-ingested') process.exit(1); if(m.row_count!==1) process.exit(1); if(!m.normalized_sha256) process.exit(1); if(!m.reconciliation || m.reconciliation.matched!==1 || m.reconciliation.missing.length) process.exit(1); console.log('municipal-etl-real-fixture: PASS')"
+      - name: Verify fail-closed missing input
+        run: |
+          if node scripts/municipal-reference-pack.js --output /tmp/should-fail; then exit 1; else echo 'missing-input fail-closed: PASS'; fi
