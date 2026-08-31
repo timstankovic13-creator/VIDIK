@@ -28,26 +28,31 @@ jobs:
           root='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
           session=requests.Session()
 
-          def listing(url):
+          def links(url):
               r=session.get(url,timeout=60); r.raise_for_status()
-              return r.text, re.findall(r'href=["\']([^"\']+)["\']',r.text,re.I)
+              return re.findall(r'href=["\']([^"\']+)["\']',r.text,re.I)
 
-          def href_url(parent, href):
-              return urljoin(parent, href)
+          def children(url):
+              return [urljoin(url,h) for h in links(url)]
 
           def discover_archive(typ):
+              # The JRC product is a directory tree. The root currently exposes
+              # V1-0/, and the entity archives are below that directory. Walk
+              # directories, but never concatenate server-root absolute hrefs.
               queue=[root]; seen=set()
               while queue:
                   url=queue.pop(0)
                   if url in seen: continue
                   seen.add(url)
-                  _, links=listing(url)
-                  archives=[x for x in links if x.lower().endswith('.zip') and re.search(rf'(^|[_-]){typ}([_-]|$)',x,re.I)]
-                  if archives:
-                      return href_url(url,archives[0])
-                  for x in links:
-                      full=href_url(url,x)
-                      if full.endswith('/') and full.startswith(root) and full not in seen:
+                  hs=links(url)
+                  for h in hs:
+                      full=urljoin(url,h)
+                      if full.lower().endswith('.zip') and re.search(rf'(^|[_-]){typ}([_.-]|$)',full,re.I):
+                          print(f'{typ}: discovered archive {full}')
+                          return full
+                  for h in hs:
+                      full=urljoin(url,h)
+                      if full.startswith(root) and full.endswith('/') and full not in seen:
                           queue.append(full)
               raise SystemExit(f'wup-source-archive-not-found:{typ}')
 
@@ -69,9 +74,9 @@ jobs:
               df=pyogrio.read_dataframe(shp)
               cols={str(c).upper():c for c in df.columns}
               pop=next((cols[k] for k in ('POP2025','POP','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
-              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN') if k in cols),None)
+              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN','NAME_ENGLISH') if k in cols),None)
               unlocid=next((cols[k] for k in ('UNLOCID','UNLOC_ID','UN_LOC_ID') if k in cols),None)
-              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID','ID') if k in cols),None)
+              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID','ID','ID_UC_G0','ID_MTUC') if k in cols),None)
               print(f'{typ}: columns={list(df.columns)}')
               if not pop or not name: raise SystemExit(f'wup-schema-missing:{typ}:columns={list(df.columns)}')
               vals=pd.to_numeric(df[pop],errors='coerce')
