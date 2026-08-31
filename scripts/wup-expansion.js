@@ -5,7 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const EXPECTED_RECORDS = 4690;
-const REQUIRED_FIELDS = ['city', 'country', 'population'];
+const REQUIRED_FIELDS = ['city', 'country', 'population', 'wup_city_code', 'source_row_index'];
 
 function validateExpansion(records) {
   if (!Array.isArray(records)) throw new Error('expansion-records-must-be-array');
@@ -14,8 +14,8 @@ function validateExpansion(records) {
   for (const row of records) {
     if (!row || typeof row !== 'object') throw new Error('expansion-invalid-record');
     for (const field of REQUIRED_FIELDS) if (row[field] === undefined || row[field] === null || row[field] === '') throw new Error(`expansion-missing:${field}`);
-    const id = `${String(row.country).trim().toLowerCase()}::${String(row.city).trim().toLowerCase()}`;
-    if (ids.has(id)) throw new Error(`expansion-duplicate:${id}`);
+    const id = `${String(row.country).trim().toLowerCase()}::${String(row.city).trim().toLowerCase()}::${String(row.wup_city_code).trim()}::${String(row.source_row_index).trim()}`;
+    if (ids.has(id)) throw new Error(`expansion-duplicate-identity:${id}`);
     ids.add(id);
     const population = Number(row.population);
     if (!Number.isFinite(population) || population <= 0 || population >= 50000) throw new Error(`expansion-invalid-population:${id}`);
