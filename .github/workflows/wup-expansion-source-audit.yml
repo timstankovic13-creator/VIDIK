@@ -16,59 +16,40 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet requests pyogrio pandas
+          python3 -m pip install --quiet requests pyogrio pandas geopandas
           python3 - <<'PY'
-          import io, re, zipfile
+          import io, zipfile
           from pathlib import Path
           import requests
           import pandas as pd
-          import pyogrio
+          import geopandas as gpd
 
-          # Verified from the JRC directory index: the E2025 product contains
-          # one V1-0 directory with this archive. Do not infer archive names.
-          url=(
-              'https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
-              'GHS_WUP_DEGURBA_GLOBE_R2025A/'
-              'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
-              'V1-0/'
-              'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip'
-          )
+          url=('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
+               'GHS_WUP_DEGURBA_GLOBE_R2025A/'
+               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
+               'V1-0/GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip')
           print('Downloading verified WUP-DEGURBA archive:', url)
-          r=requests.get(url,timeout=300)
-          r.raise_for_status()
-          z=zipfile.ZipFile(io.BytesIO(r.content))
-          names=z.namelist()
-          print('Archive member count:',len(names))
+          r=requests.get(url,timeout=300); r.raise_for_status()
+          z=zipfile.ZipFile(io.BytesIO(r.content)); names=z.namelist()
           shp_names=[n for n in names if n.lower().endswith('.shp')]
-          print('Shapefile members:')
-          for n in shp_names: print(' -',n)
-          if not shp_names:
-              raise SystemExit('wup-no-shapefiles-in-verified-archive')
-
-          out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True)
-          z.extractall(out)
-          shps=list(out.rglob('*.shp'))
-          print('Extracted shapefiles:',[str(p.relative_to(out)) for p in shps])
-
+          print('Archive member count:',len(names)); print('Shapefile members:',*shp_names,sep='\n - ')
+          if not shp_names: raise SystemExit('wup-no-shapefiles-in-verified-archive')
+          out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True); z.extractall(out)
+          shps=list(out.rglob('*.shp')); print('Extracted shapefiles:',[str(p.relative_to(out)) for p in shps])
           results=[]
           for shp in shps:
-              label=shp.stem.upper()
-              df=pyogrio.read_dataframe(shp)
+              label=shp.stem.upper(); df=gpd.read_file(shp)
               cols={str(c).upper():c for c in df.columns}
               pop=next((cols[k] for k in ('POP','POP2025','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
               name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN','NAME_ENGLISH') if k in cols),None)
               country=next((cols[k] for k in ('COUNTRY','CNTR_NAME','COUNTRY_NAME','CNTR') if k in cols),None)
               unlocid=next((cols[k] for k in ('UNLOCID','UNLOC_ID','UN_LOC_ID') if k in cols),None)
-              vals=pd.to_numeric(df[pop],errors='coerce') if pop else pd.Series(dtype=float)
-              sub=(vals>0)&(vals<50000) if pop else pd.Series(False,index=df.index)
-              results.append((label,len(df),int((vals>0).sum()) if pop else 0,int(sub.sum()),pop,name,country,unlocid,list(df.columns)))
-              print(f'{label}: rows={len(df)} positive={int((vals>0).sum()) if pop else 0} sub50k={int(sub.sum())} pop={pop} name={name} country={country} unlocid={unlocid}')
+              if not pop: raise SystemExit(f'wup-population-field-not-found:{label}:columns={list(df.columns)}')
+              vals=pd.to_numeric(df[pop],errors='coerce'); sub=(vals>0)&(vals<50000)
+              results.append((label,len(df),int((vals>0).sum()),int(sub.sum()),pop,name,country,unlocid))
+              print(f'{label}: rows={len(df)} positive={int((vals>0).sum())} sub50k={int(sub.sum())} pop={pop} name={name} country={country} unlocid={unlocid}')
               print(' columns=',list(df.columns))
               if int(sub.sum()):
-                  fields=[c for c in (name,country,unlocid,pop) if c]
-                  print(df.loc[sub,fields].head(10).to_string(index=False))
-
-          print('WUP-DEGURBA layer audit complete.')
-          print('SUMMARY')
-          for row in results: print(row[:8])
+                  fields=[c for c in (name,country,unlocid,pop) if c]; print(df.loc[sub,fields].head(10).to_string(index=False))
+          print('WUP-DEGURBA layer audit complete.'); print('SUMMARY'); [print(x) for x in results]
           PY
