@@ -21,9 +21,9 @@ const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({ city: `Tes
 assert.deepStrictEqual(validateExpansion(records), { enabled: true, records: EXPECTED_RECORDS });
 assert.throws(() => validateExpansion(records.map((r, i) => i === 0 ? { ...r, population: 50000 } : r)), /expansion-invalid-population/);
 
-// Melbourne's documented Explore API has appeared as either `results` or `records` in source responses.
+// Melbourne's documented Explore API exposes records; accept both observed response keys.
 assert.strictEqual(validateCatalog('Melbourne', { results: [{ id: 1 }] }), true);
 assert.strictEqual(validateCatalog('Melbourne', { records: [{ id: 1 }] }), true);
-assert.throws(() => validateCatalog('Melbourne', { total_count: 1 }), /melbourne-records-shape-invalid/);
+assert.throws(() => validateCatalog('Melbourne', { total_count: 1 }), /melbourne-catalog-shape-invalid/);
 
 console.log('municipal-adapter-and-wup-contracts: PASS');
