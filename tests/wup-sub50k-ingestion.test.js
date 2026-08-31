@@ -1,0 +1,10 @@
+'use strict';
+const assert = require('assert');
+const { EXPECTED_RECORDS, SOURCE_URL, validateSub50k } = require('../scripts/wup-sub50k-ingestion');
+assert.strictEqual(EXPECTED_RECORDS, 4690);
+assert.ok(SOURCE_URL.includes('GHS_WUP_MTUC_GLOBE_R2025A'));
+const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({ city: `Test-${i}`, country: 'Canada', population: 1000 + i }));
+assert.deepStrictEqual(validateSub50k(records), { enabled: true, records: EXPECTED_RECORDS });
+assert.throws(() => validateSub50k(records.slice(1)), /sub50k-record-count/);
+assert.throws(() => validateSub50k(records.map((r, i) => i === 0 ? { ...r, population: 50000 } : r)), /sub50k-invalid-population/);
+console.log('wup-sub50k-ingestion-contract: PASS');
