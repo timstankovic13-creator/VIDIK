@@ -22,8 +22,6 @@ jobs:
           from pathlib import Path
           page='https://human-settlement.emergency.copernicus.eu/ghs_wup_degurba_r2025a.php'
           html=requests.get(page,timeout=60).text
-          # The official product page is the source of truth. Search both absolute
-          # and relative links because the site has changed its download endpoint.
           raw_links=re.findall(r'''(?:href|src)=["']([^"']+)["']''',html,re.I)
           candidates=[]
           for raw in raw_links:
@@ -35,11 +33,9 @@ jobs:
               elif not u.startswith('http'):
                   u='https://human-settlement.emergency.copernicus.eu/'+u.lstrip('./')
               candidates.append(u)
-          # Also include the current JRC FTP directory as a fallback source of
-          # published DEGURBA files.
           ftp='https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_WUP_DEGURBA_GLOBE_R2025A/'
           idx=requests.get(ftp,timeout=60).text
-          for href in re.findall(r'href=["']([^"']+)["']',idx,re.I):
+          for href in re.findall(r"href=[\"']([^\"']+)[\"']",idx,re.I):
               if href.startswith('GHS_WUP_DEGURBA_E2025'):
                   candidates.append(ftp+href)
           candidates=list(dict.fromkeys(candidates))
