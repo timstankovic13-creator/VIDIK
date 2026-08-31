@@ -1,0 +1,71 @@
+name: WUP Sub-50k Reconstruction Audit
+on:
+  push:
+    branches:
+      - feat/live-municipal-adapters-wup-expansion
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install geospatial reader
+        run: python3 -m pip install --quiet requests pandas geopandas
+      - name: Reconstruct and test the 4,690 contract against authoritative WUP-DEGURBA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import io, json, zipfile
+          from pathlib import Path
+          import requests, pandas as pd, geopandas as gpd
+
+          TARGET=4690
+          URL=('https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/'
+               'GHS_WUP_DEGURBA_GLOBE_R2025A/'
+               'GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000/'
+               'V1-0/GHS_WUP_DEGURBA_E2025_GLOBE_R2025A_54009_1000_V1_0.zip')
+          raw=requests.get(URL,timeout=300); raw.raise_for_status()
+          z=zipfile.ZipFile(io.BytesIO(raw.content)); out=Path('/tmp/wup'); out.mkdir(exist_ok=True); z.extractall(out)
+
+          frames={}
+          for shp in out.rglob('*.shp'):
+              label=shp.stem.upper()
+              df=gpd.read_file(shp)
+              cols={str(c).upper():c for c in df.columns}
+              pop=next((cols[k] for k in ('POP','POP2025','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
+              if not pop: raise SystemExit(f'wup-population-field-not-found:{label}')
+              df['_pop']=pd.to_numeric(df[pop],errors='coerce')
+              frames[label]=df
+
+          bands=[(0,50000),(1000,50000),(5000,50000),(10000,50000),(15000,50000),(20000,50000),(25000,50000),(30000,50000),(35000,50000),(40000,50000),(45000,50000)]
+          print('=== COMMON POPULATION BAND COUNTS ===')
+          exact=[]
+          for label,df in frames.items():
+              print(label)
+              for lo,hi in bands:
+                  n=int(((df['_pop']>=lo)&(df['_pop']<hi)).sum())
+                  print(f'  {lo}-{hi}: {n}')
+                  if n==TARGET: exact.append((label,lo,hi,n))
+
+          print('=== LAYER COMBINATIONS ===')
+          labels=list(frames)
+          for i,a in enumerate(labels):
+              for b in labels[i+1:]:
+                  for lo,hi in bands:
+                      n=int(((frames[a]['_pop']>=lo)&(frames[a]['_pop']<hi)).sum()+((frames[b]['_pop']>=lo)&(frames[b]['_pop']<hi)).sum())
+                      if n==TARGET: exact.append((f'{a}+{b}',lo,hi,n))
+          print('EXACT_4690_CANDIDATES=',json.dumps(exact))
+          if exact:
+              print('Candidate rules found; these are NOT accepted as the canonical rule without provenance validation.')
+          else:
+              print('No common population-band or two-layer combination reproduces 4,690.')
+          print('4,690 contract remains unproven; no fabricated manifest is produced.')
+          PY
+      - name: Run existing ETL regression
+        run: |
+          set -euo pipefail
+          if [ -f package.json ]; then npm test --if-present; fi
