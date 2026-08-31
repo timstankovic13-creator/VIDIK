@@ -29,12 +29,12 @@ jobs:
           links=re.findall(r'href=["\']([^"\']+)["\']',idx.text,re.I)
           wanted=[]
           for typ in ('UC','DUC','SDUC','RC'):
-              matches=[x for x in links if f'_{typ}_V1_0.shp' in x]
+              matches=[x for x in links if re.search(rf'(^|[_-]){typ}([_-]|$)',x,re.I) and x.lower().endswith('.zip')]
               if not matches:
-                  raise SystemExit(f'wup-source-layer-not-found:{typ}')
+                  raise SystemExit(f'wup-source-archive-not-found:{typ}:candidates={links[:30]}')
               wanted.append((typ,matches[0]))
           print('Authoritative WUP-DEGURBA directory:',base)
-          print('Discovered layers:',wanted)
+          print('Discovered archives:',wanted)
 
           out=Path('/tmp/wup-audit'); out.mkdir(exist_ok=True)
           summary=[]
@@ -42,15 +42,19 @@ jobs:
               url=link if link.startswith('http') else base+link
               r=requests.get(url,timeout=180); r.raise_for_status()
               z=zipfile.ZipFile(io.BytesIO(r.content))
+              names=z.namelist()
+              print(f'{typ}: archive members={names[:20]}')
               z.extractall(out/typ)
-              shp=next((p for p in (out/typ).glob('*.shp')),None)
-              if shp is None: raise SystemExit(f'wup-shapefile-missing:{typ}')
+              shps=list((out/typ).rglob('*.shp'))
+              if not shps: raise SystemExit(f'wup-shapefile-missing:{typ}:members={names[:30]}')
+              shp=shps[0]
               df=pyogrio.read_dataframe(shp)
               cols={str(c).upper():c for c in df.columns}
-              pop=next((cols[k] for k in ('POP2025','POP','POP_2025') if k in cols),None)
-              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME') if k in cols),None)
-              unlocid=next((cols[k] for k in ('UNLOCID',) if k in cols),None)
-              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID') if k in cols),None)
+              pop=next((cols[k] for k in ('POP2025','POP','POP_2025','E2025_POP','POP_E2025') if k in cols),None)
+              name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME','NAME_EN') if k in cols),None)
+              unlocid=next((cols[k] for k in ('UNLOCID','UNLOC_ID','UN_LOC_ID') if k in cols),None)
+              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID','ID') if k in cols),None)
+              print(f'{typ}: columns={list(df.columns)}')
               if not pop or not name: raise SystemExit(f'wup-schema-missing:{typ}:columns={list(df.columns)}')
               vals=pd.to_numeric(df[pop],errors='coerce')
               positive=(vals>0)
