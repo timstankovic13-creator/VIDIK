@@ -25,6 +25,7 @@ jobs:
         run: npm install
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      # Canonical integration validation: city/DID/explanation/audit state must update synchronously.
       - name: Run VIDIK 9.2 browser acceptance
         run: npm run test:e2e
       - name: Upload Playwright report
