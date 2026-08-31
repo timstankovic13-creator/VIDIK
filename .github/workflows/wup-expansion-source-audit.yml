@@ -1,5 +1,8 @@
 name: WUP Expansion Source Audit
 on:
+  push:
+    branches:
+      - feat/live-municipal-adapters-wup-expansion
   workflow_dispatch:
 permissions:
   contents: read
@@ -46,16 +49,17 @@ jobs:
               cols={str(c).upper():c for c in df.columns}
               pop=next((cols[k] for k in ('POP2025','POP','POP_2025') if k in cols),None)
               name=next((cols[k] for k in ('UNLOCNAME','UCNAME','NAME') if k in cols),None)
-              country=next((cols[k] for k in ('UNLOCID','COUNTRY','UNLOCNAME') if k in cols),None)
+              unlocid=next((cols[k] for k in ('UNLOCID',) if k in cols),None)
+              unique=next((cols[k] for k in ('UNIQUE_ID','UNIQUEID') if k in cols),None)
               if not pop or not name: raise SystemExit(f'wup-schema-missing:{typ}:columns={list(df.columns)}')
               vals=pd.to_numeric(df[pop],errors='coerce')
               positive=(vals>0)
               sub=(vals>0)&(vals<50000)
               summary.append((typ,len(df),int(positive.sum()),int(sub.sum())))
-              print(f'{typ}: rows={len(df)} positive={int(positive.sum())} sub50k={int(sub.sum())} pop_field={pop} name_field={name} country_field={country}')
+              print(f'{typ}: rows={len(df)} positive={int(positive.sum())} sub50k={int(sub.sum())} pop_field={pop} name_field={name} unlocid_field={unlocid} unique_id_field={unique}')
               if int(sub.sum()):
-                  sample=df.loc[sub,[c for c in (name,country,pop) if c]].head(10)
-                  print(sample.to_string(index=False))
+                  fields=[c for c in (name,unlocid,pop,unique) if c]
+                  print(df.loc[sub,fields].head(10).to_string(index=False))
           print('WUP expansion source audit complete.')
           print('Summary:',summary)
           PY
