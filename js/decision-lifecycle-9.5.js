@@ -24,7 +24,11 @@
   function read(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch{return null}}
   function write(x){localStorage.setItem(KEY,JSON.stringify(x))}
   function decision(){return clone(window.VIDIK_DECISION_9_4||null)}
-  function makeRecord(d){return {schema:'VIDIK.DecisionLifecycle.v9.5',decisionId:'VIDIK-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),version:1,status:'ANALYSIS',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),originalRecommendation:d?.recommendation||null,decisionObject:d,adoptedDecision:null,override:null,outcomes:[],events:[]}}
+  function makeRecord(d){
+    const integration=window.VIDIK_92_INTEGRATION?.decision;
+    const originalRecommendation=d?.recommendation ?? integration?.recommendation ?? null;
+    return {schema:'VIDIK.DecisionLifecycle.v9.5',decisionId:'VIDIK-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),version:1,status:'ANALYSIS',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),originalRecommendation,decisionObject:d,adoptedDecision:null,override:null,outcomes:[],events:[]};
+  }
   async function persist(){
     const d=decision(); if(!d||d.runtimeStatus!=='READY') return {ok:false,reason:'Decision is not READY'};
     let r=read();
