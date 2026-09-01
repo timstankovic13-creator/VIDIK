@@ -24,6 +24,6 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Execute Ottawa Case 001 blind runtime
         run: npx playwright test tests/e2e/case001-ottawa-blind.spec.js --project=chromium
