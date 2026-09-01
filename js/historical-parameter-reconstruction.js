@@ -2,7 +2,7 @@
 (function(){
   const STATUS={OBSERVED:'observed',DERIVED:'derived',ESTIMATED:'estimated',ASSUMED:'assumed',MISSING:'missing'};
   const TYPES=['need','baseline','effect','capacity','feasibility','cost','timeHorizon'];
-  function beforeBoundary(date,boundary){return typeof date==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(date)&&date<=boundary}
+  function beforeBoundary(date,boundary){return typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date)&&date<=boundary}
   function reconstruct({boundary,sources,claimsBySource={},candidateId,claimRules=[]}){
     const out=[];
     for(const type of TYPES){
