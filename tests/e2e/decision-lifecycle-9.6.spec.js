@@ -1,0 +1,16 @@
+const { test, expect } = require('@playwright/test');
+
+test.describe('VIDIK 9.6 decision memory, outcome review, recalibration and drift',()=>{
+  async function ready(page){
+    await page.goto('/');
+    await page.evaluate(()=>{window.VIDIK_MUNICIPAL_RECONCILIATIONS={Ottawa:{status:'verified',schemaVersion:'geography-reconciliation.v1',identity:{geonameid:'100',name:'Ottawa',latitude:45.42,longitude:-75.69},enrichment:{provider:'WorldPop',geonameid:'100',population:100000},provenance:{identity:{provider:'GeoNames',asset:'cities500',record_id:'100'},enrichment:{provider:'WorldPop',record_id:'100'}},match:{method:'exact-or-normalized-name',score:1}}};return window.VIDIK_92_INTEGRATION.recompute()});
+    await expect.poll(()=>page.evaluate(()=>window.VIDIK_DECISION_9_4?.runtimeStatus)).toBe('READY');
+    await expect.poll(()=>page.evaluate(()=>!!window.VIDIK_DECISION_LIFECYCLE_9_5&&!!window.VIDIK_DECISION_LIFECYCLE_9_6)).toBe(true);
+  }
+  test.beforeEach(async({page})=>{await ready(page);await page.evaluate(()=>localStorage.removeItem('VIDIK_DECISION_LIFECYCLE_V9_5'));await page.evaluate(async()=>window.VIDIK_DECISION_LIFECYCLE_9_5.persist())});
+  test('retrieves persisted decision memory without losing adopted decision history',async({page})=>{const x=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.memory());expect(x.ok).toBe(true);expect(x.originalRecommendation).toBeTruthy();expect(x.outcomes).toHaveLength(0);expect(x.events.length).toBeGreaterThan(0)});
+  test('records outcome review against the persisted decision',async({page})=>{const x=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.reviewOutcome(100,82,'6-month'));expect(x.ok).toBe(true);expect(x.record.outcomes).toHaveLength(1);expect(x.record.outcomes[0].delta).toBe(-18);expect(x.record.events.at(-1).type).toBe('OUTCOME_REVIEW_V9_6')});
+  test('recalibrates from observed-minus-predicted error and retains lifecycle history',async({page})=>{await page.evaluate(async()=>{await window.VIDIK_DECISION_LIFECYCLE_9_6.reviewOutcome(100,82,'6-month');await window.VIDIK_DECISION_LIFECYCLE_9_6.reviewOutcome(100,78,'1-year')});const x=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.recalibrate());expect(x.ok).toBe(true);expect(x.record.calibration.adjustment).toBe(-20);expect(x.record.calibration.sampleSize).toBe(2);expect(x.record.events.map(e=>e.type)).toEqual(expect.arrayContaining(['OUTCOME_REVIEW_V9_6','RECALIBRATION']))});
+  test('detects systematic drift while preserving decision memory',async({page})=>{await page.evaluate(async()=>{await window.VIDIK_DECISION_LIFECYCLE_9_6.reviewOutcome(100,70,'6-month');await window.VIDIK_DECISION_LIFECYCLE_9_6.reviewOutcome(100,68,'1-year')});const x=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.detectDrift());expect(x.ok).toBe(true);expect(x.drift.status).toBe('DRIFT_DETECTED');expect(x.drift.sampleSize).toBe(2);expect(x.drift.meanError).toBe(-31);});
+  test('fails closed when recalibration has no outcome evidence',async({page})=>{const x=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.recalibrate());expect(x.ok).toBe(false);expect(x.reason).toMatch(/outcome/i)});
+});
