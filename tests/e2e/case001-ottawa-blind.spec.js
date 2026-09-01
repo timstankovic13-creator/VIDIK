@@ -34,7 +34,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
     });
 
     // The production candidate registry contains parameters derived from post-boundary Ottawa data.
-    // Remove those parameters rather than silently carrying them into the historical reconstruction.
+    // Null those parameters rather than silently carrying them into the historical reconstruction.
     const housing = C.find(x => x.id === 'housing');
     if (housing) {
       housing.params.need = null;
@@ -43,7 +43,10 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
       housing.params.effect.evidenceIds = ['S03-housing-rct'];
     }
     for (const c of C.filter(x => x.id !== 'housing')) {
-      for (const k of Object.keys(c.params)) if (c.params[k]) c.params[k].evidenceIds = [];
+      c.params.need = null;
+      c.params.effect = null;
+      c.params.capacity = null;
+      c.params.feasibility = null;
     }
 
     document.getElementById('city').value = 'Ottawa';
@@ -51,7 +54,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
     document.getElementById('risk').value = '0.75';
     render();
 
-    const output = {
+    return {
       case: 'OTTAWA_CASE001',
       mode: 'blind',
       boundary,
@@ -63,7 +66,6 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
       candidateText: document.getElementById('candidates').innerText || '',
       audit: document.getElementById('audit').textContent || ''
     };
-    return output;
   });
 
   expect(result.boundary).toBe('2023-12-06');
