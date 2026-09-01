@@ -1,0 +1,35 @@
+name: VIDIK RC1 Prep Validation
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  temporal-admissibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Evidence ceiling and temporal leakage gate
+        run: npx playwright test tests/evidence-ceiling-13.spec.js tests/e2e/cases001-012-blind-batch.spec.js --reporter=line
+  lifecycle-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Operational lifecycle contract
+        run: node tests/municipal-operational-lifecycle-11.test.js
+  retrospective-shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Retrospective shadow temporal/provenance gate
+        run: node tests/municipal-retrospective-shadow-12.test.js
