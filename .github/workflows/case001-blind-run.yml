@@ -1,0 +1,27 @@
+name: VIDIK Case 001 Ottawa Blind Runtime
+
+on:
+  push:
+    branches: ['case001-ottawa-evidence-dossier']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  case001-blind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout frozen case branch
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Execute Ottawa Case 001 blind runtime
+        run: npx playwright test tests/e2e/case001-ottawa-blind.spec.js --project=chromium
