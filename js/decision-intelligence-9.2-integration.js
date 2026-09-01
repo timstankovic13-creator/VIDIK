@@ -25,7 +25,7 @@
     if(why)why.textContent=topCandidate?`Why: ${topCandidate.name} is the highest-scoring admissible intervention for ${city}. Why-not: alternatives are lower-scoring or blocked by evidence/constraints.`:'Why: no candidate clears the evidence and risk gates.';
     if(uncertainty)uncertainty.textContent=state.sensitivity?`Sensitivity: ${JSON.stringify(state.sensitivity)}. Parameter uncertainty remains attached to the evidence-linked inputs.`:'Sensitivity analysis pending.';
     if(voi)voi.textContent=state.voi?`VOI: ${JSON.stringify(state.voi)}. Prioritize evidence that could change the recommendation or unblock an excluded candidate.`:'VOI analysis pending.';
-    if(audit)audit.textContent=JSON.stringify({version:state.version,revision:state.revision,city,decision:state.decision,sourceLineage:state.sourceLineage,decisionContext:{status:state.decisionContextStatus,context:state.decisionContext},lineageHash:state.lastEvidenceHash,counterfactual:state.counterfactual},null,2);
+    if(audit)audit.textContent=JSON.stringify({version:state.version,revision:state.revision,city,decision:state.decision,decision_object:window.VIDIK_DECISION_9_4||null,sourceLineage:state.sourceLineage,decisionContext:{status:state.decisionContextStatus,context:state.decisionContext},lineageHash:state.lastEvidenceHash,counterfactual:state.counterfactual},null,2);
   }
   async function recompute(){
     const revision=++state.revision;
