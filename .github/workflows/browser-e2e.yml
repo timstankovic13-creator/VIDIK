@@ -1,9 +1,9 @@
-name: VIDIK 9.3 Browser Acceptance
+name: VIDIK 9.6.1 Browser Acceptance
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, v9.1.3-modular, 'prep/**', 'feat/geonames-worldpop-decision-inputs-v2', 'feat/decision-context-runtime-wiring', 'feature/v9.4-end-to-end-decision']
+    branches: [main, 'prep/**']
   pull_request:
     branches: [main]
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout canonical 9.3 source
+      - name: Checkout canonical 9.6.1 source
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -25,13 +25,13 @@ jobs:
         run: npm install
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run VIDIK 9.3 browser acceptance
+      - name: Run VIDIK 9.6.1 browser acceptance
         run: npm run test:e2e
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vidik-9.3-browser-acceptance-report
+          name: vidik-9.6.1-browser-acceptance-report
           path: |
             playwright-report/
             test-results/
