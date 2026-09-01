@@ -2,7 +2,7 @@
 
 **Gate:** RC1
 **Historical decision boundary:** 2023-12-06
-**Current validated implementation baseline before this gate artifact:** `7012ac1f21cf4cf1f4c10849753b4c3e6638aab0`
+**Final validated implementation baseline:** `532846919e3521e6412eb7cdef2c7b68625ca699`
 
 ## Required gates
 
@@ -13,6 +13,7 @@
 2. **RC1 prep validation** — PASS
    - Run `33570956040` on `1bcaf8b72a8847ad6437af1030617adeac0714a9`.
    - Temporal admissibility/leakage, operational lifecycle contract, and retrospective-shadow provenance/temporal gates all passed.
+   - The later repeat on the gate candidate also passed: run `33571348517`.
 
 3. **Cases 001–012 recommendation freeze** — PASS
    - Frozen artifact: `docs/cases001-012/CASES_001_012_RECOMMENDATION_FREEZE.md`.
@@ -32,8 +33,9 @@
    - Persistence, snapshot hash, human override/rationale, two outcome checkpoints, drift detection, explicit-parameter recalibration, decision memory, and final integrity verification all passed.
 
 7. **Full regression on 001–014 state** — PASS
-   - Run `33571089609` on `7012ac1f21cf4cf1f4c10849753b4c3e6638aab0`.
-   - Full Playwright acceptance and hostile lifecycle suites passed.
+   - Run `33571089609` on `7012ac1f21cf4cf1f4c10849753b4c3e6638aab0` passed.
+   - Final post-gate regression run `33571348490` on `532846919e3521e6412eb7cdef2c7b68625ca699` also passed.
+   - Full Playwright acceptance and hostile lifecycle suites passed on both.
 
 ## RC1 scope rule
 
@@ -43,4 +45,4 @@ RC1 is a **validation/release gate**, not a claim that the historical evidence s
 
 No additional case universe, recommendation promotion, or post-boundary evidence injection is permitted through the RC1 gate without reopening the affected evidence boundary and re-running the applicable temporal, provenance, lifecycle, and regression checks.
 
-**Gate status at documentation time:** READY PENDING FINAL POST-GATE REGRESSION OF THIS DOCUMENTATION-ONLY COMMIT.
+**Gate status:** **RC1 READY**
