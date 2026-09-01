@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const {describe,it}=require('node:test');
 const GOV=require('../js/rc2-evidence-governance.js');
 const DI=require('../js/decision-intelligence-9.2.js');
 
