@@ -18,7 +18,7 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(decisionBefore.runtimeStatus).toBe('READY');
       expect(decisionBefore.city.name).toBe(city);
       expect(decisionBefore.sourceLineage.status).toBe('CONTRACTED');
-      expect(decisionBefore.decisionContext.status).toBe('READY');
+      expect(decisionBefore.decisionContextStatus).toBe('READY');
 
       await page.evaluate(()=>{
         const d=window.VIDIK_DECISION_9_4;
