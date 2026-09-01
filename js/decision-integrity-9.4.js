@@ -12,15 +12,17 @@
     const frontier=document.getElementById('frontier');if(frontier)frontier.textContent='Allocation: '+(allocation.conserved?'COMPLETE':'BLOCKED — '+(allocation.reason||'validated capacity cannot cover the requested pool'))+' | '+JSON.stringify(allocation.allocations||{});
     return decision;
   }
+  let syncing=false;
   function syncFromIntegration(){
     const s=window.VIDIK_92_INTEGRATION;if(!s||s.status!=='READY'||!s.decision)return false;
     const current=window.VIDIK_DECISION_9_4||{},pool=Number(document.getElementById('pool')?.value),allocations=Object.assign({},current.allocation?.allocations||{}),sum=Object.values(allocations).reduce((a,b)=>a+Number(b||0),0);
     const decision=Object.assign({},current,{schema:'VIDIK.DecisionObject.v9.4',objective:current.objective||V.objective?.id||null,city:Object.assign({},current.city||{},{name:s.city}),resources:{unit:'CAD',pool},recommendation:s.decision.recommendation,score:s.decision.score,alternatives:(current.alternatives||[]).map(a=>Object.assign({},a,{admissible:s.decision.admissible.includes(a.id)})),allocation:Object.assign({},current.allocation||{},{allocations,conserved:sum===pool,status:sum===pool?'complete':'blocked'}),lineage:s.lineage||null,sourceLineage:s.sourceLineage||null,decisionContext:{status:s.decisionContextStatus,context:s.decisionContext},sensitivity:s.sensitivity||null,voi:s.voi||null,counterfactual:s.counterfactual||null,provenance:Object.assign({},current.provenance||{},{evidence_hash:s.lastEvidenceHash||null,revision:s.revision}),runtimeStatus:s.status});
     window.VIDIK_DECISION_9_4=decision;
-    const auditEl=document.getElementById('audit');if(auditEl)auditEl.textContent=JSON.stringify({decision_object:decision,sourceLineage:s.sourceLineage,decisionContext:{status:s.decisionContextStatus,context:s.decisionContext},lineageHash:s.lastEvidenceHash,counterfactual:s.counterfactual},null,2);
+    const auditEl=document.getElementById('audit');if(auditEl && !syncing){syncing=true;auditEl.textContent=JSON.stringify({decision_object:decision,sourceLineage:s.sourceLineage,decisionContext:{status:s.decisionContextStatus,context:s.decisionContext},lineageHash:s.lastEvidenceHash,counterfactual:s.counterfactual},null,2);syncing=false;}
     return true;
   }
+  function scheduleSync(){[0,25,75,150,300,600].forEach(ms=>setTimeout(syncFromIntegration,ms));}
   window.buildDecisionIntegrity=buildDecisionIntegrity;
-  window.render=function(){baseRender();buildDecisionIntegrity();setTimeout(syncFromIntegration,0);setTimeout(syncFromIntegration,50);setTimeout(syncFromIntegration,150)};
-  window.addEventListener('DOMContentLoaded',()=>{setTimeout(syncFromIntegration,25);setTimeout(syncFromIntegration,100);setTimeout(syncFromIntegration,250)});
+  window.render=function(){baseRender();buildDecisionIntegrity();scheduleSync()};
+  window.addEventListener('DOMContentLoaded',()=>{scheduleSync();['city','pool','risk'].forEach(id=>document.getElementById(id)?.addEventListener('input',scheduleSync));});
 })();
