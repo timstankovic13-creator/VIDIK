@@ -1,9 +1,30 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('VIDIK 9.4 decision integrity', () => {
+  async function supplyVerifiedOttawaReconciliation(page) {
+    await page.evaluate(() => {
+      window.VIDIK_MUNICIPAL_RECONCILIATIONS = {
+        Ottawa: {
+          status:'verified',
+          schemaVersion:'geography-reconciliation.v1',
+          identity:{geonameid:'100',name:'Ottawa',latitude:45.42,longitude:-75.69},
+          enrichment:{provider:'WorldPop',geonameid:'100',population:100000},
+          provenance:{identity:{provider:'GeoNames',asset:'cities500',record_id:'100'},enrichment:{provider:'WorldPop',record_id:'100'}},
+          match:{method:'exact-or-normalized-name',score:1}
+        }
+      };
+    });
+    await page.evaluate(async () => {
+      await window.VIDIK_92_INTEGRATION.recompute();
+      document.getElementById('city')?.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  }
+
   async function ready(page) {
     await page.goto('/');
+    await supplyVerifiedOttawaReconciliation(page);
     await expect.poll(async () => await page.evaluate(() => window.VIDIK_92_INTEGRATION?.status)).toBe('READY');
+    await expect.poll(async () => await page.evaluate(() => window.VIDIK_92_INTEGRATION?.decisionContextStatus)).toBe('READY');
     await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.runtimeStatus)).toBe('READY');
   }
 
