@@ -24,5 +24,5 @@
   function scheduleSync(){[0,25,75,150,300,600].forEach(ms=>setTimeout(syncFromIntegration,ms));}
   window.buildDecisionIntegrity=buildDecisionIntegrity;
   window.render=function(){baseRender();buildDecisionIntegrity();scheduleSync()};
-  window.addEventListener('DOMContentLoaded',()=>{scheduleSync();['city','pool','risk'].forEach(id=>document.getElementById(id)?.addEventListener('input',scheduleSync));});
+  window.addEventListener('DOMContentLoaded',()=>{scheduleSync();['city','pool','risk'].forEach(id=>document.getElementById(id)?.addEventListener('input',()=>{buildDecisionIntegrity();scheduleSync()}));});
 })();
