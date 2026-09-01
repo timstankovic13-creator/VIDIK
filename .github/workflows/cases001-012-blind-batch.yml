@@ -1,0 +1,25 @@
+name: VIDIK Cases 001-012 Blind Temporal Batch
+
+on:
+  push:
+    branches: ['dev-case004-012-temporal-batch']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blind-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npx playwright install chromium
+      - name: Run frozen 001-012 blind batch
+        run: npx playwright test tests/e2e/cases001-012-blind-batch.spec.js --project=chromium
