@@ -7,7 +7,6 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
   const result = await page.evaluate(() => {
     const boundary = '2023-12-06';
 
-    // Replace the live evidence registry in-memory only. No production source is changed.
     for (const k of Object.keys(E)) delete E[k];
     Object.assign(E, {
       'S01-draft-budget-2024': {
@@ -33,8 +32,6 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
       }
     });
 
-    // The production candidate registry contains parameters derived from post-boundary Ottawa data.
-    // Null those parameters rather than silently carrying them into the historical reconstruction.
     const housing = C.find(x => x.id === 'housing');
     if (housing) {
       housing.params.need = null;
@@ -60,7 +57,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
       boundary,
       admissibleSourceIds: Object.keys(E),
       sealedSourceIds: ['X01-adopted-budget-2024','X02-2023-progress-report','X03-cmhc-2024-rental-report'],
-      engine: 'VIDIK 9.6.1 browser runtime',
+      engineVersion: V.version,
       recommendation: document.getElementById('rec').textContent || null,
       gate: document.getElementById('gate').textContent || null,
       candidateText: document.getElementById('candidates').innerText || '',
@@ -70,6 +67,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary', async ({ page
 
   expect(result.boundary).toBe('2023-12-06');
   expect(result.admissibleSourceIds).toEqual(['S01-draft-budget-2024','S02-census-2021','S03-housing-rct']);
+  expect(result.engineVersion).toBe('9.2.0');
   expect(result.recommendation).toBe('NO RECOMMENDATION');
   expect(result.gate).toContain('BLOCKED');
   expect(result.candidateText).toContain('BLOCKED');
