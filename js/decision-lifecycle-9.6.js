@@ -8,7 +8,16 @@
   async function digestRecord(r){const c=clone(r);delete c.integrityHash;return hash(c)}
   async function digestSnapshot(s){const c=clone(s);delete c.hash;return hash(c)}
   function read(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch{return null}}
-  async function verifyRecord(r){if(!r||!r.integrityHash)return {ok:false,reason:'Missing lifecycle integrity seal'};const actual=await digestRecord(r);if(actual!==r.integrityHash)return {ok:false,reason:'Lifecycle integrity mismatch',expected:r.integrityHash,actual};if(r.schema!==SCHEMA)return {ok:false,reason:'Unsupported lifecycle schema'};if(!Array.isArray(r.events)||!Array.isArray(r.outcomes))return {ok:false,reason:'Malformed lifecycle memory'};let previous='';for(const e of r.events){if(!e.eventHash||e.previousEventHash!==previous)return {ok:false,reason:'Lifecycle event-chain mismatch'};const body=clone(e);delete body.eventHash;const expected=await hash(body);if(expected!==e.eventHash)return {ok:false,reason:'Lifecycle event tampering detected'};previous=e.eventHash}if(r.snapshot){const snapHash=await digestSnapshot(r.snapshot);if(snapHash!==r.snapshot.hash)return {ok:false,reason:'Snapshot tampering detected'}}return {ok:true}}
+  async function verifyRecord(r){
+    if(!r||!r.integrityHash)return {ok:false,reason:'Missing lifecycle integrity seal'};
+    if(r.snapshot){const snapHash=await digestSnapshot(r.snapshot);if(snapHash!==r.snapshot.hash)return {ok:false,reason:'Snapshot tampering detected'}}
+    const actual=await digestRecord(r);if(actual!==r.integrityHash)return {ok:false,reason:'Lifecycle integrity mismatch',expected:r.integrityHash,actual};
+    if(r.schema!==SCHEMA)return {ok:false,reason:'Unsupported lifecycle schema'};
+    if(!Array.isArray(r.events)||!Array.isArray(r.outcomes))return {ok:false,reason:'Malformed lifecycle memory'};
+    let previous='';
+    for(const e of r.events){if(!e.eventHash||e.previousEventHash!==previous)return {ok:false,reason:'Lifecycle event-chain mismatch'};const body=clone(e);delete body.eventHash;const expected=await hash(body);if(expected!==e.eventHash)return {ok:false,reason:'Lifecycle event tampering detected'};previous=e.eventHash}
+    return {ok:true}
+  }
   async function verify(){return verifyRecord(read())}
   async function seal(r){r.integrityHash=await digestRecord(r);localStorage.setItem(KEY,JSON.stringify(r))}
   async function mutate(mutator){const r=read();if(!r)return {ok:false,reason:'No persisted decision memory'};const v=await verifyRecord(r);if(!v.ok)return v;const next=clone(r);try{await mutator(next)}catch(e){return {ok:false,reason:e.message}}next.version=(next.version||1)+1;next.updatedAt=new Date().toISOString();next.events=next.events||[];const previous=next.events.at(-1)?.eventHash||'';const event={...next.pendingEvent,at:next.updatedAt,version:next.version,previousEventHash:previous};delete next.pendingEvent;event.eventHash=await hash(event);next.events.push(event);await seal(next);return {ok:true,record:clone(next)}}
