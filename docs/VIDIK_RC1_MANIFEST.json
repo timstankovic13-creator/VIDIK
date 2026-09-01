@@ -1,0 +1,22 @@
+{
+  "release": "VIDIK RC1",
+  "type": "release-candidate",
+  "base": "main",
+  "claims": {
+    "retrospective": true,
+    "shadow": true,
+    "live_pilot": false,
+    "causal_impact_claim": false
+  },
+  "municipalities": ["Ottawa, Ontario, Canada", "Toronto, Ontario, Canada", "Melbourne, Victoria, Australia"],
+  "artifacts": [
+    "VIDIK_RC1_PLAYGROUND.html",
+    "docs/VIDIK_RC1_RELEASE.md",
+    "docs/VIDIK_RC1_DEMO_GUIDE.md",
+    "docs/VIDIK_MUNICIPAL_CASEBOOK.md",
+    "docs/VIDIK_EVALUATION_PROTOCOL.md",
+    "docs/VIDIK_PROCUREMENT_EVIDENCE_INDEX.md",
+    "docs/VIDIK_EVIDENCE_HIERARCHY.md",
+    "data/retrospective/municipal-case-seeds.json"
+  ]
+}
