@@ -31,9 +31,6 @@ test('Case 001 real Ottawa evidence does not manufacture a marginal chain', asyn
     'AHCS_STABLE_HOUSING_EFFECT'
   ]));
 
-  return result;
-  });
-
   expect(result.status).toBe('missing');
   expect(result.candidateSpecific).toBe(false);
   expect(result.reason).toContain('causal-identification gate');
