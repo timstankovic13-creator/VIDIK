@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('assert');
+const lifecycle=require('../js/municipal-operational-lifecycle-11.js');
+const source={provider:'City of Ottawa',url:'https://documents.ottawa.ca/sites/default/files/2024HHReport_EN.pdf',recordId:'ottawa-hh-2024'};
+const decision={decisionId:'VIDIK-real-municipal-validation',runtimeStatus:'READY',recommendation:'housing'};
+const implementation={implementationId:'ottawa-hf-2024',municipality:'Ottawa',intervention:'housing',status:'COMPLETED',implementedAt:'2024-12-31',operator:'City of Ottawa',attestationSource:'https://documents.ottawa.ca/sites/default/files/2024HHReport_EN.pdf'};
+const outcome={outcomeId:'ottawa-hf-2024-1y',metric:'Housing First housed count',unit:'people',checkpoint:'1-year',measuredAt:'2025-12-31',predicted:350,observed:398,sourceRecordId:'ottawa-hh-2024',sourceUrl:source.url};
+const valid=lifecycle.prepare({municipality:'Ottawa',jurisdiction:'CA-ON',source,implementation,outcome,decision});
+assert.equal(valid.ok,true);assert.equal(valid.record.source.recordId,'ottawa-hh-2024');assert.equal(valid.record.implementation.status,'COMPLETED');assert.equal(valid.record.measuredOutcome.observed,398);
+assert.equal(lifecycle.validateImplementation({...implementation,status:'PLANNED'}).ok,false);
+assert.equal(lifecycle.validateOutcome({...outcome,sourceRecordId:'wrong'}).ok,true);
+assert.equal(lifecycle.prepare({municipality:'Ottawa',jurisdiction:'CA-ON',source,implementation,outcome:{...outcome,sourceRecordId:'wrong'},decision}).ok,false);
+assert.equal(lifecycle.prepare({municipality:'Ottawa',jurisdiction:'CA-ON',source,implementation:{...implementation,attestationSource:'http://example.com'},outcome,decision}).ok,false);
+console.log('municipal operational lifecycle 11 contract tests: PASS');
