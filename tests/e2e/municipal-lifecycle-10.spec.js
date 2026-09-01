@@ -22,8 +22,7 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
 
       await page.evaluate(()=>{
         const d=window.VIDIK_DECISION_9_4;
-        const city=d.city.name;
-        window.VIDIK_MUNICIPAL_LIFECYCLE_10.attach(city,d);
+        window.VIDIK_MUNICIPAL_LIFECYCLE_10.attach(d.city.name,d);
         window.VIDIK_DECISION_9_4=d;
         localStorage.removeItem('VIDIK_DECISION_LIFECYCLE_V9_5');
       });
@@ -66,7 +65,7 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
 
       const memory=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.memory());
       expect(memory.ok).toBe(true);
-      expect(memory.override.source).toBeUndefined();
+      expect(memory.override.overriddenTo).toBe('ase');
       expect(memory.adoptedDecision.source).toBe('HUMAN_OVERRIDE');
       expect(memory.outcomes).toHaveLength(2);
       expect(memory.events.map(e=>e.type)).toEqual(expect.arrayContaining(['DECISION_CREATED','HUMAN_OVERRIDE','SNAPSHOT','OUTCOME_REVIEW_V9_6','RECALIBRATION']));
