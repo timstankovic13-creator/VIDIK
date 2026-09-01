@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-test('Case 001 Ottawa blind runtime — strict temporal boundary and parameter provenance', async ({ page }) => {
+test('Case 001 Ottawa blind runtime — strict temporal boundary, normalized provenance, and marginalization gates', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => document.readyState === 'complete');
 
@@ -19,13 +19,13 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary and parameter p
         id: 'S02-census-2021', title: 'Statistics Canada 2021 Census Profile — Ottawa', sourceType: 'census',
         url: 'https://www12.statcan.gc.ca/census-recensement/2021/dp-pd/prof/',
         publishedAt: '2023-11-15', publicationDateVerified: true, retrievedAt: '2026-09-01', status: 'verified', quality: 'high', transportability: .95,
-        claims: [{ id: 'S02-C01', type: 'structural-context', text: 'Historical Ottawa housing indicators available before the decision boundary.' }]
+        claims: [{ id: 'S02-C01', type: 'structural-context', text: 'Ottawa had 146,985 tenant households; 35.1% spent 30% or more of income on shelter; 23.3% were in core housing need.' }]
       },
       'S03-housing-rct': {
         id: 'S03-housing-rct', title: 'At Home/Chez Soi Housing First randomized evidence', sourceType: 'research-trial',
         url: 'https://mentalhealthcommission.ca/resource/national-at-home-chez-soi-final-report/',
         publishedAt: '2016-04-14', publicationDateVerified: true, retrievedAt: '2026-09-01', status: 'verified', quality: 'high', transportability: .78,
-        claims: [{ id: 'S03-C01', type: 'causal', text: 'Canadian randomized Housing First evidence; 73% stable housing versus 31% treatment as usual; adjusted difference 42 percentage points (95% CI 36–48).' }]
+        claims: [{ id: 'S03-C01', type: 'causal', text: 'A five-city Canadian RCT of 950 high-need participants found 73% stable housing in Housing First versus 31% in treatment as usual at one year; adjusted difference 42 percentage points (95% CI 36–48).' }]
       },
       'S04-ottawa-housing-2022-update': {
         id: 'S04-ottawa-housing-2022-update', title: 'Ottawa 2022 Housing and Homelessness Update', sourceType: 'municipal-program-report',
@@ -42,7 +42,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary and parameter p
     });
 
     const admissibility = Object.fromEntries(Object.entries(E).map(([id, source]) => [id, VIDIK_HistoricalParameters.admissibility(source, boundary)]));
-    const admissible = Object.entries(E).filter(([id, source]) => admissibility[id].admissible).map(([id]) => id);
+    const admissible = Object.entries(E).filter(([id]) => admissibility[id].admissible).map(([id]) => id);
     for (const id of Object.keys(E)) E[id].admissibleAtBoundary = admissibility[id].admissible;
 
     const housing = C.find(x => x.id === 'housing');
@@ -64,14 +64,20 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary and parameter p
       sources: E,
       candidateId: 'housing',
       claimRules: [
-        { parameterType: 'need', sourceIds: ['S01-draft-budget-2024','S02-census-2021'], claimType: 'structural-context', unit: 'candidate-specific need', method: 'context cannot be converted to marginal need without an explicit normalization rule' },
-        { parameterType: 'baseline', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'proportion stable housing', value: .31, status: 'observed', evidenceQuality: 'high', causalIdentification: 'randomized', transportability: .78, uncertainty: '95% CI not normalized into Ottawa-specific marginal estimate' },
-        { parameterType: 'effect', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'absolute proportion', value: .42, status: 'observed', evidenceQuality: 'high', causalIdentification: 'randomized', transportability: .78, uncertainty: '95% CI 0.36–0.48', method: 'difference between randomized Housing First and treatment-as-usual stable-housing proportions' },
-        { parameterType: 'capacity', sourceIds: ['S04-ottawa-housing-2022-update'], claimType: 'capacity', unit: 'clients per 12 case managers', value: null, method: 'source reports staffing and client support but no defensible marginal unit conversion' },
-        { parameterType: 'feasibility', sourceIds: ['S01-draft-budget-2024'], claimType: 'planning-context', unit: 'historical implementation feasibility', value: null, method: 'planning context alone does not establish feasibility of a specified marginal allocation' },
-        { parameterType: 'cost', sourceIds: ['S01-draft-budget-2024'], claimType: 'planning-context', unit: 'CAD per marginal outcome', value: null, method: 'no candidate-specific marginal cost normalization' },
-        { parameterType: 'timeHorizon', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'historical follow-up', value: null, method: 'study horizon is not a municipal marginal allocation horizon' }
-      ]
+        { parameterType: 'need', sourceIds: ['S02-census-2021'], claimType: 'structural-context', unit: 'proportion of tenant households', value: .351, denominator: '146,985 tenant households', geography: 'Ottawa', population: 'tenant households', measurementPeriod: '2021 Census', uncertainty: 'descriptive Census estimate; not a candidate-specific marginal need', candidateSpecific: false, method: 'contextual housing-cost burden; cannot be substituted for Housing First eligibility or marginal need' , reason: 'candidate-specific need remains unsupported'},
+        { parameterType: 'baseline', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'proportion in stable housing', value: .31, denominator: '481 high-need treatment-as-usual participants', geography: 'five Canadian cities', population: 'high-need adults with severe mental illness experiencing homelessness or precarious housing', measurementPeriod: '12-month follow-up', uncertainty: 'study estimate; not Ottawa-specific', status: 'observed', evidenceQuality: 'high', causalIdentification: 'randomized', transportability: .78, candidateSpecific: false, method: 'study comparator baseline; not an Ottawa status-quo estimate' },
+        { parameterType: 'effect', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'absolute proportion', value: .42, denominator: '950 high-need randomized participants', geography: 'five Canadian cities', population: 'high-need adults with severe mental illness experiencing homelessness or precarious housing', measurementPeriod: '12-month follow-up', uncertainty: '95% CI 0.36–0.48', status: 'observed', evidenceQuality: 'high', causalIdentification: 'randomized', transportability: .78, candidateSpecific: false, method: 'adjusted difference between Housing First and treatment as usual' },
+        { parameterType: 'capacity', sourceIds: ['S04-ottawa-housing-2022-update'], claimType: 'capacity', unit: 'clients per 12 case managers', value: null, denominator: '12 case managers', geography: 'Ottawa', population: 'Housing Based Case Manager caseload', measurementPeriod: '2022 program year', uncertainty: 'not quantified', method: 'source reports staffing and client support but no defensible marginal unit conversion' },
+        { parameterType: 'feasibility', sourceIds: ['S01-draft-budget-2024'], claimType: 'planning-context', unit: 'historical implementation feasibility', value: null, denominator: 'specified marginal allocation', geography: 'Ottawa', population: 'municipal Housing First/supportive housing delivery', measurementPeriod: '2023 pre-decision planning', uncertainty: 'not quantified', method: 'planning context alone does not establish feasibility of a specified marginal allocation' },
+        { parameterType: 'cost', sourceIds: ['S01-draft-budget-2024'], claimType: 'planning-context', unit: 'CAD per marginal outcome', value: null, denominator: 'marginal outcome', geography: 'Ottawa', population: 'Housing First/supportive housing', measurementPeriod: '2023 pre-decision planning', uncertainty: 'not quantified', method: 'no candidate-specific marginal cost normalization' },
+        { parameterType: 'timeHorizon', sourceIds: ['S03-housing-rct'], claimType: 'causal', unit: 'months', value: 12, denominator: 'randomized participants', geography: 'five Canadian cities', population: 'high-need trial participants', measurementPeriod: '12-month follow-up', uncertainty: 'not an Ottawa marginal allocation horizon', status: 'observed', method: 'study follow-up horizon; municipal decision horizon still unspecified' }
+      ],
+      marginalMap: {
+        resourceUnit: 'CAD', resourceAmount: 1000000,
+        capacityUnit: 'additional Housing First placements', capacityValue: null,
+        outcomeUnit: 'additional stable-housing participant-years', outcomeValue: null,
+        sourceIds: ['S03-housing-rct'], causalGate: 'not-passed', transportabilityGate: 'not-passed'
+      }
     });
 
     document.getElementById('city').value = 'Ottawa';
@@ -101,11 +107,41 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary and parameter p
   expect(result.reconstruction.provenanceComplete).toBe(true);
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').status).toBe('observed');
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').sourceIds).toEqual(['S03-housing-rct']);
+  expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').denominator).toContain('950');
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'capacity').status).toBe('missing');
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'feasibility').status).toBe('missing');
+  expect(result.reconstruction.parameters.find(p => p.parameterType === 'need').status).toBe('missing');
+  expect(result.reconstruction.marginalization.status).toBe('missing');
   expect(result.reconstruction.blocked).toBe(true);
   expect(result.recommendation).toBe('NO RECOMMENDATION');
   expect(result.gate).toContain('BLOCKED');
   expect(result.candidateText).toContain('BLOCKED');
   console.log('CASE001_BLIND_OUTPUT ' + JSON.stringify(result));
+});
+
+test('Case 001 reconstruction adversarial gates reject temporal leakage and assumption laundering', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => document.readyState === 'complete');
+
+  const result = await page.evaluate(() => {
+    const boundary = '2023-12-06';
+    const future = { id: 'FUTURE', publishedAt: '2024-01-15', publicationDateVerified: true, admissibleAtBoundary: false };
+    const unverified = { id: 'UNVERIFIED', publishedAt: null, publicationDateVerified: false, admissibleAtBoundary: false };
+    const sources = { future, unverified };
+    const temporal = VIDIK_HistoricalParameters.admissibility(future, boundary);
+    const unknownDate = VIDIK_HistoricalParameters.admissibility(unverified, boundary);
+    const reconstruction = VIDIK_HistoricalParameters.reconstruct({
+      boundary, sources: { S: { id: 'S', publishedAt: '2023-10-01', publicationDateVerified: true, admissibleAtBoundary: true, claims: [{ id: 'S-C', type: 'assumption' }] } },
+      candidateId: 'housing',
+      claimRules: [{ parameterType: 'cost', sourceIds: ['S'], claimType: 'assumption', unit: 'CAD', value: 1000000, denominator: 'unknown', geography: 'Ottawa', population: 'housing', measurementPeriod: '2023', uncertainty: 'unknown', status: 'assumed', assumptionJustification: 'not-reviewed' }]
+    });
+    return { temporal, unknownDate, assumptionStatus: reconstruction.parameters[0].status, assumptionReason: reconstruction.parameters[0].reason };
+  });
+
+  expect(result.temporal.admissible).toBe(false);
+  expect(result.temporal.reason).toBe('published after historical boundary');
+  expect(result.unknownDate.admissible).toBe(false);
+  expect(result.unknownDate.reason).toBe('publication date not verified');
+  expect(result.assumptionStatus).toBe('missing');
+  expect(result.assumptionReason).toContain('assumption laundering gate');
 });
