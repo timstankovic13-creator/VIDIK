@@ -3,6 +3,8 @@ name: VIDIK Case 001 Ottawa Blind Runtime
 on:
   push:
     branches: ['case001-ottawa-evidence-dossier']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
