@@ -4,51 +4,55 @@
 
 Case 001 remains a retrospective blind validation. The historical decision boundary is **2023-12-06**.
 
-The first blind run produced `NO RECOMMENDATION / BLOCKED`. Before treating that as a substantive model finding, two issues were investigated:
+RC1/main remains frozen. Strengthening work is isolated on `dev-historical-parameter-reconstruction`.
 
-1. whether additional admissible pre-boundary Ottawa evidence could materially strengthen the case; and
-2. whether the reported `9.2.0` runtime version meant the RC1 lifecycle layer was not actually present.
+## Finding 1 — Historical evidence must be separated from historical parameters
 
-## Finding 1 — Evidence insufficiency is real, but the first run was too sparse
+The original blind runtime correctly failed closed because the evidence records did not supply candidate-specific need, capacity, feasibility, or a defensible marginal allocation function.
 
-The first run supplied three admissible sources. The corrected second-pass case adds the Ottawa 2022 Housing and Homelessness Update as a fourth admissible source.
+The development branch now adds a deterministic historical parameter-reconstruction layer. It separates:
 
-The added source provides historical Housing First outputs and retention evidence, including 151 people housed in Jan–Sep 2022, 82% one-year housing retention for singles, and 12 new Housing Based Case Managers supporting over 150 additional clients.
+`source → claim → normalized parameter → decision`
 
-These facts strengthen the historical evidence base, but they do **not** establish an Ottawa marginal allocation function: need, incremental capacity per dollar, feasibility of the proposed marginal allocation, or a candidate-specific counterfactual. Therefore the fail-closed block remains appropriate unless those missing parameters can be sourced without temporal leakage.
+Every reconstructed parameter must carry source IDs and claim IDs. Missing normalization remains `missing`; it is never silently converted into an assumption.
 
-## Finding 2 — Versioning is layered, not a single 9.6.1 engine
+## Finding 2 — Temporal admissibility was too permissive
 
-The browser application identifies itself as VIDIK 9.6 / V9.6.1 and loads the V9.6.1 lifecycle module. The base configuration still reports `V.version = 9.2.0`, while `decision-lifecycle-9.6.js` defines the lifecycle schema as `VIDIK.DecisionLifecycle.v9.6.1`.
+The City of Ottawa document page for the **2022 Housing and Homelessness Update** does not expose a verified publication date in the evidence currently available. The previous test used a synthetic `2023-01-01` date. That was not acceptable for a strict retrospective.
 
-This means the runtime should be described precisely as:
+The development branch removes that synthetic date. The source is retained as a candidate evidence record but is **excluded from the admissible blind set until its publication date is independently verified**. The City document page identifies it as the 2022 Housing and Homelessness Update, but the page itself does not establish an exact publication date. citeturn0search0
+
+This is a deliberate strengthening: uncertain chronology blocks use rather than being guessed.
+
+## Finding 3 — The first causal effect can be represented without pretending it is Ottawa's marginal allocation function
+
+The At Home/Chez Soi randomized evidence can support an observed causal effect parameter with explicit transportability and uncertainty metadata. It does **not** automatically establish Ottawa-specific marginal capacity, cost, feasibility, or need.
+
+The development test therefore permits the effect parameter to be reconstructed from the admissible randomized evidence while keeping capacity and feasibility missing. The case remains blocked.
+
+## Finding 4 — Versioning is layered
+
+The runtime remains precisely described as:
 
 - **Core decision-intelligence engine:** 9.2.0
 - **Lifecycle layer/schema:** 9.6.1
 - **RC1 browser stack:** 9.6.1 lifecycle over the 9.2 core
 
-The blind test has been changed to record and assert both versions instead of treating 9.2.0 as the complete RC1 version.
+No production engine code is relabelled merely to make versions match.
 
-No production engine code was relabelled merely to make the test say 9.6.1. That would destroy provenance.
+## Finding 5 — Stale generated provenance remains a separate debt item
 
-## Finding 3 — The stale canonical manifest is not authoritative for this case
+The previously observed stale 9.1.3 lineage in generated decision identifiers/build-manifest material is retained as a development cleanup item. It must be corrected by tracing the generator/manifest source, not by editing historical output after the fact.
 
-`CANONICAL_BUILD_MANIFEST_MODULAR.json` still identifies an older 9.1.3 build. It is not the source used by the Case 001 runtime. The runtime provenance for this experiment is the actual branch commit plus the loaded browser modules.
+## Corrective engineering now saved on development branch
 
-This is now treated as a documentation/build-manifest debt item, not silently corrected by changing the historical result.
+1. `js/historical-parameter-reconstruction.js` — strict source admissibility plus claim-to-parameter reconstruction.
+2. `tests/e2e/case001-ottawa-blind.spec.js` — strict temporal gate, verified-date requirement, parameter provenance assertions, and fail-closed checks.
+3. `.github/workflows/case001-blind-run.yml` — Case 001 validation now runs on the development branch as well as the case branch.
+4. Existing Case 001 dossier/findings/freeze artifacts remain in the development branch history for later work.
 
-## Corrective action
+## Development rule
 
-The Case 001 blind runtime now:
+A successful reconstruction test is **not** defined as producing a recommendation. It is defined as extracting every defensible historical parameter while preserving provenance, uncertainty, temporal integrity, and fail-closed behavior.
 
-- uses four admissible pre-boundary evidence records;
-- keeps the adopted budget, 2023 progress report and 2024 CMHC report sealed;
-- records the core engine and lifecycle versions separately;
-- continues to require `NO RECOMMENDATION` when candidate-specific parameters are missing;
-- must pass CI before this second-pass result is frozen.
-
-## Decision rule
-
-If the strengthened run remains blocked, the conclusion is **not** that Housing First was ineffective or that Ottawa's actual decision was wrong. The conclusion is that this historical case does not contain enough admissible candidate-specific information to reconstruct a defensible marginal allocation decision using the current engine.
-
-The next useful engineering target is therefore a proper historical parameter-reconstruction layer, not a relaxation of the evidence gates.
+If the strengthened case remains blocked, that is a valid finding. The next target is to source or defensibly derive the missing historical marginal parameters—not to relax the gates.
