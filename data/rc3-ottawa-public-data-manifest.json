@@ -1,0 +1,41 @@
+{
+  "retrieved": "2026-09-02",
+  "historicalBoundary": "2023-12-06",
+  "cases": {
+    "009": {
+      "status": "PUBLIC_DATA_LOCATED",
+      "sources": [
+        "Automated_Speed_Enforcement_Camera_Speed_Data1",
+        "Automated_Speed_Enforcement_Camera_Removal_–_Monitoring_Speed_Data",
+        "Automated_Speed_Enforcement_Camera_Locations",
+        "Automated_Speed_Enforcement_Camera_Violations_2020-2025",
+        "Traffic_Collisions_by_Location_2017-2024_(excluding_2023)",
+        "Transportation_Intersection_Volumes_2024",
+        "Transportation_Midblock_Volumes_2024"
+      ],
+      "observedFields": {
+        "speed": ["Location", "Camera_Install_Year", "Date", "AvgSpeed", "Pct85th", "PctCompliance", "PctHighEndSpeeders"],
+        "removal": ["Data_Type", "Location", "Camera_Install_Year", "Date_of_Data_Collection", "AvgSpeed", "Pct85th", "PctCompliance", "PctHighEndSpeeders"],
+        "collision": ["Location", "Geo_ID", "Total_Collisions", "Cyclists_Collisions", "Pedestrian_collisions", "Latitude", "Longitude"],
+        "traffic": "intersection and midblock volume datasets"
+      },
+      "gate": "PUBLIC_DATA_AVAILABLE_BUT_MARGINAL_AUTHORIZED_EXPOSURE_AND_DEFENSIBLE_COUNTERFACTUAL_NOT_YET_ESTABLISHED"
+    },
+    "010": {
+      "status": "PUBLIC_DATA_LOCATED",
+      "sources": [
+        "Red_Light_Camera_Locations",
+        "Red_Light_Camera_Violations_2015-2026",
+        "Traffic_Collisions_by_Location_2017-2024_(excluding_2023)",
+        "Transportation_Intersection_Volumes_2024"
+      ],
+      "gate": "PUBLIC_DATA_AVAILABLE_BUT_MARGINAL_AUTHORIZED_EXPOSURE_AND_DEFENSIBLE_COUNTERFACTUAL_NOT_YET_ESTABLISHED"
+    }
+  },
+  "integrity": {
+    "historicalDecisionMutationAllowed": false,
+    "effectEstimateAllowedWithoutCounterfactual": false,
+    "roiAllowedWithoutEffectEstimate": false,
+    "recommendationAllowedWithoutAllExecutionGates": false
+  }
+}
