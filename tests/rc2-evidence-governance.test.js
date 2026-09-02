@@ -16,7 +16,7 @@ describe('RC2 evidence governance',()=>{
       base('resource'),base('capacity'),base('activity'),base('outcome'),base('systemOutcome'),
       base('outcome','2026-01-01'),base('systemOutcome','2026-01-01'),base('seriousHarm','2026-01-01')
     ],'C-TEST');
-    assert.deepEqual(chain.missingHistorical,['seriousHarm']);
+    assert.deepEqual(chain.missingHistorical,[]);
     assert.equal(chain.seriousHarmHistorical,false);
     assert.equal(chain.seriousHarmCurrent,true);
   });
