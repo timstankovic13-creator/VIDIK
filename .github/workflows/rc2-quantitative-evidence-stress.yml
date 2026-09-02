@@ -1,0 +1,34 @@
+name: VIDIK RC2 Quantitative Evidence Stress
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quantitative-evidence-stress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run RC2 quantitative evidence and stress tests
+        run: node --test tests/rc2-stress-and-learning.test.js tests/rc2-evidence-governance.test.js
+
+  full-regression:
+    needs: quantitative-evidence-stress
+    if: ${{ needs.quantitative-evidence-stress.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test --if-present
+      - run: npm run test:municipal-contracts
+      - run: npm run test:municipal-live
+      - run: npm run test:municipal-operational-lifecycle
+      - run: npm run test:municipal-retrospective-shadow
