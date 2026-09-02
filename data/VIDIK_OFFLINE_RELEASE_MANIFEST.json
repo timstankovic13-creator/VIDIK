@@ -1,0 +1,27 @@
+{
+  "manifestVersion": "1.0",
+  "product": "VIDIK",
+  "releaseTrack": "RC4-offline",
+  "branch": "rc4/evidence-acquisition-spec",
+  "tipSha": "681beb9c313702c1e17fccbeb953a54151f0e3ef",
+  "baseSha": "ab905357c16aa45b3128a21fc17b19fe4e970872",
+  "status": "OFFLINE_VALIDATION_READY",
+  "ciCertification": "PENDING_ACTIONS_AVAILABILITY",
+  "offlineChecks": {
+    "canonicalDecisionWorkflow": "PASS",
+    "historicalBoundary": "PASS",
+    "minimumSufficientEvidence": "PASS",
+    "evidenceRequestFailClosed": "PASS",
+    "decisionBenchmark": "PASS",
+    "snapshotDeterminism": "PASS",
+    "customerDecisionPackage": "PASS"
+  },
+  "externalBlockers": [
+    "GitHub Actions certification unavailable while included minutes are exhausted",
+    "Production municipal operational-data access",
+    "Authorized marginal allocation/exposure records",
+    "Defensible real-world causal comparators",
+    "Real customer outcome data"
+  ],
+  "releaseRule": "Offline PASS does not authorize real-world recommendation generation without admissible evidence, authorized exposure, causal design, and measurement readiness."
+}
