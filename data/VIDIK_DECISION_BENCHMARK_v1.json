@@ -1,0 +1,41 @@
+{
+  "benchmark": "VIDIK Decision Benchmark v1",
+  "version": 1,
+  "historicalBoundary": "2023-12-06",
+  "cases": [
+    {
+      "id": "BM-001",
+      "mode": "historical",
+      "question": "What should have been recommended at the frozen historical decision date?",
+      "decisionDate": "2023-12-06",
+      "evidenceDate": "2023-12-07",
+      "expectedStatus": "NO_RECOMMENDATION",
+      "expectedRecommendation": null,
+      "reason": "Later evidence cannot alter the historical decision plane."
+    },
+    {
+      "id": "BM-002",
+      "mode": "prospective",
+      "question": "Can a recommendation be emitted when evidence, model and counterfactual gates are complete?",
+      "decisionDate": "2026-09-02",
+      "evidenceAdmissible": true,
+      "modelReady": true,
+      "counterfactualReady": true,
+      "recommendation": "allocate",
+      "expectedStatus": "RECOMMENDATION_READY",
+      "expectedRecommendation": "allocate"
+    },
+    {
+      "id": "BM-003",
+      "mode": "prospective",
+      "question": "What happens when the counterfactual gate is missing?",
+      "decisionDate": "2026-09-02",
+      "evidenceAdmissible": true,
+      "modelReady": true,
+      "counterfactualReady": false,
+      "recommendation": "allocate",
+      "expectedStatus": "NO_RECOMMENDATION",
+      "expectedRecommendation": null
+    }
+  ]
+}
