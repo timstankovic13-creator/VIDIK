@@ -1,0 +1,29 @@
+name: VIDIK RC2 Marginal Evidence
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/rc2-marginal-evidence.test.js tests/rc2-evidence-acquisition.test.js tests/rc2-evidence-governance.test.js tests/rc2-stress-and-learning.test.js tests/rc2-cases-004-012-gate.test.js
+
+  full-regression:
+    needs: targeted
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --reporter=line
