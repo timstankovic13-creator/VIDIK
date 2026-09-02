@@ -1,0 +1,1 @@
+const assert = require('node:assert/strict'); const fs=require('node:fs'); const p=fs.readFileSync(require.resolve('../data/VIDIK_CURRENT_BRANCH_STATUS.md'),'utf8'); assert.ok(p.includes('pilot-ready')); assert.ok(p.includes('authoritative release gate')); console.log('Current branch status passed');
