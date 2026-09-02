@@ -48,7 +48,7 @@ function admissibilityIssues(evidence = {}) {
   if (evidence.transportabilityFailed) issues.push('transportability-failed');
   if (evidence.stale) issues.push('stale-evidence');
   if (evidence.unresolvedConflict) issues.push('unresolved-evidence-conflict');
-  return issues;
+  return issues.sort();
 }
 
 function evaluateEligibility({ contract, evidence = [] } = {}) {
