@@ -3,7 +3,7 @@
   "product": "VIDIK",
   "releaseTrack": "RC4-offline",
   "branch": "rc4/evidence-acquisition-spec",
-  "tipSha": "681beb9c313702c1e17fccbeb953a54151f0e3ef",
+  "sourceTipShaBeforeManifest": "681beb9c313702c1e17fccbeb953a54151f0e3ef",
   "baseSha": "ab905357c16aa45b3128a21fc17b19fe4e970872",
   "status": "OFFLINE_VALIDATION_READY",
   "ciCertification": "PENDING_ACTIONS_AVAILABILITY",
