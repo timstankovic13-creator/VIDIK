@@ -26,8 +26,8 @@ test('MSE identifies only the causal ASE gaps rather than demanding unrelated da
 
 test('municipal-only data are acquisition targets, not permission to weaken the claim', () => {
   const r = evaluateMSE('006', {
-    fieldsPresent: ['call timestamp', 'location/geography', 'dispatch/acceptance', 'response', 'disposition', 'eligibility'],
-    municipalOnly: ['police involvement', 'repeat-call linkage']
+    fieldsPresent: ['first-year calls', 'dispatched to ANCHOR', 'handled without police', 'expansion date', 'eligible-call response exposure'],
+    municipalOnly: ['police involvement']
   });
   const police = r.acquisitionPlan.find(x => x.field === 'police involvement');
   assert.equal(police.acquisition, ACQUISITION.MUNICIPAL_REQUEST);
