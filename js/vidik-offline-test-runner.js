@@ -6,12 +6,13 @@ const { spawnSync } = require('node:child_process');
 
 const TEST_DIR = path.resolve(__dirname, '../tests');
 const BROWSER_RE = /@playwright\/test|\bplaywright\b|browser acceptance|e2e/i;
+const TEST_RE = /\.(test|spec)\.js$/;
 const RUNNER_TEST = 'vidik-offline-test-runner.test.js';
 
 function discoverTests(dir = TEST_DIR) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true })
-    .filter(entry => entry.isFile() && entry.name.endsWith('.test.js') && entry.name !== RUNNER_TEST)
+    .filter(entry => entry.isFile() && TEST_RE.test(entry.name) && entry.name !== RUNNER_TEST)
     .map(entry => path.join(dir, entry.name))
     .sort();
 }
