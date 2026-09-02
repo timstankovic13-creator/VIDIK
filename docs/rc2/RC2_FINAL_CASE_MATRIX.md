@@ -39,8 +39,11 @@ Every future candidate promotion must additionally pass:
 
 ## Current evidence boundary
 
-The matrix intentionally does not convert later outcomes into historical recommendations. For example, Ottawa reports that ASE removal after provincial legislative change reduced posted-speed compliance at former camera sites, while also stating that the findings do not isolate ASE from other road-safety measures. Ottawa also reports a 92% reduction in Level Zero time in 2025, but system improvement does not by itself identify the marginal causal effect of one investment. Those are appropriate current-learning inputs, not retroactive proof of a 2023 recommendation. 
+The matrix intentionally does not convert later outcomes into historical recommendations. Ottawa reports that ASE removal after provincial legislative change reduced posted-speed compliance at former camera sites, while also stating that the findings do not isolate ASE from other road-safety measures. Ottawa also reports a 92% reduction in Level Zero time in 2025, but system improvement does not by itself identify the marginal causal effect of one investment. Those are appropriate current-learning inputs, not retroactive proof of a 2023 recommendation.
 
 ## RC2 conclusion
 
 The **governance architecture is complete for RC2 close-out**. The substantive evidence universe remains fail-closed: all 001–014 historical recommendations remain `NO RECOMMENDATION` until their missing candidate-specific evidence is actually acquired and validated.
+
+**Close-out timestamp:** 2026-09-02.  
+**Next milestone:** RC3 — real candidate-specific evidence acquisition and model-eligible decision execution.
