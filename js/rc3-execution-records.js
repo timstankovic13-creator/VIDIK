@@ -2,7 +2,7 @@
 
 const { evaluateExecutionReadiness } = require('./rc3-execution-readiness');
 
-const CASES = Object.freeze(['003', '011', '012']);
+const CASES = Object.freeze(['003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014']);
 const CHECKPOINTS = Object.freeze(['6mo', '1yr', '2yr', '5yr']);
 
 function assertCaseId(caseId) {
