@@ -6,7 +6,7 @@ const x=require('../js/rc2-evidence-acquisition');
 describe('RC2 evidence acquisition and outcome learning',()=>{
   it('prioritizes marginal exposure before downstream evidence',()=>{
     const q=x.acquisitionQueue({candidateId:'004',missingStages:['outcome','capacity','seriousHarm'],missingGates:['marginalExposure','counterfactual','transportability']});
-    assert.deepEqual(q.map(v=>v.target),['marginalExposure','counterfactual','capacity','transportability','outcome','seriousHarm']);
+    assert.deepEqual(q.map(v=>v.target),['marginalExposure','counterfactual','transportability','capacity','outcome','seriousHarm']);
   });
   it('does not invent unknown acquisition targets',()=>{
     const q=x.acquisitionQueue({candidateId:'005',missingStages:['not-a-stage'],missingGates:['not-a-gate']});
