@@ -15,10 +15,10 @@ const ACQUISITION = Object.freeze({
 
 const MSE = Object.freeze({
   '006': {
-    descriptive: ['call timestamp', 'location/geography', 'dispatch/acceptance', 'response', 'disposition'],
-    decision: ['eligibility', 'police involvement'],
-    causal: ['repeat-call linkage'],
-    optional: ['downstream emergency-service utilization']
+    descriptive: ['first-year calls', 'dispatched to ANCHOR', 'handled without police', 'expansion date'],
+    decision: ['eligible-call response exposure', 'police involvement'],
+    causal: ['repeat-call linkage', 'downstream emergency-service utilization', 'comparable eligible calls/areas'],
+    optional: []
   },
   '009': {
     descriptive: ['Date', 'Location', 'AvgSpeed', 'Pct85th', 'PctCompliance'],
@@ -61,7 +61,7 @@ function evaluateMSE(caseId, input = {}) {
 
   const classify = field => {
     if (present.has(field)) return 'PRESENT';
-    if (materiality[field] === false) return 'NOT_MATERIAL';
+    if (materiality[field] === false) return ACQUISITION.NOT_MATERIAL;
     if (publicAvailable.has(field)) return ACQUISITION.PUBLIC_AVAILABLE;
     if (municipalOnly.has(field)) return ACQUISITION.MUNICIPAL_REQUEST;
     return ACQUISITION.PUBLIC_GAP;
