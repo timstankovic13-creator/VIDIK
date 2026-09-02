@@ -77,7 +77,7 @@ function recordActualAllocation(contract,actualAllocation){
 
 function validateRC3(contract){
   const failures=[];
-  if(!contract||!contract.historicalDecisionMutable===false) failures.push('historical-decision-identity-missing');
+  if(!contract||contract.historicalDecisionMutable!==false||!contract.historicalDecisionHash) failures.push('historical-decision-identity-missing');
   if(!contract?.predictionFreeze) failures.push('prediction-not-frozen');
   if(!contract?.counterfactualDesign) failures.push('counterfactual-design-missing');
   if(!Array.isArray(contract?.spilloverLog)||!contract.spilloverLog.length) failures.push('spillover-assessment-missing');
