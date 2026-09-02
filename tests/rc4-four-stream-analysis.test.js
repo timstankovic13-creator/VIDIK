@@ -39,6 +39,7 @@ test('effect estimation requires the full causal and execution gate', () => {
     baseline: true,
     actualExposure: true,
     outcomeMeasure: true,
+    preregistrationFrozen: true,
     authorizedAllocation: true,
     admissibleEvidence: true,
     defensibleCounterfactual: true,
@@ -48,6 +49,23 @@ test('effect estimation requires the full causal and execution gate', () => {
   assert.equal(result.effectEstimationReady, true);
   assert.equal(result.recommendationStatus, 'ELIGIBLE_FOR_EFFECT_ESTIMATION');
   assert.equal(result.recommendation, null);
+});
+
+test('missing preregistration prevents effect estimation', () => {
+  const result = analyzeStream('006', {
+    provenance: true,
+    temporalClean: true,
+    fieldsPresent: ['call timestamp'],
+    baseline: true,
+    actualExposure: true,
+    outcomeMeasure: true,
+    authorizedAllocation: true,
+    admissibleEvidence: true,
+    defensibleCounterfactual: true,
+    measurementReady: true
+  });
+  assert.equal(result.effectEstimationReady, false);
+  assert.equal(result.recommendationStatus, 'NO_RECOMMENDATION');
 });
 
 test('batch remains conservative: empty inputs do not create recommendations', () => {
