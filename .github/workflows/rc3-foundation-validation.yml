@@ -1,0 +1,38 @@
+name: VIDIK RC3 Foundation Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rc3-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: RC3 and RC2 Node suites
+        run: >-
+          node --test
+          tests/rc3-decision-experiment.test.js
+          tests/rc2-evidence-governance.test.js
+          tests/rc2-evidence-acquisition.test.js
+          tests/rc2-stress-and-learning.test.js
+          tests/rc2-cases-004-012-gate.test.js
+          tests/rc2-final-readiness.test.js
+
+  rc3-browser:
+    needs: rc3-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Full Playwright regression
+        run: npx playwright test --reporter=line
