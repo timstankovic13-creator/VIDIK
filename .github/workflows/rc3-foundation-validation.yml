@@ -19,6 +19,7 @@ jobs:
           node --test
           tests/rc3-decision-experiment.test.js
           tests/rc3-case-experiments-002-003.test.js
+          tests/rc3-case-experiments-004-014.test.js
           tests/rc2-evidence-governance.test.js
           tests/rc2-evidence-acquisition.test.js
           tests/rc2-stress-and-learning.test.js
