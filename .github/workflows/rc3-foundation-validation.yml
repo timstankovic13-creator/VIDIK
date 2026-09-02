@@ -27,6 +27,9 @@ jobs:
           tests/rc3-experiment-endpoint-audit.test.js
           tests/rc3-final-experiment-closeout.test.js
           tests/rc4-four-stream-execution.test.js
+          tests/rc4-four-stream-analysis.test.js
+          tests/rc4-minimum-sufficient-evidence.test.js
+          tests/rc4-public-evidence-experiment.test.js
           tests/rc2-evidence-governance.test.js
           tests/rc2-evidence-acquisition.test.js
           tests/rc2-stress-and-learning.test.js
