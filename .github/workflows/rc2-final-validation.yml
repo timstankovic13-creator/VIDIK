@@ -1,0 +1,37 @@
+name: VIDIK RC2 Final Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rc2-final-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: RC2 final Node suites
+        run: >-
+          node --test
+          tests/rc2-evidence-governance.test.js
+          tests/rc2-evidence-acquisition.test.js
+          tests/rc2-stress-and-learning.test.js
+          tests/rc2-cases-004-012-gate.test.js
+          tests/rc2-final-readiness.test.js
+
+  rc2-browser:
+    needs: rc2-final-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Full Playwright regression
+        run: npx playwright test --reporter=line
