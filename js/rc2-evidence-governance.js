@@ -36,10 +36,13 @@ function evaluateChain(evidence,candidateId,boundary=HISTORICAL_BOUNDARY){
   return {candidateId,historicalStages:[...historicalStages],currentLearningStages:[...currentStages],missingHistorical,missingCurrent,seriousHarmHistorical,seriousHarmCurrent,rejected};
 }
 
-function promotionGate({chain,causalIdentification=false,attribution=false,counterfactual=false,transportability=false,uncertaintyTested=false,sensitivityTested=false,alternativesTested=false,lineageReproducible=false}){
+function promotionGate({chain,causalIdentification=false,attribution=false,counterfactual=false,transportability=false,uncertaintyTested=false,sensitivityTested=false,alternativesTested=false,lineageReproducible=false}={}){
   const failures=[];
-  if(!chain||chain.missingHistorical.length) failures.push('historical-executable-chain-incomplete');
-  if(!chain||!chain.seriousHarmHistorical) failures.push('serious-harm-pathway-incomplete');
+  const safeChain=chain&&typeof chain==='object'?chain:{};
+  const missingHistorical=Array.isArray(safeChain.missingHistorical)?safeChain.missingHistorical:EXECUTABLE_CHAIN;
+  const seriousHarmHistorical=safeChain.seriousHarmHistorical===true;
+  if(missingHistorical.length) failures.push('historical-executable-chain-incomplete');
+  if(!seriousHarmHistorical) failures.push('serious-harm-pathway-incomplete');
   if(!causalIdentification) failures.push('causal-identification-incomplete');
   if(!attribution) failures.push('attribution-incomplete');
   if(!counterfactual) failures.push('counterfactual-incomplete');
