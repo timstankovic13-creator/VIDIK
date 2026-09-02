@@ -25,6 +25,7 @@ jobs:
           tests/rc3-execution-plans-004-014.test.js
           tests/rc3-real-acquisition-004-014.test.js
           tests/rc3-experiment-endpoint-audit.test.js
+          tests/rc3-final-experiment-closeout.test.js
           tests/rc2-evidence-governance.test.js
           tests/rc2-evidence-acquisition.test.js
           tests/rc2-stress-and-learning.test.js
