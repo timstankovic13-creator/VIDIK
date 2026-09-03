@@ -1,0 +1,10 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const required = ['temporal inadmissibility','aggregate evidence','hidden confounding','spillover','correlated uncertainty','denominator','contradictory evidence','extreme','missing outcome','recommendation flips','malicious','human override'];
+const doc = fs.readFileSync(path.join(root,'data/VIDIK_DECISION_RED_TEAM.md'),'utf8').toLowerCase();
+for (const attack of required) assert.ok(doc.includes(attack), `missing red-team attack: ${attack}`);
+assert.ok(doc.includes('refuses safely'));
+console.log(`PASS — ${required.length} red-team attack classes defined with safe-refusal requirement`);
