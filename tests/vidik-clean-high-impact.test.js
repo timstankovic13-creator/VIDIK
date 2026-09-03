@@ -19,4 +19,9 @@ const lifecycle = fs.readFileSync(path.join(root,'data/VIDIK_CUSTOMER_DECISION_L
 for (const stage of ['Question','Scope','Evidence','Eligibility','Allocation','Human Decision','Implementation','Review','Outcome','Recalibration']) assert.ok(lifecycle.includes(stage),stage);
 const manifest = require('../data/VIDIK_EVIDENCE_REQUEST_MANIFEST.json');
 assert.deepEqual(manifest.requests.map(x=>x.case),['009','010','014','006']);
-console.log('PASS — clean high-impact offline gate structure is internally present');
+const { runBenchmark } = require('../js/vidik-decision-benchmark-runner');
+const benchmark = runBenchmark();
+assert.equal(benchmark.total,10);
+assert.equal(benchmark.failed,0,JSON.stringify(benchmark.results));
+assert.equal(benchmark.productionPromotionCount,0);
+console.log('PASS — structure, lifecycle, manifest, and executable 10-scenario benchmark are certified offline');
