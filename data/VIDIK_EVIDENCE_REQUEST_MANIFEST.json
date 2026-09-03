@@ -1,0 +1,10 @@
+{
+  "schema":"vidik-evidence-request-v1",
+  "status":"READY_FOR_AUTHORIZED_REQUEST",
+  "requests":[
+    {"case":"009","unit":"site-month","priority":1,"fields":["approach/intersection traffic volume","collision severity and site linkage","concurrent intervention history","camera activation/deactivation uptime"],"stop_rule":"Do not expand descriptive data while these causal fields remain unavailable."},
+    {"case":"010","unit":"intersection-month","priority":1,"fields":["approach/intersection traffic volume","collision severity and site linkage","concurrent intervention history","camera operating status and treatment history"],"stop_rule":"Do not broaden traffic data unless material to the preregistered contrast."},
+    {"case":"014","unit":"marginal bed-night","priority":2,"fields":["actual marginal bed availability/allocation by site/date","decision-unit occupancy/admissions","comparable demand periods/sites or capacity shock","exit destination and linked repeat-use outcomes where preregistered"],"stop_rule":"Aggregate bed counts alone cannot unlock effect estimation."},
+    {"case":"006","unit":"eligible-call response","priority":3,"fields":["eligible-call exposure/assignment","comparable eligible calls or areas","repeat-call linkage","downstream emergency-service utilization"],"stop_rule":"Program-wide call volume cannot substitute for marginal exposure."}
+  ]
+}
