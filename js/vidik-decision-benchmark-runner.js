@@ -9,12 +9,12 @@ const expectations = {
   'LAB-04': r => r.allocations.A === 1000000 && r.allocations.B === 4000000,
   'LAB-05': r => r.allocations.A === 2500000 && r.allocations.B === 2500000,
   'LAB-06': r => r.allocations.A === 5000000,
-  'LAB-07': r => Object.values(r.allocations).every(v => v === 0) && r.unallocated === 5000000,
+  'LAB-07': r => Object.values(r.allocations).every(v => v === 0) && r.unallocated === 5000000 && r.riskCeiling === 0.5,
   'LAB-08': r => r.allocations.A >= 1000000,
   'LAB-09': r => r.allocations.B === 5000000,
   'LAB-10': r => r.allocations.A === 5000000
 };
-const riskCeilings = { 'LAB-03': 0.5 };
+const riskCeilings = { 'LAB-03':0.5, 'LAB-07':0.5 };
 
 function runBenchmark() {
   const results = scenarios.map(s => {
