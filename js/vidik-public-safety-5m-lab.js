@@ -11,6 +11,7 @@ function validateScenario(s) {
   if (!s?.id || !s?.name) failures.push('identity-required');
   if (!Array.isArray(s?.candidates) || !s.candidates.length) failures.push('candidates-required');
   for (const c of s?.candidates || []) {
+    if (!c?.id) failures.push('candidate-id-required');
     if (!finiteNonNegative(c.min) || !finiteNonNegative(c.max) || c.min > c.max) failures.push(`${c.id}:invalid-bounds`);
     if (!finiteNonNegative(c.unitCost) || c.unitCost === 0) failures.push(`${c.id}:invalid-unit-cost`);
     if (!Number.isFinite(c.valuePerDollar) || c.valuePerDollar < 0) failures.push(`${c.id}:invalid-value`);
@@ -25,10 +26,19 @@ function allocateFiveMillion(scenario, riskCeiling = 1) {
   if (!Number.isFinite(riskCeiling) || riskCeiling < 0 || riskCeiling > 1) return { blocked: true, reason: ['invalid-risk-ceiling'] };
   const allocations = Object.fromEntries(scenario.candidates.map(c => [c.id, 0]));
   let remaining = POOL;
-  const eligible = scenario.candidates.filter(c => c.risk <= riskCeiling).sort((a,b) => b.valuePerDollar - a.valuePerDollar || a.id.localeCompare(b.id));
+  const eligible = scenario.candidates.filter(c => c.risk <= riskCeiling);
+  const ineligibleWithMinimum = scenario.candidates.filter(c => c.risk > riskCeiling && c.min > 0);
+  if (ineligibleWithMinimum.length) return { blocked: true, reason: ['minimum-requirement-ineligible'], candidates: ineligibleWithMinimum.map(c => c.id) };
+  const requiredMinimum = eligible.reduce((sum, c) => sum + c.min, 0);
+  if (requiredMinimum > POOL) return { blocked: true, reason: ['minimum-requirements-exceed-pool'] };
   for (const c of eligible) {
-    const spend = Math.min(c.max, remaining);
-    allocations[c.id] = spend;
+    allocations[c.id] = c.min;
+    remaining -= c.min;
+  }
+  const ranked = [...eligible].sort((a,b) => b.valuePerDollar - a.valuePerDollar || a.id.localeCompare(b.id));
+  for (const c of ranked) {
+    const spend = Math.min(c.max - allocations[c.id], remaining);
+    allocations[c.id] += spend;
     remaining -= spend;
   }
   return {
