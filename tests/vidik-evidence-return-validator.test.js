@@ -12,24 +12,24 @@ const base = {
   exposureVerified: true,
   comparatorDefensible: true,
   measurementReady: true,
-  fields: Object.fromEntries(manifest.requests[0].fields.map(f => [f, 'verified']))
+  fields: Object.fromEntries(manifest.requests[0].fields.map(f => [f, { value:'verified', source:'municipal-record-001' }]))
 };
 assert.equal(validateEvidenceReturn(manifest.requests[0], base).promotable, true);
 
 for (const field of manifest.requests[0].fields) {
-  const returned = { ...base, fields: { ...base.fields, [field]: null } };
-  const result = validateEvidenceReturn(manifest.requests[0], returned);
-  assert.equal(result.promotable, false);
-  assert.ok(result.failures.includes(`missing-material-field:${field}`));
+  for (const badValue of [null, '', {value:'x'}, {value:'x',source:''}, {value:'',source:'src'}, 'aggregate only']) {
+    const returned = { ...base, fields: { ...base.fields, [field]: badValue } };
+    const result = validateEvidenceReturn(manifest.requests[0], returned);
+    assert.equal(result.promotable, false);
+    assert.ok(result.failures.includes(`invalid-material-field:${field}`));
+  }
 }
 for (const gate of ['temporalAdmissible','provenanceComplete','exposureVerified','comparatorDefensible','measurementReady']) {
   const returned = { ...base, [gate]: false };
-  const result = validateEvidenceReturn(manifest.requests[0], returned);
-  assert.equal(result.promotable, false, gate);
+  assert.equal(validateEvidenceReturn(manifest.requests[0], returned).promotable, false, gate);
 }
-
-const aggregateOnly = { ...base, exposureVerified: false, comparatorDefensible: false, fields: { ...base.fields, 'approach/intersection traffic volume': 'aggregate only' } };
+const aggregateOnly = { ...base, exposureVerified:false, comparatorDefensible:false };
 assert.equal(validateEvidenceReturn(manifest.requests[0], aggregateOnly).promotable, false);
 assert.equal(validateEvidenceReturn(manifest.requests[0], null).promotable, false);
-assert.equal(validateEvidenceReturn({ case: '999' }, base).promotable, false);
-console.log('PASS — evidence-return validator rejects missing material fields and any failed promotion gate');
+assert.equal(validateEvidenceReturn({ case:'999' }, base).promotable, false);
+console.log('PASS — evidence-return validator requires structured field values with source provenance and all promotion gates');
