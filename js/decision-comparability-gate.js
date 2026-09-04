@@ -12,6 +12,5 @@
     result.pass=result.failures.length===0;
     return result;
   }
-  candidateGate=comparableGate;
   window.VIDIKComparability={version:'1.0',metricId:()=>window.V?.objective?.metricId||null,gate:comparableGate};
 })();
