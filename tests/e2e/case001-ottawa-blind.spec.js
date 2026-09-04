@@ -38,7 +38,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary, normalized pro
   expect(result.boundary).toBe('2023-12-06');
   expect(result.admissibleSourceIds).toEqual(['S01-draft-budget-2024','S02-census-2021','S03-housing-rct']);
   expect(result.excludedSourceIds).toEqual(['S04-ottawa-housing-2022-update']);
-  expect(result.coreEngineVersion).toBe('9.2.0'); expect(result.lifecycleVersion).toBe('9.6.1');
+  expect(result.coreEngineVersion).toBe('9.2.1'); expect(result.lifecycleVersion).toBe('9.6.1');
   expect(result.reconstruction.provenanceComplete).toBe(true);
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').status).toBe('observed');
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').sourceIds).toEqual(['S03-housing-rct']);
