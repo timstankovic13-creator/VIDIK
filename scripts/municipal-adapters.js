@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const ADAPTERS = Object.freeze({
   Ottawa: Object.freeze({ sourceType:'ogc-api-records', catalogUrl:'https://open.ottawa.ca/api/search/v1/catalog', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
   Toronto: Object.freeze({ sourceType:'ckan', catalogUrl:'https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_search?q=traffic%20collisions', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
-  Melbourne: Object.freeze({ sourceType:'opendatasoft-explore-api', catalogUrl:'https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/pedestrian-counting-system-past-hour-counts-per-minute/records?limit=10', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
+  Melbourne: Object.freeze({ sourceType:'opendatasoft-explore-api', catalogUrl:'https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/pedestrian-counting-system-monthly-counts-per-hour/records?limit=10', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
 });
 function adapterFor(city){const a=ADAPTERS[String(city||'').trim()];if(!a)throw new Error(`unsupported-municipality:${city}`);return{city,...a};}
 function normalizeRecord(record){if(!record||typeof record!=='object'||Array.isArray(record))throw new Error('invalid-record');const ordered={};for(const key of Object.keys(record).sort())ordered[String(key).trim()]=record[key];return ordered;}
