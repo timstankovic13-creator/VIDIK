@@ -4,4 +4,4 @@ The executable benchmark and canonical workflow were smoke-tested locally with N
 
 The repository now contains targeted tests for all newly added contracts. They have not been executed through GitHub Actions because Actions capacity is exhausted.
 
-This distinction is intentional and must remain visible in release reporting.
+This distinction was intentional at the time of the note. The note is retained as a historical record; current GitHub Actions execution status is tracked by the Actions runs themselves.
