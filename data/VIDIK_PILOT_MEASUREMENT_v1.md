@@ -23,14 +23,30 @@ Capture the same measures for comparable decision work:
 
 ## Pilot protocol
 
-1. Pre-register decision class and baseline workflow.
+1. Pre-register decision class, baseline workflow, decision owner and comparison unit before analysis.
 2. Freeze the decision question and success metrics before analysis.
-3. Run VIDIK without hidden analyst rescue.
-4. Preserve all evidence/model/output snapshots.
-5. Record human decision separately from VIDIK output.
-6. Measure turnaround and effort.
-7. Review outcome checkpoints where the decision has measurable outcomes.
-8. Document failures, blocks and corrections—not only wins.
+3. Record the conventional-workflow baseline using the same outcome definitions and clock boundaries used for VIDIK.
+4. Run VIDIK without hidden analyst rescue, manual data substitution or post-hoc changes to the decision question.
+5. Preserve all evidence/model/output snapshots.
+6. Record human decision separately from VIDIK output.
+7. Measure turnaround, analyst effort and evidence-acquisition burden.
+8. Review outcome checkpoints where the decision has measurable outcomes.
+9. Document failures, blocks and corrections—not only wins.
+10. Treat any unsupported recommendation, broken audit trail or unreproducible output as a pilot acceptance failure, regardless of speed improvement.
+
+## Pilot acceptance gate
+
+A pilot passes only when all of the following are demonstrated on the pre-registered decision set:
+
+- the baseline comparison is complete and comparable;
+- every customer-facing claim is supported by the applicable admissibility and causal gates;
+- blocked cases identify the failed gate and the smallest material evidence package needed to proceed;
+- the human decision and any override remain distinguishable from the VIDIK output;
+- the audit snapshot is complete and reproducible;
+- workflow burden and turnaround are measured rather than asserted;
+- no unsupported recommendation or hidden data substitution occurs.
+
+If any gate fails, classify the pilot as `NOT_YET_PROVEN` rather than converting a partial success into a product-readiness claim.
 
 ## Commercial success threshold
 
