@@ -28,17 +28,29 @@ test.describe('VIDIK city source adapters', () => {
     }
   });
 
-  test('adapter validation fails closed on missing provenance', async ({ page }) => {
+  test('adapter validation fails closed on missing or mismatched provenance', async ({ page }) => {
     await page.goto('/');
     const result = await page.evaluate(() => {
       const A = window.VIDIK_CITY_SOURCE_ADAPTERS;
       return [
         A.validate(null),
         A.validate({ city: 'Ottawa' }),
-        A.validate({ city: 'Atlantis', provenance: { recordId: 'x', provider: 'x' } })
+        A.validate({ city: 'Atlantis', provenance: { recordId: 'x', provider: 'x' } }),
+        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Toronto Open Data' } }),
+        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data', sourceUrl: 'https://example.invalid/' } }),
+        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data', identityAuthority: 'Other' } }),
+        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data' } })
       ];
     });
-    expect(result.map(x => x.valid)).toEqual([false, false, false]);
-    expect(result.map(x => x.reason)).toEqual(['invalid-record', 'missing-provenance', 'unsupported-city']);
+    expect(result.map(x => x.valid)).toEqual([false, false, false, false, false, false, true]);
+    expect(result.map(x => x.reason)).toEqual([
+      'invalid-record',
+      'missing-provenance',
+      'unsupported-city',
+      'provenance-provider-mismatch',
+      'provenance-source-mismatch',
+      'provenance-identity-authority-mismatch',
+      undefined
+    ]);
   });
 });
