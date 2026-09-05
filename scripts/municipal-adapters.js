@@ -6,8 +6,18 @@ const ADAPTERS = Object.freeze({
   Toronto: Object.freeze({ sourceType:'ckan', catalogUrl:'https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_search?q=traffic%20collisions', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
   Melbourne: Object.freeze({ sourceType:'opendatasoft-explore-api', catalogUrl:'https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/pedestrian-counting-system-monthly-counts-per-hour/records?limit=10', mode:'controlled-server-side', identityAuthority:'GeoNames', populationEnrichment:'WorldPop' }),
 });
-function adapterFor(city){const a=ADAPTERS[String(city||'').trim()];if(!a)throw new Error(`unsupported-municipality:${city}`);return{city,...a};}
-function normalizeRecord(record){if(!record||typeof record!=='object'||Array.isArray(record))throw new Error('invalid-record');const ordered={};for(const key of Object.keys(record).sort())ordered[String(key).trim()]=record[key];return ordered;}
+function adapterFor(city){const a=ADAPTERS[String(city||'').trim()];if(!a)throw new Error(`unsupported-municipality:${city}`);return{city:String(city).trim(),...a};}
+function normalizeRecord(record){
+  if(!record||typeof record!=='object'||Array.isArray(record))throw new Error('invalid-record');
+  const ordered={};
+  for(const key of Object.keys(record).sort()){
+    const normalizedKey=String(key).trim();
+    if(!normalizedKey)throw new Error('invalid-record-key');
+    if(Object.prototype.hasOwnProperty.call(ordered,normalizedKey))throw new Error(`normalized-key-collision:${normalizedKey}`);
+    ordered[normalizedKey]=record[key];
+  }
+  return ordered;
+}
 function normalizeRecords(records){if(!Array.isArray(records))throw new Error('records-must-be-array');return records.map(normalizeRecord);}
 function provenance({city,sourceUrl,retrievedAt,records}){const normalized=normalizeRecords(records);return{schemaVersion:'municipal-adapter.v1',city:String(city),sourceUrl:String(sourceUrl),retrievedAt:String(retrievedAt),rowCount:normalized.length,normalizedSha256:crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),identityAuthority:ADAPTERS[city]?.identityAuthority||'GeoNames',populationEnrichment:ADAPTERS[city]?.populationEnrichment||'WorldPop',status:'validated'};}
 function melbourneRecords(body){if(Array.isArray(body?.results))return body.results;if(Array.isArray(body?.records))return body.records;return null;}
