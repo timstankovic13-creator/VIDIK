@@ -12,7 +12,7 @@ test.describe('VIDIK city source adapters', () => {
         provenance: A && A.cities.map(c => A.provenance(c, `test-${c.toLowerCase()}`, '2026-08-31T00:00:00Z'))
       };
     });
-    expect(result.version).toBe('1.0.0');
+    expect(result.version).toBe('1.1.0');
     expect(result.cities).toEqual(expect.arrayContaining(['Ottawa', 'Toronto', 'Melbourne']));
     for (const source of result.sources) {
       expect(source.status).toBe('reproducible');
@@ -32,14 +32,15 @@ test.describe('VIDIK city source adapters', () => {
     await page.goto('/');
     const result = await page.evaluate(() => {
       const A = window.VIDIK_CITY_SOURCE_ADAPTERS;
+      const validOttawa = A.provenance('Ottawa', 'x', '2026-08-31T00:00:00Z');
       return [
         A.validate(null),
         A.validate({ city: 'Ottawa' }),
-        A.validate({ city: 'Atlantis', provenance: { recordId: 'x', provider: 'x' } }),
-        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Toronto Open Data' } }),
-        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data', sourceUrl: 'https://example.invalid/' } }),
-        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data', identityAuthority: 'Other' } }),
-        A.validate({ city: 'Ottawa', provenance: { recordId: 'x', provider: 'City of Ottawa Open Data' } })
+        A.validate({ city: 'Atlantis', provenance: validOttawa }),
+        A.validate({ city: 'Ottawa', provenance: {...validOttawa, provider: 'City of Toronto Open Data'} }),
+        A.validate({ city: 'Ottawa', provenance: {...validOttawa, sourceUrl: 'https://example.invalid/'} }),
+        A.validate({ city: 'Ottawa', provenance: {...validOttawa, identityAuthority: 'Other'} }),
+        A.validate({ city: 'Ottawa', provenance: validOttawa })
       ];
     });
     expect(result.map(x => x.valid)).toEqual([false, false, false, false, false, false, true]);
