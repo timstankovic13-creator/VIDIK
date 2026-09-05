@@ -21,6 +21,11 @@ jobs:
         run: |
           set -euo pipefail
           if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci; else npm install --ignore-scripts; fi
+      - name: Hostile engine and production readiness gates
+        run: |
+          set -euo pipefail
+          npm run test:hostile-readiness
+          npm run test:municipal-contracts
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Full Playwright acceptance and hostile lifecycle suites
