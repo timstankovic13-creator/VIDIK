@@ -16,7 +16,7 @@
     t('XSS escaping',()=>{if(hEsc('<img src=x>').includes('<img'))throw Error('unescaped')});
     t('stable city identity',()=>{if(stableCityId('Ottawa','Canada')!=='wup25-canada-ottawa')throw Error('city-id')});
     t('dataset snapshot completeness',()=>{const s=decisionDatasetSnapshot('Ottawa','Canada');if(s.census.expected_records!==12138||!s.evidence.version||!s.city.city_id)throw Error('snapshot')});
-    t('input guard fails closed when controls missing',()=>{const p=document.getElementById('pool'),r=document.getElementById('risk');p.remove();r.remove();try{if(window.VIDIKValidateInputs())throw Error('missing controls accepted')}finally{document.querySelector('main')?.querySelector('.controls')?.append(p,r)}});
+    t('input guard fails closed when controls missing',()=>{const p=document.getElementById('pool'),r=document.getElementById('risk');if(!p||!r)throw Error('controls unavailable before mutation');p.remove();r.remove();try{if(window.VIDIKValidateInputs())throw Error('missing controls accepted')}finally{document.querySelector('main')?.querySelector('.controls')?.append(p,r);window.VIDIKValidateInputs();if(typeof window.render==='function')window.render();}});
     const all=R.every(x=>x[0]==='PASS');const el=document.getElementById('tests');if(el){el.textContent=(all?'PASS — ':'FAIL — ')+R.filter(x=>x[0]==='PASS').length+'/'+R.length;el.className='status '+(all?'pass':'fail')}const log=document.getElementById('testlog');if(log)log.textContent=R.map(x=>x[0]+' '+x[1]+(x[2]?' — '+x[2]:'')).join('\n');return R;
   };
 })();
