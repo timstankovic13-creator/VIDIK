@@ -29,8 +29,8 @@ test.describe('municipal decision context', () => {
       if (!C) throw new Error('municipal-context-boundary-not-loaded');
       const cases = [
         {city:'Ottawa', r:{status:'unresolved'}},
-        {city:'Toronto', r:{status:'verified',identity:{geonameid:'1'},enrichment:{provider:'WorldPop',geonameid:'2',population:1},provenance:{identity:{provider:'GeoNames',record_id:'1'},enrichment:{provider:'WorldPop',record_id:'2'}}}},
-        {city:'Melbourne', r:{status:'verified',identity:{geonameid:'3'},enrichment:null,provenance:{identity:{provider:'GeoNames',record_id:'3'}}}}
+        {city:'Toronto', r:{status:'verified',identity:{geonameid:'1',latitude:43.65,longitude:-79.38},enrichment:{provider:'WorldPop',geonameid:'2',population:1},provenance:{identity:{provider:'GeoNames',record_id:'1'},enrichment:{provider:'WorldPop',record_id:'2'}}}},
+        {city:'Melbourne', r:{status:'verified',identity:{geonameid:'3',latitude:-37.81,longitude:144.96},enrichment:null,provenance:{identity:{provider:'GeoNames',record_id:'3'}}}}
       ];
       return cases.map(x=>{try{C.resolve(x.city,x.r);return null}catch(e){return e.message}});
     });
