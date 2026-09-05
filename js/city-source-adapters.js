@@ -18,7 +18,11 @@
   function validate(record){
     if(!record || typeof record!=='object') return {valid:false,reason:'invalid-record'};
     if(typeof record.city!=='string' || !sources[record.city]) return {valid:false,reason:'unsupported-city'};
+    const expected=sources[record.city];
     if(!record.provenance || typeof record.provenance.recordId!=='string' || !record.provenance.provider) return {valid:false,reason:'missing-provenance'};
+    if(record.provenance.provider!==expected.provider) return {valid:false,reason:'provenance-provider-mismatch'};
+    if(record.provenance.sourceUrl!==undefined && record.provenance.sourceUrl!==expected.sourceUrl) return {valid:false,reason:'provenance-source-mismatch'};
+    if(record.provenance.identityAuthority!==undefined && record.provenance.identityAuthority!==expected.identityAuthority) return {valid:false,reason:'provenance-identity-authority-mismatch'};
     return {valid:true,city:record.city,provider:record.provenance.provider,recordId:record.provenance.recordId};
   }
   function decisionContext(city,reconciliation){
@@ -28,9 +32,7 @@
     if(!i || !p || !p.identity || String(i.geonameid||'')!==String(p.identity.record_id||'')) throw new Error('municipal-context-geonames-id-mismatch');
     if(p.identity.provider!=='GeoNames') throw new Error('municipal-context-missing-geonames-provenance');
     if(!e || e.provider!=='WorldPop' || !p.enrichment || p.enrichment.provider!=='WorldPop') throw new Error('municipal-context-missing-worldpop');
-    // A WorldPop payload carrying a different GeoNames identity is an identity-boundary failure.
     if(String(e.geonameid||'')!==String(i.geonameid||'')) throw new Error('municipal-context-geonames-id-mismatch');
-    // Only after the enrichment is tied to the correct GeoNames identity do we validate its own record lineage.
     if(String(p.enrichment.record_id||'')!==String(i.geonameid||'')) throw new Error('municipal-context-worldpop-id-mismatch');
     const population=Number(e.population);
     if(!Number.isFinite(population)||population<0) throw new Error('municipal-context-invalid-population');
