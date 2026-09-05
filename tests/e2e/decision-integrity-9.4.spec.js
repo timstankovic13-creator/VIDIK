@@ -53,7 +53,7 @@ test.describe('VIDIK 9.4 decision integrity', () => {
     const result = await page.evaluate(() => ({d:window.VIDIK_DECISION_9_4,frontier:document.getElementById('frontier').textContent}));
     expect(result.d.allocation.status).toBe('blocked');
     expect(result.d.allocation.conserved).toBe(false);
-    expect(result.d.allocation.reason).toBeNull();
+    expect(result.d.allocation.reason).toBe('insufficient-capacity');
     expect(result.frontier).toContain('Allocation: BLOCKED');
   });
 
