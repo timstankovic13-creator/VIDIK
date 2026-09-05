@@ -4,14 +4,6 @@
   function validate(){
     const pool=document.getElementById('pool');
     const risk=document.getElementById('risk');
-    if(!pool||!risk)return true;
-    const pRaw=pool.value, rRaw=risk.value;
-    const p=Number(pRaw), r=Number(rRaw);
-    // Number('') is 0, so inspect the raw control value as well. A browser
-    // number input sanitizes hostile non-numeric assignments to an empty value.
-    const pInvalid=pRaw.trim()===''||!Number.isFinite(p)||p<0;
-    const rInvalid=rRaw.trim()===''||!Number.isFinite(r)||r<0||r>1;
-    const invalid=pInvalid||rInvalid;
     const gate=document.getElementById('gate');
     const rec=document.getElementById('recommendation');
     const rr=document.getElementById('rec');
@@ -20,6 +12,22 @@
     const candidates=document.getElementById('candidates');
     const why=document.getElementById('why');
     const audit=document.getElementById('audit');
+    if(!pool||!risk){
+      if(gate){gate.textContent='BLOCKED — required numeric controls are missing';gate.className='status fail';}
+      if(rec){rec.textContent='NO RECOMMENDATION';rec.className='status fail';}
+      if(rr)rr.textContent='NO RECOMMENDATION';
+      if(admissible)admissible.textContent='0';
+      if(lineage)lineage.textContent='0/'+(window.C?.length||0);
+      if(candidates)candidates.innerHTML='';
+      if(why)why.textContent='No decision is admissible because required numeric controls are missing.';
+      if(audit)audit.textContent=JSON.stringify({version:window.V?.version||null,recommendation:null,admissible:[],blocked:true,reason:'missing-required-numeric-controls',timestamp:new Date().toISOString()},null,2);
+      return false;
+    }
+    const pRaw=pool.value, rRaw=risk.value;
+    const p=Number(pRaw), r=Number(rRaw);
+    const pInvalid=pRaw.trim()===''||!Number.isFinite(p)||p<0;
+    const rInvalid=rRaw.trim()===''||!Number.isFinite(r)||r<0||r>1;
+    const invalid=pInvalid||rInvalid;
     if(invalid){
       pool.setCustomValidity(pInvalid?(pRaw.trim()===''?'Resource pool must be a finite number.':'Resource pool cannot be negative.'):'');
       risk.setCustomValidity(rInvalid?(rRaw.trim()===''?'Risk ceiling must be a finite number.':'Risk ceiling must be between 0 and 1.'):'');
