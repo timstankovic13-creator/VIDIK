@@ -75,6 +75,27 @@ test.describe('VIDIK 9.4 decision integrity', () => {
     expect(result.audit.decision_object.recommendation).toBe(result.d.recommendation);
   });
 
+  test('delayed integration sync cannot restore allocations from an older pool revision', async ({ page }) => {
+    await ready(page);
+    await page.locator('#pool').fill('750000');
+    await page.locator('#pool').dispatchEvent('input');
+    await page.locator('#pool').fill('600000');
+    await page.locator('#pool').dispatchEvent('input');
+    await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.resources?.pool)).toBe(600000);
+    await expect.poll(async () => await page.evaluate(() => {
+      const d=window.VIDIK_DECISION_9_4;
+      const sum=Object.values(d?.allocation?.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
+      return d?.allocation?.status==='complete' && sum===600000;
+    })).toBe(true);
+    const result = await page.evaluate(() => {
+      const d=window.VIDIK_DECISION_9_4,audit=JSON.parse(document.getElementById('audit').textContent);
+      const sum=Object.values(d.allocation.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
+      const auditSum=Object.values(audit.decision_object.allocation?.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
+      return {pool:d.resources.pool,sum,auditPool:audit.decision_object.resources.pool,auditSum};
+    });
+    expect(result).toEqual({pool:600000,sum:600000,auditPool:600000,auditSum:600000});
+  });
+
   test('decision contains the complete decision chain and synchronized runtime evidence', async ({ page }) => {
     await ready(page);
     const result = await page.evaluate(() => {
