@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('assert');
-const { ADAPTERS, adapterFor, normalizeRecords, provenance, validateCatalog } = require('../scripts/municipal-adapters');
+const { ADAPTERS, adapterFor, normalizeRecord, normalizeRecords, provenance, validateCatalog } = require('../scripts/municipal-adapters');
 const { validateExpansion, EXPECTED_RECORDS } = require('../scripts/wup-expansion');
 
 for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
@@ -11,7 +11,10 @@ for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
   assert.strictEqual(adapter.mode, 'controlled-server-side');
 }
 assert.strictEqual(Object.keys(ADAPTERS).length, 3);
+assert.deepStrictEqual(normalizeRecord({ z: 1, a: 2 }), { a: 2, z: 1 });
 assert.deepStrictEqual(normalizeRecords([{ z: 1, a: 2 }]), [{ a: 2, z: 1 }]);
+assert.throws(() => normalizeRecord({ 'a': 1, ' a ': 2 }), /normalized-key-collision:a/);
+assert.throws(() => normalizeRecord({ '   ': 1 }), /invalid-record-key/);
 const p = provenance({ city: 'Ottawa', sourceUrl: ADAPTERS.Ottawa.catalogUrl, retrievedAt: '2026-08-31T00:00:00Z', records: [{ id: 1 }] });
 assert.strictEqual(p.status, 'validated');
 assert.strictEqual(p.normalizedSha256.length, 64);
