@@ -10,8 +10,13 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(f.evidence.sourceRecordId).toBe(f.source.recordId);
       expect(f.outcome.mode).toBe('validation-fixture');
 
+      // Install the city reconciliation before changing the UI city. The city change
+      // fires an immediate render/recompute, so the valid context must already exist
+      // before that event can run; this removes an avoidable lifecycle race.
+      await page.evaluate(reconciliation=>{
+        window.VIDIK_MUNICIPAL_RECONCILIATIONS={[reconciliation.identity.name]:reconciliation};
+      },f.reconciliation);
       await page.selectOption('#city',city);
-      await page.evaluate(reconciliation=>{window.VIDIK_MUNICIPAL_RECONCILIATIONS={[reconciliation.identity.name]:reconciliation};},f.reconciliation);
       await page.evaluate(()=>window.VIDIK_92_INTEGRATION.recompute());
       await expect.poll(()=>page.evaluate(()=>window.VIDIK_92_INTEGRATION.status)).toBe('READY');
       const decisionBefore=await page.evaluate(()=>window.VIDIK_DECISION_9_4);
