@@ -16,6 +16,32 @@ assert.throws(() => normalizeRecord({ nested: { value: NaN } }), /non-finite-rec
   await assert.rejects(() => fetchJson(ADAPTERS.Ottawa.discoveryUrl, failingFetch), /upstream-http:503/);
   assert.strictEqual(calls.length, 3);
 
+  const redirectFetch = async (url, options) => {
+    calls.push(url);
+    assert.strictEqual(options.redirect, 'manual');
+    return {
+      ok: false,
+      status: 302,
+      headers: { get(name) { return name.toLowerCase() === 'location' ? 'https://example.com/escape' : null; } },
+    };
+  };
+  await assert.rejects(() => fetchJson(ADAPTERS.Ottawa.discoveryUrl, redirectFetch), /source-host-not-allowlisted:example.com/);
+
+  const sameHostRedirectFetch = async (url, options) => {
+    calls.push(url);
+    assert.strictEqual(options.redirect, 'manual');
+    if (url === ADAPTERS.Ottawa.discoveryUrl) {
+      return {
+        ok: false,
+        status: 302,
+        headers: { get(name) { return name.toLowerCase() === 'location' ? '/api/search/v1/collections?page=2' : null; } },
+      };
+    }
+    return { ok: true, status: 200, async json() { return { collections: [{ id: 'traffic-collisions' }] }; } };
+  };
+  const redirected = await fetchJson(ADAPTERS.Ottawa.discoveryUrl, sameHostRedirectFetch);
+  assert.deepStrictEqual(redirected, { collections: [{ id: 'traffic-collisions' }] });
+
   const emptyFetch = async url => ({ ok: true, status: 200, async json() {
     if (url === ADAPTERS.Ottawa.discoveryUrl) return { collections: [{ id: 'traffic-collisions', title: 'Traffic collisions' }] };
     return { features: [] };
