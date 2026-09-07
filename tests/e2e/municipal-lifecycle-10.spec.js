@@ -19,6 +19,15 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       await page.selectOption('#city',city);
       await page.evaluate(()=>window.VIDIK_92_INTEGRATION.recompute());
       await expect.poll(()=>page.evaluate(()=>window.VIDIK_92_INTEGRATION.status)).toBe('READY');
+      // The 9.4 integrity layer intentionally syncs from the integration layer on a
+      // short scheduled queue. Waiting on the integration status alone can observe the
+      // new integration decision before the public Decision Object has been refreshed.
+      await expect.poll(()=>page.evaluate(()=>({
+        runtimeStatus:window.VIDIK_DECISION_9_4?.runtimeStatus,
+        city:window.VIDIK_DECISION_9_4?.city?.name,
+        sourceLineage:window.VIDIK_DECISION_9_4?.sourceLineage?.status,
+        decisionContextStatus:window.VIDIK_DECISION_9_4?.decisionContextStatus
+      }))).toEqual({runtimeStatus:'READY',city,sourceLineage:'CONTRACTED',decisionContextStatus:'READY'});
       const decisionBefore=await page.evaluate(()=>window.VIDIK_DECISION_9_4);
       expect(decisionBefore.runtimeStatus).toBe('READY');
       expect(decisionBefore.city.name).toBe(city);
