@@ -36,6 +36,12 @@ const ADAPTERS = Object.freeze({
   }),
 });
 
+const ALLOWED_HOSTS = new Set([
+  'open.ottawa.ca',
+  'ckan0.cf.opendata.inter.prod-toronto.ca',
+  'data.melbourne.vic.gov.au',
+]);
+
 function adapterFor(city) {
   const key = String(city || '').trim();
   const adapter = ADAPTERS[key];
@@ -43,16 +49,25 @@ function adapterFor(city) {
   return { city: key, ...adapter };
 }
 
-function normalizeRecord(record) {
-  if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('invalid-record');
+function canonicalize(value) {
+  if (value === null || typeof value !== 'object') {
+    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('non-finite-record-value');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
   const ordered = {};
-  for (const key of Object.keys(record).sort()) {
+  for (const key of Object.keys(value).sort()) {
     const normalizedKey = String(key).trim();
     if (!normalizedKey) throw new Error('invalid-record-key');
     if (Object.prototype.hasOwnProperty.call(ordered, normalizedKey)) throw new Error(`normalized-key-collision:${normalizedKey}`);
-    ordered[normalizedKey] = record[key];
+    ordered[normalizedKey] = canonicalize(value[key]);
   }
   return ordered;
+}
+
+function normalizeRecord(record) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('invalid-record');
+  return canonicalize(record);
 }
 
 function normalizeRecords(records) {
@@ -60,15 +75,27 @@ function normalizeRecords(records) {
   return records.map(normalizeRecord);
 }
 
+function assertAllowedHttpsUrl(url) {
+  let parsed;
+  try { parsed = new URL(String(url)); } catch { throw new Error('invalid-source-url'); }
+  if (parsed.protocol !== 'https:') throw new Error('source-url-must-use-https');
+  if (!ALLOWED_HOSTS.has(parsed.hostname)) throw new Error(`source-host-not-allowlisted:${parsed.hostname}`);
+  return parsed.toString();
+}
+
 function provenance({ city, sourceUrl, retrievedAt, records, discoveryUrl, datasetHint }) {
   const normalized = normalizeRecords(records);
+  const safeSourceUrl = assertAllowedHttpsUrl(sourceUrl);
+  const safeDiscoveryUrl = assertAllowedHttpsUrl(discoveryUrl || sourceUrl);
+  const retrieved = new Date(String(retrievedAt));
+  if (Number.isNaN(retrieved.getTime())) throw new Error('invalid-retrieved-at');
   return {
-    schemaVersion: 'municipal-adapter.v2',
+    schemaVersion: 'municipal-adapter.v3',
     city: String(city),
-    sourceUrl: String(sourceUrl),
-    discoveryUrl: String(discoveryUrl || sourceUrl),
+    sourceUrl: safeSourceUrl,
+    discoveryUrl: safeDiscoveryUrl,
     datasetHint: String(datasetHint || ''),
-    retrievedAt: String(retrievedAt),
+    retrievedAt: retrieved.toISOString(),
     rowCount: normalized.length,
     normalizedSha256: crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex'),
     identityAuthority: ADAPTERS[city]?.identityAuthority || 'GeoNames',
@@ -122,6 +149,7 @@ function findTorontoResource(body) {
 }
 
 async function fetchJson(url, fetchImpl = globalThis.fetch) {
+  const safeUrl = assertAllowedHttpsUrl(url);
   if (typeof fetchImpl !== 'function') throw new Error('fetch-unavailable');
   const attempts = 3;
   let lastError = null;
@@ -129,8 +157,8 @@ async function fetchJson(url, fetchImpl = globalThis.fetch) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), 20000) : null;
     try {
-      const response = await fetchImpl(url, {
-        headers: { accept: 'application/json', 'user-agent': 'VIDIK-municipal-live-validation/2.0' },
+      const response = await fetchImpl(safeUrl, {
+        headers: { accept: 'application/json', 'user-agent': 'VIDIK-municipal-live-validation/3.0' },
         signal: controller?.signal,
       });
       if (!response || !response.ok) throw new Error(`upstream-http:${response?.status ?? 'unknown'}`);
@@ -164,11 +192,8 @@ async function resolveSource(city, fetchImpl = globalThis.fetch) {
     if (!collection) throw new Error('ottawa-source-not-found');
     const collectionId = collection.id || collection.collectionId;
     if (!collectionId) throw new Error('ottawa-source-id-missing');
-    return {
-      sourceUrl: `https://open.ottawa.ca/api/search/v1/collections/${encodeURIComponent(collectionId)}/items?limit=${adapter.limit}`,
-      sourceKind: 'collection-items',
-      datasetId: String(collectionId),
-    };
+    const sourceUrl = `https://open.ottawa.ca/api/search/v1/collections/${encodeURIComponent(collectionId)}/items?limit=${adapter.limit}`;
+    return { sourceUrl: assertAllowedHttpsUrl(sourceUrl), sourceKind: 'collection-items', datasetId: String(collectionId) };
   }
 
   const match = findTorontoResource(discovery);
@@ -177,7 +202,7 @@ async function resolveSource(city, fetchImpl = globalThis.fetch) {
   const sourceUrl = match.resource.datastore_active === true
     ? `https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/datastore_search?resource_id=${encodeURIComponent(resourceId)}&limit=${adapter.limit}`
     : match.resource.url;
-  return { sourceUrl, sourceKind: 'resource', datasetId: String(resourceId), packageName: match.package.name || match.package.title || null };
+  return { sourceUrl: assertAllowedHttpsUrl(sourceUrl), sourceKind: 'resource', datasetId: String(resourceId), packageName: match.package.name || match.package.title || null };
 }
 
 function extractSourceRecords(city, body) {
@@ -207,8 +232,10 @@ async function ingestCatalog(city, fetchImpl = globalThis.fetch, now = new Date(
 module.exports = {
   ADAPTERS,
   adapterFor,
+  canonicalize,
   normalizeRecord,
   normalizeRecords,
+  assertAllowedHttpsUrl,
   provenance,
   validateCatalog,
   fetchJson,
