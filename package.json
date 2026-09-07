@@ -6,6 +6,7 @@
     "test:e2e":"playwright test",
     "test:municipal-contracts":"node tests/municipal-adapters.test.js",
     "test:municipal-live":"node tests/municipal-live-ingestion.test.js",
+    "test:municipal-production":"node tests/municipal-production-gate.test.js",
     "test:municipal-operational-lifecycle":"node tests/municipal-operational-lifecycle-11.test.js",
     "test:municipal-retrospective-shadow":"node tests/municipal-retrospective-shadow-12.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js"
