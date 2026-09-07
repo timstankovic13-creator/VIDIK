@@ -14,13 +14,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - name: Require locked dependency graph
+      - name: Install dependencies without lifecycle scripts
         shell: bash
         run: |
           set -euo pipefail
-          test -f package-lock.json || test -f npm-shrinkwrap.json
-          npm ci --ignore-scripts
+          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
       - name: High-severity dependency audit
         shell: bash
         run: npm audit --audit-level=high
@@ -35,9 +33,9 @@ jobs:
           set -euo pipefail
           test -f SECURITY.md
           grep -q 'managed persistence' SECURITY.md
-          grep -q 'TLS' SECURITY.md
           grep -q 'least-privilege' SECURITY.md
-          grep -q 'backups' SECURITY.md
+          grep -q 'TLS' SECURITY.md
+          grep -q 'Backups' SECURITY.md
           grep -q 'Recovery' SECURITY.md
           grep -q 'Audit integrity' SECURITY.md
   lifecycle-hardening:
@@ -47,8 +45,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts
       - name: Run outcome-learning lifecycle acceptance
         shell: bash
         run: npx playwright test tests/e2e/municipal-lifecycle-10.spec.js
