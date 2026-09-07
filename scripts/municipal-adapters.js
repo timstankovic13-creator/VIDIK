@@ -149,18 +149,29 @@ function findTorontoResource(body) {
 }
 
 async function fetchJson(url, fetchImpl = globalThis.fetch) {
-  const safeUrl = assertAllowedHttpsUrl(url);
+  let safeUrl = assertAllowedHttpsUrl(url);
   if (typeof fetchImpl !== 'function') throw new Error('fetch-unavailable');
   const attempts = 3;
+  const maxRedirects = 3;
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), 20000) : null;
     try {
-      const response = await fetchImpl(safeUrl, {
-        headers: { accept: 'application/json', 'user-agent': 'VIDIK-municipal-live-validation/3.0' },
-        signal: controller?.signal,
-      });
+      let response;
+      let currentUrl = safeUrl;
+      for (let redirect = 0; redirect <= maxRedirects; redirect += 1) {
+        response = await fetchImpl(currentUrl, {
+          headers: { accept: 'application/json', 'user-agent': 'VIDIK-municipal-live-validation/3.0' },
+          signal: controller?.signal,
+          redirect: 'manual',
+        });
+        if (!response || ![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers?.get?.('location') || response.headers?.get?.('Location');
+        if (!location) throw new Error('upstream-redirect-missing-location');
+        currentUrl = assertAllowedHttpsUrl(new URL(location, currentUrl).toString());
+      }
+      if ([301, 302, 303, 307, 308].includes(response?.status)) throw new Error('upstream-too-many-redirects');
       if (!response || !response.ok) throw new Error(`upstream-http:${response?.status ?? 'unknown'}`);
       return await response.json();
     } catch (error) {
