@@ -1,0 +1,40 @@
+name: VIDIK Municipal Production Gate
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  municipal-production-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install
+        run: npm install
+
+      - name: Municipal adapter contracts
+        run: npm run test:municipal-contracts
+
+      - name: Municipal hostile production gate
+        run: npm run test:municipal-production
+
+      - name: Municipal live ingestion
+        run: npm run test:municipal-live
+
+      - name: Municipal operational lifecycle
+        run: npm run test:municipal-operational-lifecycle
+
+      - name: Municipal retrospective shadow
+        run: npm run test:municipal-retrospective-shadow
+
+      - name: Hostile engine and production readiness
+        run: npm run test:hostile-readiness

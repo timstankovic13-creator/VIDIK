@@ -4,9 +4,11 @@ const assert = require('assert');
 const {
   ADAPTERS,
   adapterFor,
+  canonicalize,
   normalizeRecord,
   normalizeRecords,
   provenance,
+  assertAllowedHttpsUrl,
   validateCatalog,
   resolveSource,
   extractSourceRecords,
@@ -24,19 +26,23 @@ for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
 assert.strictEqual(Object.keys(ADAPTERS).length, 3);
 assert.deepStrictEqual(normalizeRecord({ z: 1, a: 2 }), { a: 2, z: 1 });
 assert.deepStrictEqual(normalizeRecords([{ z: 1, a: 2 }]), [{ a: 2, z: 1 }]);
+assert.deepStrictEqual(canonicalize({ b: { z: 1, a: 2 }, a: [{ y: 2, x: 1 }] }), { a: [{ x: 1, y: 2 }], b: { a: 2, z: 1 } });
 assert.throws(() => normalizeRecord({ a: 1, ' a ': 2 }), /normalized-key-collision:a/);
 assert.throws(() => normalizeRecord({ '   ': 1 }), /invalid-record-key/);
-const p = provenance({ city: 'Ottawa', sourceUrl: ADAPTERS.Ottawa.catalogUrl, retrievedAt: '2026-08-31T00:00:00Z', records: [{ id: 1 }] });
-assert.strictEqual(p.schemaVersion, 'municipal-adapter.v2');
+assert.throws(() => normalizeRecord({ value: Infinity }), /non-finite-record-value/);
+const p = provenance({ city: 'Ottawa', sourceUrl: ADAPTERS.Ottawa.catalogUrl, discoveryUrl: ADAPTERS.Ottawa.discoveryUrl, retrievedAt: '2026-08-31T00:00:00Z', records: [{ id: 1 }] });
+assert.strictEqual(p.schemaVersion, 'municipal-adapter.v3');
 assert.strictEqual(p.status, 'validated');
 assert.strictEqual(p.normalizedSha256.length, 64);
+assert.throws(() => provenance({ city: 'Ottawa', sourceUrl: 'https://example.invalid/data', retrievedAt: '2026-08-31T00:00:00Z', records: [] }), /source-host-not-allowlisted/);
+assert.throws(() => assertAllowedHttpsUrl('http://open.ottawa.ca/'), /source-url-must-use-https/);
+assert.throws(() => assertAllowedHttpsUrl('https://evil.example/'), /source-host-not-allowlisted/);
 assert.throws(() => adapterFor('NotARealCity'), /unsupported-municipality/);
 assert.throws(() => validateExpansion([]), /expansion-record-count/);
 const records = Array.from({ length: EXPECTED_RECORDS }, (_, i) => ({ city: `Test-${i}`, country: 'Canada', population: 1000 + i }));
 assert.deepStrictEqual(validateExpansion(records), { enabled: true, records: EXPECTED_RECORDS });
 assert.throws(() => validateExpansion(records.map((r, i) => i === 0 ? { ...r, population: 50000 } : r)), /expansion-invalid-population/);
 
-// Melbourne's documented Explore API exposes records; accept both observed response keys.
 assert.strictEqual(validateCatalog('Melbourne', { results: [{ id: 1 }] }), true);
 assert.strictEqual(validateCatalog('Melbourne', { records: [{ id: 1 }] }), true);
 assert.throws(() => validateCatalog('Melbourne', { total_count: 1 }), /melbourne-catalog-shape-invalid/);
