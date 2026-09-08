@@ -26,9 +26,10 @@ const models = {
   assert.strictEqual(optimized.candidates[0].translation.outcome.expectedIncrement, 20);
 
   // Phase 3: competing interventions are compared on marginal expected outcome per dollar.
-  assert.strictEqual(optimized.allocation.intervention, 'housing');
-  assert.strictEqual(optimized.opportunityCost.foregoneIntervention, 'ase');
-  assert.strictEqual(optimized.opportunityCost.difference, 5);
+  // Given these supplied models, ASE has the higher evidenced marginal outcome per CAD.
+  assert.strictEqual(optimized.allocation.intervention, 'ase');
+  assert.strictEqual(optimized.opportunityCost.foregoneIntervention, 'housing');
+  assert.strictEqual(optimized.opportunityCost.difference, 10);
 
   // Phase 4: every optimized chain carries evidence lineage and bounded uncertainty.
   assert.deepStrictEqual(optimized.candidates.find(x => x.id === 'housing').evidenceIds, models.housing.evidenceIds);
