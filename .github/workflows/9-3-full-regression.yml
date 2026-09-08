@@ -27,6 +27,7 @@ jobs:
           npm run test:hostile-readiness
           npm run test:municipal-contracts
           npm run test:municipal-evidence-pipeline
+          npm run test:outcome-learning
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Full Playwright acceptance and hostile lifecycle suites
