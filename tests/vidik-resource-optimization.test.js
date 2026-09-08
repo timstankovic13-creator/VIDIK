@@ -8,8 +8,8 @@ const comparison = [
   { id: 'ase', name: 'ASE', status: 'ADMISSIBLE' }
 ];
 const models = {
-  housing: { capacityPerCad: 0.001, activityPerCapacity: 100, effectPerActivity: 0.002, capacityUnit: 'housing_slots', activityUnit: 'placements', effectUnit: 'stable_housing_probability', evidenceIds: ['cap:housing', 'activity:housing', 'effect:housing'], uncertainty: { low: 0.30, high: 0.50 } },
-  ase: { capacityPerCad: 0.002, activityPerCapacity: 100, effectPerActivity: 0.0015, capacityUnit: 'enforcement_capacity', activityUnit: 'enforced_segments', effectUnit: 'serious_harm_avoided_probability', evidenceIds: ['cap:ase', 'activity:ase', 'effect:ase'], uncertainty: { low: 0.10, high: 0.20 } }
+  housing: { capacityPerCad: 0.001, activityPerCapacity: 100, effectPerActivity: 0.002, capacityUnit: 'housing_slots', activityUnit: 'placements', effectUnit: 'common_decision_outcome', objectiveMetric: 'common_decision_outcome', evidenceIds: ['cap:housing', 'activity:housing', 'effect:housing'], uncertainty: { low: 0.30, high: 0.50 } },
+  ase: { capacityPerCad: 0.002, activityPerCapacity: 100, effectPerActivity: 0.0015, capacityUnit: 'enforcement_capacity', activityUnit: 'enforced_segments', effectUnit: 'common_decision_outcome', objectiveMetric: 'common_decision_outcome', evidenceIds: ['cap:ase', 'activity:ase', 'effect:ase'], uncertainty: { low: 0.10, high: 0.20 } }
 };
 
 (async () => {
@@ -25,11 +25,11 @@ const models = {
   assert.strictEqual(optimized.candidates[0].translation.activity.value, 10000);
   assert.strictEqual(optimized.candidates[0].translation.outcome.expectedIncrement, 20);
 
-  // Phase 3: competing interventions are compared on marginal expected outcome per dollar.
-  // Given these supplied models, ASE has the higher evidenced marginal outcome per CAD.
+  // Phase 3: competing interventions are compared only after mapping to the same decision objective.
   assert.strictEqual(optimized.allocation.intervention, 'ase');
   assert.strictEqual(optimized.opportunityCost.foregoneIntervention, 'housing');
   assert.strictEqual(optimized.opportunityCost.difference, 10);
+  assert.strictEqual(optimized.objectiveMetric, 'common_decision_outcome');
 
   // Phase 4: every optimized chain carries evidence lineage and bounded uncertainty.
   assert.deepStrictEqual(optimized.candidates.find(x => x.id === 'housing').evidenceIds, models.housing.evidenceIds);
@@ -42,5 +42,14 @@ const models = {
   assert.strictEqual(blocked.allocation, null);
   assert.match(blocked.feedback, /complete evidenced marginal resource-to-outcome chain/i);
 
-  console.log('PASS vidik-resource-optimization.test.js: phases 1-5');
+  // Architecture boundary: different outcome metrics cannot be ranked as if they were commensurable.
+  const incomparable = evaluateResourceOptimization({ marginalUnit: { amount: 100000, unit: 'CAD' } }, comparison, {
+    housing: { ...models.housing, objectiveMetric: 'stable_housing_probability' },
+    ase: { ...models.ase, objectiveMetric: 'serious_harm_avoided_probability' }
+  });
+  assert.strictEqual(incomparable.status, 'BLOCKED');
+  assert.strictEqual(incomparable.allocation, null);
+  assert.match(incomparable.feedback, /incomparable objective metrics/i);
+
+  console.log('PASS vidik-resource-optimization.test.js: phases 1-5 + objective comparability boundary');
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
