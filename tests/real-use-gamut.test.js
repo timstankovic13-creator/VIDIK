@@ -13,7 +13,7 @@ function numericField(records) {
     }
   }
   const best = [...candidates.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!best || best[1] < Math.max(1, Math.ceil(records.length * 0.8))) throw new Error('no-stable-numeric-field');
+  if (!best) throw new Error('no-numeric-field');
   return best[0];
 }
 
