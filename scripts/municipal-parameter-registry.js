@@ -6,8 +6,8 @@ const MUNICIPAL_PARAMETER_MAPPINGS = Object.freeze({
   Ottawa: Object.freeze({
     datasetHint: 'collision',
     mappings: Object.freeze([
-      Object.freeze({ parameterName: 'observed_fatal_collision_rate', fieldCandidates: ['properties.COLLISION_CLASS', 'properties.Collision_Class', 'COLLISION_CLASS', 'Collision_Class', 'properties.CLASS', 'CLASS'], unit: 'fatal-collisions-per-collision-record', role: 'context', causalEligible: false, aggregation: 'category-rate', categoryValues: ['fatal'], semantic: 'share of collision records classified as fatal' }),
-      Object.freeze({ parameterName: 'observed_injuries', fieldCandidates: ['properties.NO_OF_INJURIES', 'properties.No_of_Injuries', 'NO_OF_INJURIES', 'No_of_Injuries'], unit: 'injuries-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'reported injuries in collision records' }),
+      Object.freeze({ parameterName: 'observed_fatal_collision_rate', fieldCandidates: ['properties.COLLISION_CLASS', 'properties.Collision_Class', 'properties.COLLISIONCLASS', 'properties.CollisionClassification', 'properties.CLASS', 'properties.Classification'], unit: 'fatal-collisions-per-collision-record', role: 'context', causalEligible: false, aggregation: 'category-rate', categoryValues: ['fatal'], semantic: 'share of collision records classified as fatal' }),
+      Object.freeze({ parameterName: 'observed_injuries', fieldCandidates: ['properties.NO_OF_INJURIES', 'properties.No_of_Injuries', 'properties.NO_INJURIES', 'properties.INJURIES'], unit: 'injuries-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'reported injuries in collision records' }),
     ]),
   }),
   Toronto: Object.freeze({
@@ -30,7 +30,7 @@ function getNested(record, field) {
 }
 
 function resolveMunicipalMapping(city, records) {
-  const config = MUNICIPAL_PARAMETER_MAPPINGS[String(city || '').trim()];
+  const config = MUNICIPAL_PARAMETER_MAPPINGS[String(city || '').trim();
   if (!config) throw new Error(`no-municipal-parameter-registry:${city}`);
   if (!Array.isArray(records) || !records.length) throw new Error(`no-municipal-records:${city}`);
   for (const mapping of config.mappings) {
@@ -44,8 +44,9 @@ function resolveMunicipalMapping(city, records) {
       }
     }
   }
-  const keys = Object.keys(records[0] || {});
-  throw new Error(`no-semantic-municipal-parameter:${city}:available=${keys.join(',')}`);
+  const first = records[0] || {};
+  const nested = Object.entries(first).filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value)).map(([key, value]) => `${key}:{${Object.keys(value).join(',')}}`);
+  throw new Error(`no-semantic-municipal-parameter:${city}:available=${Object.keys(first).join(',')}:nested=${nested.join('|')}`);
 }
 
 function assertContextOnlyMapping(mapping) {
