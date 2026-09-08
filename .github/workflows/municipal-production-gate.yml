@@ -36,6 +36,9 @@ jobs:
       - name: Resource-to-outcome optimization feedback phases 1-5
         run: npm run test:resource-optimization
 
+      - name: Three-city end-to-end architecture validation
+        run: npm run test:three-city-architecture
+
       - name: Generate inspectable three-city decision artifact
         run: node scripts/municipal-production-decision-artifact.js
         env:
