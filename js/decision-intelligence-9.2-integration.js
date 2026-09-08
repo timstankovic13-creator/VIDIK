@@ -18,7 +18,8 @@
   function calibratedScore(c,base){const m=calibrationState(),cal=m.ok?m.calibration:null;if(!cal||cal.application!=='EXPLICIT_PARAMETER_MAPPING'||!Number.isFinite(Number(cal.adjustment)))return {score:base,applied:false,calibration:null};const target=String(cal.targetParameterId||'');if(target!==c.id+':effect')return {score:base,applied:false,calibration:null};return {score:base+V.weights.effect*Number(cal.adjustment),applied:true,calibration:cal};}
   function renderDecisionOutputs(city,topCandidate,admissible,cityGates){
     const why=document.getElementById('why'),uncertainty=document.getElementById('uncertainty'),voi=document.getElementById('voi'),audit=document.getElementById('audit'),rec=document.getElementById('recommendation'),recText=document.getElementById('rec'),gate=document.getElementById('gate'),admissibleEl=document.getElementById('admissible'),lineageEl=document.getElementById('lineage');
-    if(rec) { rec.textContent=topCandidate?topCandidate.name+' · score '+topCandidate.score.toFixed(3):'NO RECOMMENDATION'; rec.className='status '+(topCandidate?'pass':'fail'); }
+    const displayScore=topCandidate&&Number.isFinite(Number(topCandidate.score))?Number(topCandidate.score):topCandidate?score(topCandidate):null;
+    if(rec) { rec.textContent=topCandidate&&Number.isFinite(displayScore)?topCandidate.name+' · score '+displayScore.toFixed(3):'NO RECOMMENDATION'; rec.className='status '+(topCandidate?'pass':'fail'); }
     if(recText) recText.textContent=topCandidate?topCandidate.name:'NO RECOMMENDATION';
     if(gate) { gate.textContent=topCandidate?'DECISION ADMISSIBLE':'BLOCKED — no city-specific admissible intervention'; gate.className='status '+(topCandidate?'pass':'fail'); }
     if(admissibleEl) admissibleEl.textContent=String(admissible.length);
@@ -67,7 +68,7 @@
     if(revision!==state.revision)return state;
     state.decisionContextStatus=ctx.status;state.decisionContext=ctx.context;state.municipalMapping={version:M.version,city,gates:cityGates};
     if(ctx.status!=='READY'){state.status='BLOCKED';state.error=ctx.reason||'municipal-decision-context-unavailable';state.decision={recommendation:null,score:null,admissible:[],city};state.lineage=lineage;state.lastEvidenceHash=lineage.hash;renderDecisionOutputs(city,null,[],cityGates);return state;}
-    state.status=topCandidate?'READY':'BLOCKED';state.decision={recommendation:top?.id||null,score:top?.score??null,admissible:admissible.map(x=>x.id),city};state.lineage=lineage;state.sensitivity=sensitivity;state.voi=voi;state.counterfactual=counterfactual;state.lastEvidenceHash=lineage.hash;state.calibration=scored.find(x=>x.calibrationApplied)?.id?calibrationState().calibration:null;renderDecisionOutputs(city,topCandidate,admissible,cityGates);return state;
+    state.status='READY';state.error=topCandidate?null:'no-city-specific-admissible-intervention';state.decision={recommendation:top?.id||null,score:top?.score??null,admissible:admissible.map(x=>x.id),city};state.lineage=lineage;state.sensitivity=sensitivity;state.voi=voi;state.counterfactual=counterfactual;state.lastEvidenceHash=lineage.hash;state.calibration=scored.find(x=>x.calibrationApplied)?.id?calibrationState().calibration:null;renderDecisionOutputs(city,topCandidate,admissible,cityGates);return state;
   }
   state.recompute=recompute;
   const originalRender=window.render;
