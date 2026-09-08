@@ -11,6 +11,7 @@
     "test:municipal-retrospective-shadow":"node tests/municipal-retrospective-shadow-12.test.js",
     "test:municipal-ingestion":"node tests/municipal-ingestion.test.js",
     "test:municipal-evidence-pipeline":"node tests/municipal-evidence-pipeline.test.js",
+    "test:real-use-gamut":"node tests/real-use-gamut.test.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
     "test:production-config":"node tests/production-config.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
