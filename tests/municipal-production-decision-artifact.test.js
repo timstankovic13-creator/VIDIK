@@ -32,7 +32,9 @@ assert(ottawa.observedContext.value === 2952, 'ottawa-observed-value');
 assert(ottawa.sourceLineage && ottawa.sourceLineage.sourceUrl.includes('ottawa.ca'), 'ottawa-source-lineage');
 assert(ottawa.lineage.some(x => x.kind === 'causal_effect' && x.parameterId === 'housing:effect'), 'ottawa-causal-lineage');
 assert(ottawa.counterfactual && ottawa.counterfactual.incrementalEffect === 0.42, 'ottawa-counterfactual');
-assert(ottawa.learning && ottawa.learning.recalibration.targetParameterId === 'housing:effect', 'ottawa-learning');
+// Production runs must never invent a real-world outcome. Learning is populated
+// only when an observed outcome is explicitly supplied with appropriate provenance.
+assert(ottawa.learning === null, 'ottawa-no-synthetic-learning');
 
 assert(toronto.decisionState === 'RECOMMENDATION', 'toronto-recommendation-state');
 assert(toronto.recommendation === 'housing', 'toronto-housing-recommendation');
@@ -43,7 +45,7 @@ const torontoHousing = toronto.interventionComparison.find(x => x.id === 'housin
 assert(torontoHousing.gate.admissible === true, 'toronto-housing-admissible');
 assert(torontoHousing.gate.causalEvidence.mode === 'site-supported', 'toronto-site-supported');
 assert(torontoHousing.gate.causalEvidence.rationale.includes('included Toronto directly'), 'toronto-site-rationale');
-assert(toronto.learning && toronto.learning.recalibration.application === 'EXPLICIT_PARAMETER_MAPPING', 'toronto-learning');
+assert(toronto.learning === null, 'toronto-no-synthetic-learning');
 
 assert(melbourne.decisionState === 'BLOCKED', 'melbourne-blocked-state');
 assert(melbourne.recommendation === null, 'melbourne-no-recommendation');
