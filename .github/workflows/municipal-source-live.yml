@@ -1,9 +1,10 @@
 name: VIDIK Municipal Source Live Validation
 
+# Explicit live-gamut trigger: Ottawa, Toronto, and Melbourne ingestion.
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'ci/**']
   pull_request:
 
 jobs:
