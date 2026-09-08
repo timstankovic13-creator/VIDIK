@@ -21,9 +21,9 @@ function numericField(records) {
 }
 
 (async () => {
-  const now = new Date();
   for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
-    const ingestion = await ingestCatalog(city, globalThis.fetch, now);
+    const ingestionNow = new Date();
+    const ingestion = await ingestCatalog(city, globalThis.fetch, ingestionNow);
     assert.equal(ingestion.city, city);
     assert.ok(ingestion.recordCount > 0);
     assert.equal(ingestion.provenance.status, 'validated');
@@ -44,7 +44,7 @@ function numericField(records) {
           return input.parameters.live_source_metric >= 0 ? 'live-evidence-accepted' : 'live-evidence-rejected';
         },
       },
-      now,
+      now: new Date(),
     });
     assert.equal(result.envelope.status, 'validated');
     assert.equal(result.claim.status, 'validated');
