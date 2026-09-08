@@ -18,6 +18,6 @@ jobs:
         with:
           node-version: 24
       - name: Install
-        run: npm ci
+        run: npm install --ignore-scripts
       - name: Live municipal data through evidence and decision pipeline
         run: npm run test:real-use-gamut
