@@ -44,7 +44,8 @@ function resolveMunicipalMapping(city, records) {
       }
     }
   }
-  throw new Error(`no-semantic-municipal-parameter:${city}`);
+  const keys = Object.keys(records[0] || {});
+  throw new Error(`no-semantic-municipal-parameter:${city}:available=${keys.join(',')}`);
 }
 
 function assertContextOnlyMapping(mapping) {
