@@ -11,8 +11,13 @@ function assert(condition, message) {
 }
 
 assert(artifact.schemaVersion === 'vidik.municipal.production-decision.v1', 'artifact-schema-version');
+assert(artifact.artifactType === 'inspectable-production-decision', 'artifact-type');
 assert(artifact.runType === 'production-three-city-decision', 'artifact-run-type');
 assert(typeof artifact.generatedAt === 'string' && !Number.isNaN(Date.parse(artifact.generatedAt)), 'artifact-generated-at');
+assert(artifact.git && typeof artifact.git === 'object', 'artifact-git-metadata');
+assert(typeof artifact.git.commit === 'string' && artifact.git.commit.length > 0, 'artifact-commit');
+assert(typeof artifact.git.ref === 'string' && artifact.git.ref.length > 0, 'artifact-ref');
+assert(typeof artifact.git.workflowRunId === 'string' && artifact.git.workflowRunId.length > 0, 'artifact-workflow-run-id');
 assert(Array.isArray(artifact.cities) && artifact.cities.length === 3, 'artifact-three-cities');
 assert(JSON.stringify(artifact.cities.map(x => x.city)) === JSON.stringify(['Ottawa', 'Toronto', 'Melbourne']), 'artifact-city-order');
 
