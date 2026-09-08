@@ -6,14 +6,17 @@ const { buildMunicipalDecision } = require('../scripts/municipal-evidence-pipeli
 
 function numericField(records) {
   const candidates = new Map();
-  for (const record of records) {
-    for (const [key, value] of Object.entries(record)) {
+  const walk = (value, path) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
       const n = Number(value);
-      if (value !== null && value !== '' && Number.isFinite(n)) candidates.set(key, (candidates.get(key) || 0) + 1);
+      if (value !== null && value !== '' && Number.isFinite(n) && path) candidates.set(path, (candidates.get(path) || 0) + 1);
+      return;
     }
-  }
+    for (const [key, child] of Object.entries(value)) walk(child, path ? `${path}.${key}` : key);
+  };
+  for (const record of records) walk(record, '');
   const best = [...candidates.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!best) throw new Error('no-numeric-field');
+  if (!best || best[1] !== records.length) throw new Error('no-common-numeric-field');
   return best[0];
 }
 
