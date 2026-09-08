@@ -6,14 +6,15 @@ const MUNICIPAL_PARAMETER_MAPPINGS = Object.freeze({
   Ottawa: Object.freeze({
     datasetHint: 'collision',
     mappings: Object.freeze([
-      Object.freeze({ parameterName: 'observed_fatal_collisions', fieldCandidates: ['properties.NO_OF_FATAL', 'properties.No_of_Fatal', 'NO_OF_FATAL', 'No_of_Fatal', 'properties.FATAL_NO', 'FATAL_NO'], unit: 'collisions-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'fatal motor-vehicle collisions' }),
+      Object.freeze({ parameterName: 'observed_fatal_collision_rate', fieldCandidates: ['properties.COLLISION_CLASS', 'properties.Collision_Class', 'COLLISION_CLASS', 'Collision_Class', 'properties.CLASS', 'CLASS'], unit: 'fatal-collisions-per-collision-record', role: 'context', causalEligible: false, aggregation: 'category-rate', categoryValues: ['fatal'], semantic: 'share of collision records classified as fatal' }),
       Object.freeze({ parameterName: 'observed_injuries', fieldCandidates: ['properties.NO_OF_INJURIES', 'properties.No_of_Injuries', 'NO_OF_INJURIES', 'No_of_Injuries'], unit: 'injuries-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'reported injuries in collision records' }),
     ]),
   }),
   Toronto: Object.freeze({
     datasetHint: 'traffic collisions',
     mappings: Object.freeze([
-      Object.freeze({ parameterName: 'observed_fatal_collisions', fieldCandidates: ['FATAL_NO'], unit: 'fatalities-per-source-record', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'fatal collision indicator/count where populated' }),
+      Object.freeze({ parameterName: 'observed_fatal_collision_rate', fieldCandidates: ['ACCLASS', 'acclass', 'properties.ACCLASS', 'properties.AC_CLASS'], unit: 'fatal-collisions-per-collision-record', role: 'context', causalEligible: false, aggregation: 'category-rate', categoryValues: ['fatal'], semantic: 'share of collision records classified as fatal' }),
+      Object.freeze({ parameterName: 'observed_injuries', fieldCandidates: ['FATAL_NO'], unit: 'fatalities-per-source-record', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'fatality count where the source supplies it' }),
     ]),
   }),
   Melbourne: Object.freeze({
@@ -35,9 +36,11 @@ function resolveMunicipalMapping(city, records) {
   for (const mapping of config.mappings) {
     for (const field of mapping.fieldCandidates) {
       const values = records.map(record => getNested(record, field));
-      const numeric = values.map(Number);
-      if (numeric.every(Number.isFinite)) {
-        return { ...mapping, field, resolved: true };
+      if (mapping.aggregation === 'category-rate') {
+        if (values.every(value => value !== undefined && value !== null && String(value).trim() !== '')) return { ...mapping, field, resolved: true };
+      } else {
+        const numeric = values.map(Number);
+        if (numeric.every(Number.isFinite)) return { ...mapping, field, resolved: true };
       }
     }
   }
