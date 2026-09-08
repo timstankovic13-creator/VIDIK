@@ -14,6 +14,7 @@
     "test:municipal-semantic-gates":"node tests/municipal-semantic-decision-gates.test.js",
     "test:municipal-decision-run":"node tests/municipal-production-decision-run.test.js",
     "test:municipal-decision-integrity":"node tests/municipal-production-decision-integrity.test.js",
+    "test:architecture-completeness":"node tests/vidik-architecture-completeness.test.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
     "test:production-config":"node tests/production-config.test.js",
