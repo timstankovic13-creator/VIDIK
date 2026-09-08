@@ -29,7 +29,8 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(decisionBefore.decisionContextStatus).toBe('READY');
       if(city==='Melbourne'){
         expect(decisionBefore.recommendation).toBeFalsy();
-        expect(decisionBefore.admissibility?.housing?.admissible??window.VIDIK_92_INTEGRATION.municipalMapping.gates.housing.admissibility.admissible).toBe(false);
+        const melbourneGate=await page.evaluate(()=>window.VIDIK_92_INTEGRATION.municipalMapping.gates.housing.admissibility.admissible);
+        expect(melbourneGate).toBe(false);
       } else {
         expect(decisionBefore.recommendation).toBe('housing');
       }
