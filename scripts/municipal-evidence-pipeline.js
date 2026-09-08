@@ -18,20 +18,33 @@ function getFieldValue(record, field) {
 
 function selectNumericValues(records, field) {
   if (!Array.isArray(records) || records.length === 0) throw new Error('no-evidence-records');
-  const values = records.map((record, index) => {
+  return records.map((record, index) => {
     if (!record || typeof record !== 'object') throw new Error(`invalid-evidence-record:${index}`);
     return finiteNumber(getFieldValue(record, field), `${field}:${index}`);
   });
-  if (!values.length) throw new Error(`empty-parameter:${field}`);
-  return values;
 }
 
-function aggregate(values, method = 'mean') {
+function selectCategoryValues(records, field) {
+  if (!Array.isArray(records) || records.length === 0) throw new Error('no-evidence-records');
+  return records.map((record, index) => {
+    if (!record || typeof record !== 'object') throw new Error(`invalid-evidence-record:${index}`);
+    const value = getFieldValue(record, field);
+    if (value === undefined || value === null || String(value).trim() === '') throw new Error(`missing-category:${field}:${index}`);
+    return String(value).trim();
+  });
+}
+
+function aggregate(values, method = 'mean', options = {}) {
   if (!Array.isArray(values) || !values.length) throw new Error('empty-aggregation-input');
   if (method === 'sum') return values.reduce((total, value) => total + value, 0);
   if (method === 'mean') return values.reduce((total, value) => total + value, 0) / values.length;
   if (method === 'min') return Math.min(...values);
   if (method === 'max') return Math.max(...values);
+  if (method === 'category-rate') {
+    const positives = new Set((options.categoryValues || []).map(value => String(value).toLowerCase()));
+    if (!positives.size) throw new Error('category-values-required');
+    return values.filter(value => positives.has(String(value).toLowerCase())).length / values.length;
+  }
   throw new Error(`unsupported-aggregation:${method}`);
 }
 
@@ -41,11 +54,15 @@ function buildEvidenceClaim(envelope, mapping) {
   const field = String(mapping.field || '').trim();
   const parameterName = String(mapping.parameterName || '').trim();
   if (!field || !parameterName) throw new Error('parameter-mapping-incomplete');
+  if (mapping.causalEligible === false && mapping.role !== 'context') throw new Error('invalid-context-mapping');
 
-  const values = selectNumericValues(envelope.evidence.records, field);
-  const value = aggregate(values, mapping.aggregation || 'mean');
+  const aggregationMethod = mapping.aggregation || 'mean';
+  const values = aggregationMethod === 'category-rate'
+    ? selectCategoryValues(envelope.evidence.records, field)
+    : selectNumericValues(envelope.evidence.records, field);
+  const value = aggregate(values, aggregationMethod, mapping);
   const transform = mapping.transform;
-  const transformed = typeof transform === 'function' ? finiteNumber(transform(value), parameterName) : value;
+  const transformed = typeof transform === 'function' ? finiteNumber(transform(value), parameterName) : finiteNumber(value, parameterName);
 
   return {
     schemaVersion: 'municipal-evidence-claim.v1',
@@ -53,8 +70,11 @@ function buildEvidenceClaim(envelope, mapping) {
       name: parameterName,
       value: transformed,
       unit: String(mapping.unit || 'unspecified'),
-      aggregation: mapping.aggregation || 'mean',
+      aggregation: aggregationMethod,
       source: envelope.city,
+      role: mapping.role || 'unspecified',
+      causalEligible: mapping.causalEligible === true,
+      semantic: String(mapping.semantic || ''),
     },
     evidence: {
       schemaVersion: envelope.schemaVersion,
@@ -79,6 +99,11 @@ function buildDecisionInput(claim, model) {
     geography: claim.parameter.source,
     parameters,
     evidence: claim.evidence,
+    parameterLineage: {
+      role: claim.parameter.role,
+      causalEligible: claim.parameter.causalEligible,
+      semantic: claim.parameter.semantic,
+    },
   };
   return {
     ...input,
@@ -96,6 +121,7 @@ function buildMunicipalDecision({ city, ingestion, mapping, model, now = new Dat
 module.exports = {
   finiteNumber,
   selectNumericValues,
+  selectCategoryValues,
   aggregate,
   buildEvidenceClaim,
   buildDecisionInput,
