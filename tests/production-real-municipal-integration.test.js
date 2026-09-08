@@ -1,13 +1,18 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require('@playwright/test');
 const { ingestCatalog } = require('../scripts/municipal-adapters');
 const { resolveMunicipalMapping, assertContextOnlyMapping } = require('../scripts/municipal-parameter-registry');
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`timeout:${label}:${ms}ms`)), ms); });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 async function startServer() {
   const server = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', '4173', '--bind', '127.0.0.1'], { cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] });
@@ -25,39 +30,28 @@ async function startServer() {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
-      const ingestion = await ingestCatalog(city, globalThis.fetch, new Date());
+      console.log(`${city}: starting live ingestion`);
+      const ingestion = await withTimeout(ingestCatalog(city, globalThis.fetch, new Date()), 90000, `${city}:live-ingestion`);
       assert.equal(ingestion.provenance.status, 'validated');
       assert.ok(ingestion.recordCount > 0);
       const mapping = resolveMunicipalMapping(city, ingestion.records);
       assertContextOnlyMapping(mapping);
+      console.log(`${city}: ingestion validated; mapped ${mapping.field} -> ${mapping.parameterName}`);
 
       const page = await browser.newPage();
-      await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => document.readyState === 'complete');
-      await page.evaluate(({ city, provenance, mapping }) => {
+      await withTimeout(page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' }), 30000, `${city}:browser-load`);
+      await withTimeout(page.waitForFunction(() => document.readyState === 'complete'), 10000, `${city}:browser-ready`);
+      await withTimeout(page.evaluate(({ city, provenance, mapping }) => {
         window.VIDIK_LIVE_MUNICIPAL_CONTEXT = {
           [city]: {
-            status: 'validated-context',
-            city,
-            sourceUrl: provenance.sourceUrl,
-            datasetId: provenance.datasetId,
-            retrievedAt: provenance.retrievedAt,
-            normalizedSha256: provenance.normalizedSha256,
-            recordCount: provenance.rowCount,
-            parameterLineage: {
-              parameterName: mapping.parameterName,
-              field: mapping.field,
-              unit: mapping.unit,
-              aggregation: mapping.aggregation,
-              semantic: mapping.semantic,
-              role: mapping.role,
-              causalEligible: mapping.causalEligible,
-            },
+            status: 'validated-context', city, sourceUrl: provenance.sourceUrl, datasetId: provenance.datasetId,
+            retrievedAt: provenance.retrievedAt, normalizedSha256: provenance.normalizedSha256, recordCount: provenance.rowCount,
+            parameterLineage: { parameterName: mapping.parameterName, field: mapping.field, unit: mapping.unit, aggregation: mapping.aggregation, semantic: mapping.semantic, role: mapping.role, causalEligible: mapping.causalEligible },
           },
         };
         document.getElementById('city').value = city;
         render();
-      }, { city, provenance: ingestion.provenance, mapping });
+      }, { city, provenance: ingestion.provenance, mapping }), 10000, `${city}:browser-render`);
 
       const state = await page.evaluate(() => ({ gate: document.getElementById('gate').textContent, recommendation: document.getElementById('rec').textContent, audit: document.getElementById('audit').textContent, pipeline: document.getElementById('pipeline').textContent }));
       assert.match(state.gate, /DECISION ADMISSIBLE|BLOCKED/);
