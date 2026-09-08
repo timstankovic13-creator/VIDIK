@@ -8,8 +8,6 @@ const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const exists = (file) => fs.existsSync(path.join(root, file));
 
-// This is deliberately a deterministic, dependency-free release gate. It catches
-// missing production pieces before GitHub's expensive browser/regression jobs run.
 const requiredFiles = [
   'index.html',
   'package.json',
@@ -17,9 +15,11 @@ const requiredFiles = [
   'infra/PRODUCTION_DEPLOYMENT.md',
   'js/city-source-adapters.js',
   'js/municipal-decision-context.js',
+  'js/municipal-decision-mapping.js',
   'js/decision-integrity-9.4.js',
   'js/decision-lifecycle-9.6.js',
   'tests/municipal-evidence-pipeline.test.js',
+  'tests/municipal-semantic-decision-gates.test.js',
   'tests/outcome-learning.test.js',
   'tests/production-config.test.js',
   'tests/hostile-engine-and-production-readiness-15.test.js'
@@ -36,6 +36,7 @@ const requiredScripts = [
   'test:municipal-retrospective-shadow',
   'test:municipal-ingestion',
   'test:municipal-evidence-pipeline',
+  'test:municipal-semantic-gates',
   'test:outcome-learning',
   'test:production-config',
   'test:hostile-readiness',
@@ -52,11 +53,11 @@ const requiredControls = [
 ];
 for (const id of requiredControls) assert.match(html, new RegExp(`(?:id|data-[a-z-]+)=['"]${id}['"]`), `missing production UI control: ${id}`);
 
-// WUP/readiness and municipal decision paths must be loaded by the canonical UI.
 for (const script of [
   'js/geography-reconciliation.js',
   'js/city-source-adapters.js',
   'js/municipal-decision-context.js',
+  'js/municipal-decision-mapping.js',
   'js/decision-intelligence-9.2-integration.js',
   'js/decision-integrity-9.4.js',
   'js/decision-lifecycle-9.6.js'
@@ -75,6 +76,7 @@ for (const script of [
   'test:municipal-operational-lifecycle',
   'test:municipal-retrospective-shadow',
   'test:municipal-evidence-pipeline',
+  'test:municipal-semantic-gates',
   'test:outcome-learning',
   'test:production-config',
   'test:hostile-readiness'
