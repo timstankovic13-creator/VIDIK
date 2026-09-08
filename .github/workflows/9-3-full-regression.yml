@@ -32,6 +32,7 @@ jobs:
           npm run test:municipal-live
           npm run test:municipal-production
           npm run test:municipal-semantic-gates
+          npm run test:municipal-decision-run
           npm run test:municipal-operational-lifecycle
           npm run test:municipal-retrospective-shadow
           npm run test:municipal-evidence-pipeline

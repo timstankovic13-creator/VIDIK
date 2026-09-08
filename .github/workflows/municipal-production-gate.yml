@@ -27,6 +27,24 @@ jobs:
       - name: Municipal semantic decision gates
         run: npm run test:municipal-semantic-gates
 
+      - name: Three-city production decision acceptance
+        run: npm run test:municipal-decision-run
+
+      - name: Generate inspectable three-city decision artifact
+        run: node scripts/municipal-production-decision-artifact.js
+        env:
+          VIDIK_DECISION_ARTIFACT: artifacts/municipal-three-city-production-decision.json
+
+      - name: Validate inspectable three-city decision artifact
+        run: node tests/municipal-production-decision-artifact.test.js
+
+      - name: Publish three-city decision artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-three-city-production-decision
+          path: artifacts/municipal-three-city-production-decision.json
+          if-no-files-found: error
+
       - name: Municipal hostile production gate
         run: npm run test:municipal-production
 
