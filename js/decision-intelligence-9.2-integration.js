@@ -8,7 +8,7 @@
   const qualityWeight=q=>({high:1,medium:.7,low:.4}[String(q||'').toLowerCase()]??0);
   function claimsForEvidence(){const claims=[];for(const e of Object.values(E))(e.claims||[]).forEach((c,i)=>claims.push({id:e.id+':claim:'+i,evidenceIds:[e.id],type:c.type,text:c.text}));return claims;}
   function paramsForCandidate(c){const out=[];for(const [key,p] of Object.entries(c.params||{})){if(!p)continue;const claimIds=(p.evidenceIds||[]).map(id=>id+':claim:0');out.push({id:c.id+':'+key,claimIds,value:p.value,unit:p.unit,derivation:p.derivation,uncertainty:p.uncertainty});}return out;}
-  function numericControl(id){const el=document.getElementById(id);const raw=el?.value?.trim();const value=Number(raw);if(raw!==''&&Number.isFinite(value))return value;const fallback=Number(el?.defaultValue);return Number.isFinite(fallback)?fallback:null;}
+  function numericControl(id){const el=document.getElementById(id);const raw=el?.value?.trim();if(raw==='')return null;const value=Number(raw);return Number.isFinite(value)?value:null;}
   function evidenceForCandidate(c){return [...new Set((c.evidence||[]).map(id=>E[id]).filter(Boolean))];}
   function evidenceStrength(c){const es=evidenceForCandidate(c);if(!es.length)return 0;return es.reduce((s,e)=>s+qualityWeight(e.quality)*Number(e.transportability||0),0)/es.length;}
   function scoreWithEffect(c,effectValue){const p=c.params;return V.weights.need*p.need.value+V.weights.effect*effectValue+V.weights.capacity*p.capacity.value+V.weights.feasibility*p.feasibility.value+V.weights.equity*p.equity.value+V.weights.risk*(1-c.risk);}
@@ -31,8 +31,9 @@
   }
   async function recompute(){
     const revision=++state.revision;
-    const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),risk=numericControl('risk'),city=document.getElementById('city')?.value?.trim()||'';
-    if(!Number.isFinite(risk)||risk<0||risk>1)throw new Error('invalid-risk-ceiling');
+    const claims=claimsForEvidence(),parameters=C.flatMap(paramsForCandidate),pool=numericControl('pool'),risk=numericControl('risk'),city=document.getElementById('city')?.value?.trim()||'';
+    if(!Number.isFinite(pool)||pool<0){state.status='BLOCKED';state.error='invalid-resource-pool';state.decision={recommendation:null,score:null,admissible:[],city};state.sensitivity=null;state.voi=null;state.counterfactual=null;renderDecisionOutputs(city,null,[],{});return state;}
+    if(!Number.isFinite(risk)||risk<0||risk>1){state.status='BLOCKED';state.error='invalid-risk-ceiling';state.decision={recommendation:null,score:null,admissible:[],city};state.sensitivity=null;state.voi=null;state.counterfactual=null;renderDecisionOutputs(city,null,[],{});return state;}
     if(!M.cities.includes(city))throw new Error('unsupported-municipality');
     const cityGates=Object.fromEntries(C.map(c=>[c.id,M.decisionParameters(city,c)]));
     const scored=C.map(c=>{
@@ -62,7 +63,7 @@
     const voiCandidates=C.filter(c=>c.id!==topCandidate?.id).map(c=>{const es=evidenceForCandidate(c),strength=evidenceStrength(c),p=c.params?.effect,upper=p?.uncertainty?.high;const supportedUpper=Number.isFinite(upper)&&p?.evidenceIds?.length?scoreWithEffect(c,upper):null;const expectedBestValue=Number.isFinite(supportedUpper)?supportedUpper:0;const cost=es.length?es.reduce((s,e)=>s+(1-qualityWeight(e.quality))*Number(e.transportability||0),0)/es.length:1;return {id:c.id,expectedBestValue,cost,evidenceIds:es.map(e=>e.id),evidenceStrength:strength,cityAdmissibility:cityGates[c.id]?.admissibility||null}});
     const voi=DI.valueOfInformation({currentDecision:top?.score??0,decisionValue:1,evidenceCost:0,candidates:voiCandidates});
     let counterfactual=null;
-    if(topCandidate){const effect=topCandidate.params.effect?.value;if(Number.isFinite(effect)&&topCandidate.params.effect.evidenceIds?.length){const statusQuoScore=scoreWithEffect(topCandidate,0),recommendationScore=scoreWithEffect(topCandidate,effect);counterfactual={statusQuo:{score:statusQuoScore,evidenceIds:topCandidate.params.effect.evidenceIds},recommendation:{score:recommendationScore,evidenceIds:topCandidate.params.effect.evidenceIds},incremental:recommendationScore-statusQuoScore,improves:recommendationScore>statusQuoScore,semantics:'causal/effect estimate is separate from municipal observed context'};}}
+    if(topCandidate){const effect=topCandidate.params.effect?.value;if(Number.isFinite(effect)&&topCandidate.params.effect.evidenceIds?.length){const statusQuoScore=scoreWithEffect(topCandidate,0),recommendationScore=scoreWithEffect(topCandidate,effect);counterfactual={statusQuo:{score:statusQuoScore,evidenceIds:topCandidate.params.effect.evidenceIds},recommendation:{score:recommendationScore,evidenceIds:topCandidate.params.effect.evidenceIds},incremental:recommendationScore-statusQuoScore,improves:recommendationScore>statusQuoScore,semantics:'evidence-linked effect estimate; causal/effect estimate is separate from municipal observed context'};}}
     state.sourceLineage=sourceLineageForCity(city);
     const ctx=resolveDecisionContext(city);
     if(revision!==state.revision)return state;
