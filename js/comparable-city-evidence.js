@@ -35,7 +35,6 @@ function rankComparableCities(target, candidates, options = {}) {
       const similarity = similarityScore(target, c.profile || c);
       const evidenceQuality = Number.isFinite(c.evidenceQuality) ? c.evidenceQuality : 0;
       const outcomeMatch = Number.isFinite(c.outcomeMatch) ? c.outcomeMatch : 0;
-      const unconventionalBonus = c.approach?.unconventional ? 0.05 : 0;
       return {
         city: c.city,
         similarity,
@@ -44,7 +43,8 @@ function rankComparableCities(target, candidates, options = {}) {
         unconventional: Boolean(c.approach?.unconventional),
         approach: c.approach || null,
         evidenceIds: c.evidenceIds || [],
-        acquisitionPriority: Math.min(1, similarity * 0.55 + evidenceQuality * 0.25 + outcomeMatch * 0.20 + unconventionalBonus),
+        // Novelty is surfaced as discovery metadata, never as a causal-quality bonus.
+        acquisitionPriority: Math.min(1, similarity * 0.55 + evidenceQuality * 0.25 + outcomeMatch * 0.20),
         admissibility: { status: 'NOT_ESTABLISHED', reason: 'comparable-city-similarity-is-not-causal-admissibility' }
       };
     })
