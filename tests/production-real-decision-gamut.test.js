@@ -54,7 +54,7 @@ function readNested(record, field) {
           return input.parameters.live_source_metric >= 0 ? 'continue' : 'review-negative-source-metric';
         },
       },
-      now: new Date(),
+      now: new Date(Date.now() + 1000),
     });
 
     assert.equal(result.envelope.status, 'validated');
