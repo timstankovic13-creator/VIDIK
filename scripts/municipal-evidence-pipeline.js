@@ -8,11 +8,19 @@ function finiteNumber(value, field) {
   return number;
 }
 
+function getFieldValue(record, field) {
+  if (Object.prototype.hasOwnProperty.call(record, field)) return record[field];
+  return String(field).split('.').reduce((value, key) => {
+    if (value === null || value === undefined || typeof value !== 'object') return undefined;
+    return value[key];
+  }, record);
+}
+
 function selectNumericValues(records, field) {
   if (!Array.isArray(records) || records.length === 0) throw new Error('no-evidence-records');
   const values = records.map((record, index) => {
     if (!record || typeof record !== 'object') throw new Error(`invalid-evidence-record:${index}`);
-    return finiteNumber(record[field], `${field}:${index}`);
+    return finiteNumber(getFieldValue(record, field), `${field}:${index}`);
   });
   if (!values.length) throw new Error(`empty-parameter:${field}`);
   return values;
