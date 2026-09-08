@@ -9,6 +9,7 @@
     "test:municipal-production":"node tests/municipal-production-gate.test.js",
     "test:municipal-operational-lifecycle":"node tests/municipal-operational-lifecycle-11.test.js",
     "test:municipal-retrospective-shadow":"node tests/municipal-retrospective-shadow-12.test.js",
+    "test:municipal-ingestion":"node tests/municipal-ingestion.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js"
   },
   "devDependencies":{"@playwright/test":"^1.55.0"}
