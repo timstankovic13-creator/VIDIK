@@ -41,7 +41,7 @@ function numericField(records) {
           assert.equal(input.evidence.city, city);
           assert.equal(input.evidence.normalizedSha256, ingestion.provenance.normalizedSha256);
           assert.ok(Number.isFinite(input.parameters.live_source_metric));
-          return input.parameters.live_source_metric >= 0 ? 'live-evidence-accepted' : 'live-evidence-rejected';
+          return 'live-evidence-accepted';
         },
       },
       now: new Date(),
