@@ -1,0 +1,53 @@
+'use strict';
+
+// Explicit, city-specific mappings. These are observed/context parameters only;
+// they are NOT causal effect estimates and must never substitute for causal evidence.
+const MUNICIPAL_PARAMETER_MAPPINGS = Object.freeze({
+  Ottawa: Object.freeze({
+    datasetHint: 'collision',
+    mappings: Object.freeze([
+      Object.freeze({ parameterName: 'observed_fatal_collisions', fieldCandidates: ['properties.NO_OF_FATAL', 'properties.No_of_Fatal', 'NO_OF_FATAL', 'No_of_Fatal', 'properties.FATAL_NO', 'FATAL_NO'], unit: 'collisions-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'fatal motor-vehicle collisions' }),
+      Object.freeze({ parameterName: 'observed_injuries', fieldCandidates: ['properties.NO_OF_INJURIES', 'properties.No_of_Injuries', 'NO_OF_INJURIES', 'No_of_Injuries'], unit: 'injuries-per-source-window', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'reported injuries in collision records' }),
+    ]),
+  }),
+  Toronto: Object.freeze({
+    datasetHint: 'traffic collisions',
+    mappings: Object.freeze([
+      Object.freeze({ parameterName: 'observed_fatal_collisions', fieldCandidates: ['FATAL_NO'], unit: 'fatalities-per-source-record', role: 'context', causalEligible: false, aggregation: 'sum', semantic: 'fatal collision indicator/count where populated' }),
+    ]),
+  }),
+  Melbourne: Object.freeze({
+    datasetHint: 'pedestrian counting system',
+    mappings: Object.freeze([
+      Object.freeze({ parameterName: 'observed_pedestrian_volume', fieldCandidates: ['pedestriancount', 'fields.pedestriancount'], unit: 'pedestrians-per-sensor-hour', role: 'context', causalEligible: false, aggregation: 'mean', semantic: 'total hourly pedestrian sensor count' }),
+    ]),
+  }),
+});
+
+function getNested(record, field) {
+  return String(field).split('.').reduce((value, key) => value == null ? undefined : value[key], record);
+}
+
+function resolveMunicipalMapping(city, records) {
+  const config = MUNICIPAL_PARAMETER_MAPPINGS[String(city || '').trim()];
+  if (!config) throw new Error(`no-municipal-parameter-registry:${city}`);
+  if (!Array.isArray(records) || !records.length) throw new Error(`no-municipal-records:${city}`);
+  for (const mapping of config.mappings) {
+    for (const field of mapping.fieldCandidates) {
+      const values = records.map(record => getNested(record, field));
+      const numeric = values.map(Number);
+      if (numeric.every(Number.isFinite)) {
+        return { ...mapping, field, resolved: true };
+      }
+    }
+  }
+  throw new Error(`no-semantic-municipal-parameter:${city}`);
+}
+
+function assertContextOnlyMapping(mapping) {
+  if (!mapping || mapping.role !== 'context' || mapping.causalEligible !== false) throw new Error('municipal-mapping-must-be-context-only');
+  return true;
+}
+
+if (typeof module !== 'undefined') module.exports = { MUNICIPAL_PARAMETER_MAPPINGS, getNested, resolveMunicipalMapping, assertContextOnlyMapping };
+if (typeof globalThis !== 'undefined') globalThis.VIDIK_MUNICIPAL_PARAMETER_MAPPINGS = MUNICIPAL_PARAMETER_MAPPINGS;
