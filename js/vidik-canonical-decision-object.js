@@ -7,6 +7,7 @@ function buildCanonicalDecisionObject(run) {
   const interventions = run?.interventionComparison || [];
   const selected = interventions.find(x => x.id === run?.recommendation) || null;
   const causal = selected?.gate?.causalEvidence || null;
+  const suppliedResource = run?.resourceEnvelope?.marginalUnit || null;
   const evidenceNodes = [
     run?.sourceLineage ? { id: `municipal:${city}`, kind: 'observed_context', provenance: run.sourceLineage } : null,
     causal ? { id: causal.id, kind: 'causal_effect', provenance: causal } : null
@@ -15,7 +16,7 @@ function buildCanonicalDecisionObject(run) {
   const parameter = causal ? { id: `${selected.id}:effect`, value: causal.estimate, unit: causal.unit, evidenceIds: [causal.id], uncertainty: causal.uncertainty, transportability: causal.mode || null } : null;
   const object = {
     identityBrief: { decisionId: run?.decisionId || null, city, objective: run?.objective || null, schemaVersion: 'vidik.canonical-decision-object.v1', immutableSnapshot: true },
-    resourceEnvelope: { marginalUnit: { amount: null, unit: 'CAD', status: 'not-specified-in-three-city-acceptance-run' }, optimizationStatus: 'requires-decision-specific-resource-quantity' },
+    resourceEnvelope: { marginalUnit: suppliedResource || { amount: null, unit: 'CAD', status: 'not-specified-in-three-city-acceptance-run' }, optimizationStatus: suppliedResource ? 'resource-quantity-supplied-but-marginal-optimization-not-yet-activated' : 'requires-decision-specific-resource-quantity' },
     objectives: { primary: run?.objective || null },
     constraints: { admissibility: true, failureClosed: Boolean(run?.audit?.failureClosed) },
     interventionUniverse: { interventions: interventions.map(x => ({ id: x.id, name: x.name, status: x.status, score: x.score })) },
