@@ -24,6 +24,9 @@ jobs:
       - name: Municipal adapter contracts
         run: npm run test:municipal-contracts
 
+      - name: Municipal semantic decision gates
+        run: npm run test:municipal-semantic-gates
+
       - name: Municipal hostile production gate
         run: npm run test:municipal-production
 

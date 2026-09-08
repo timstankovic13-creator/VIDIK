@@ -10,18 +10,12 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(f.evidence.sourceRecordId).toBe(f.source.recordId);
       expect(f.outcome.mode).toBe('validation-fixture');
 
-      // Install the city reconciliation before changing the UI city. The city change
-      // fires an immediate render/recompute, so the valid context must already exist
-      // before that event can run; this removes an avoidable lifecycle race.
       await page.evaluate(reconciliation=>{
         window.VIDIK_MUNICIPAL_RECONCILIATIONS={[reconciliation.identity.name]:reconciliation};
       },f.reconciliation);
       await page.selectOption('#city',city);
       await page.evaluate(()=>window.VIDIK_92_INTEGRATION.recompute());
       await expect.poll(()=>page.evaluate(()=>window.VIDIK_92_INTEGRATION.status)).toBe('READY');
-      // The 9.4 integrity layer intentionally syncs from the integration layer on a
-      // short scheduled queue. Waiting on the integration status alone can observe the
-      // new integration decision before the public Decision Object has been refreshed.
       await expect.poll(()=>page.evaluate(()=>({
         runtimeStatus:window.VIDIK_DECISION_9_4?.runtimeStatus,
         city:window.VIDIK_DECISION_9_4?.city?.name,
@@ -33,6 +27,13 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(decisionBefore.city.name).toBe(city);
       expect(decisionBefore.sourceLineage.status).toBe('CONTRACTED');
       expect(decisionBefore.decisionContextStatus).toBe('READY');
+      if(city==='Melbourne'){
+        expect(decisionBefore.recommendation).toBeFalsy();
+        const melbourneGate=await page.evaluate(()=>window.VIDIK_92_INTEGRATION.municipalMapping.gates.housing.admissibility.admissible);
+        expect(melbourneGate).toBe(false);
+      } else {
+        expect(decisionBefore.recommendation).toBe('housing');
+      }
 
       await page.evaluate(()=>{
         const d=window.VIDIK_DECISION_9_4;
@@ -69,24 +70,27 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(drift.drift.status).toBe(expectedDrift);
       expect(drift.drift.sampleSize).toBe(2);
 
-      const target=await page.evaluate(()=>window.VIDIK_DECISION_9_4.recommendation==='housing'?'housing:effect':null);
-      expect(target).toBe('housing:effect');
-      const beforeRecalibration=await page.evaluate(async()=>{await window.VIDIK_92_INTEGRATION.recompute();return window.VIDIK_92_INTEGRATION.decision.score});
-      const recalibrated=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.recalibrate('housing:effect'));
-      expect(recalibrated.ok).toBe(true);
-      expect(recalibrated.record.calibration.targetParameterId).toBe('housing:effect');
-      expect(recalibrated.record.snapshot).toBeTruthy();
-
-      const after=await page.evaluate(async()=>{await window.VIDIK_92_INTEGRATION.recompute();return {score:window.VIDIK_92_INTEGRATION.decision.score,calibration:window.VIDIK_92_INTEGRATION.calibration}});
-      expect(after.calibration.targetParameterId).toBe('housing:effect');
-      expect(after.score).not.toBe(beforeRecalibration);
+      if(city!=='Melbourne'){
+        const target=await page.evaluate(()=>window.VIDIK_DECISION_9_4.recommendation==='housing'?'housing:effect':null);
+        expect(target).toBe('housing:effect');
+        const beforeRecalibration=await page.evaluate(async()=>{await window.VIDIK_92_INTEGRATION.recompute();return window.VIDIK_92_INTEGRATION.decision.score});
+        const recalibrated=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.recalibrate('housing:effect'));
+        expect(recalibrated.ok).toBe(true);
+        expect(recalibrated.record.calibration.targetParameterId).toBe('housing:effect');
+        expect(recalibrated.record.snapshot).toBeTruthy();
+        const after=await page.evaluate(async()=>{await window.VIDIK_92_INTEGRATION.recompute();return {score:window.VIDIK_92_INTEGRATION.decision.score,calibration:window.VIDIK_92_INTEGRATION.calibration}});
+        expect(after.calibration.targetParameterId).toBe('housing:effect');
+        expect(after.score).not.toBe(beforeRecalibration);
+      }
 
       const memory=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.memory());
       expect(memory.ok).toBe(true);
       expect(memory.override.overriddenTo).toBe('ase');
       expect(memory.adoptedDecision.source).toBe('HUMAN_OVERRIDE');
       expect(memory.outcomes).toHaveLength(2);
-      expect(memory.events.map(e=>e.type)).toEqual(expect.arrayContaining(['DECISION_CREATED','HUMAN_OVERRIDE','SNAPSHOT','OUTCOME_REVIEW_V9_6','RECALIBRATION']));
+      const expectedEvents=['DECISION_CREATED','HUMAN_OVERRIDE','SNAPSHOT','OUTCOME_REVIEW_V9_6'];
+      if(city!=='Melbourne')expectedEvents.push('RECALIBRATION');
+      expect(memory.events.map(e=>e.type)).toEqual(expect.arrayContaining(expectedEvents));
       expect(await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.verify().then(x=>x.ok))).toBe(true);
     });
   }
