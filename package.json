@@ -12,6 +12,8 @@
     "test:municipal-ingestion":"node tests/municipal-ingestion.test.js",
     "test:municipal-evidence-pipeline":"node tests/municipal-evidence-pipeline.test.js",
     "test:municipal-semantic-gates":"node tests/municipal-semantic-decision-gates.test.js",
+    "test:municipal-decision-run":"node tests/municipal-production-decision-run.test.js",
+    "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
     "test:production-config":"node tests/production-config.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
