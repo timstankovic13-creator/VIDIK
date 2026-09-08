@@ -7,26 +7,7 @@ const path = require('node:path');
 const { ingestCatalog } = require('../scripts/municipal-adapters');
 const { buildMunicipalDecision } = require('../scripts/municipal-evidence-pipeline');
 const { createOutcomeLearningStore } = require('../scripts/outcome-learning');
-
-function numericField(records) {
-  const candidates = new Map();
-  const walk = (value, pathName) => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      const n = Number(value);
-      if (value !== null && value !== '' && Number.isFinite(n) && pathName) candidates.set(pathName, (candidates.get(pathName) || 0) + 1);
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) walk(child, pathName ? `${pathName}.${key}` : key);
-  };
-  for (const record of records) walk(record, '');
-  const best = [...candidates.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!best || best[1] !== records.length) throw new Error('no-common-numeric-field');
-  return best[0];
-}
-
-function readNested(record, field) {
-  return field.split('.').reduce((value, key) => value == null ? undefined : value[key], record);
-}
+const { resolveMunicipalMapping, assertContextOnlyMapping } = require('../scripts/municipal-parameter-registry');
 
 (async () => {
   for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
@@ -34,24 +15,26 @@ function readNested(record, field) {
     assert.equal(ingestion.provenance.status, 'validated');
     assert.ok(ingestion.recordCount > 0);
 
-    const field = numericField(ingestion.records);
-    const values = ingestion.records.map(record => Number(readNested(record, field)));
-    const liveValue = values.reduce((a, b) => a + b, 0) / values.length;
-    assert.ok(Number.isFinite(liveValue));
+    const mapping = resolveMunicipalMapping(city, ingestion.records);
+    assertContextOnlyMapping(mapping);
+    assert.ok(mapping.semantic);
+    assert.ok(mapping.unit);
 
     const decisionId = `LIVE-${city.toUpperCase()}-${Date.now()}`;
     const result = buildMunicipalDecision({
       city,
       ingestion,
-      mapping: { field, parameterName: 'live_source_metric', unit: 'source-record-value', aggregation: 'mean' },
+      mapping,
       model: {
-        modelId: 'production-live-evidence-v1',
+        modelId: 'production-live-municipal-context-v2',
         recommend: input => {
           assert.equal(input.geography, city);
           assert.equal(input.evidence.city, city);
           assert.equal(input.evidence.normalizedSha256, ingestion.provenance.normalizedSha256);
-          assert.ok(Number.isFinite(input.parameters.live_source_metric));
-          return input.parameters.live_source_metric >= 0 ? 'continue' : 'review-negative-source-metric';
+          assert.equal(input.parameterLineage.role, 'context');
+          assert.equal(input.parameterLineage.causalEligible, false);
+          assert.ok(Number.isFinite(input.parameters[mapping.parameterName]));
+          return 'context-accepted-causal-effect-still-required';
         },
       },
       now: new Date(Date.now() + 1000),
@@ -59,29 +42,36 @@ function readNested(record, field) {
 
     assert.equal(result.envelope.status, 'validated');
     assert.equal(result.claim.status, 'validated');
+    assert.equal(result.claim.parameter.name, mapping.parameterName);
+    assert.equal(result.claim.parameter.causalEligible, false);
     assert.ok(result.decisionInput.recommendation);
 
+    const predicted = result.claim.parameter.value;
+    const observed = predicted * 0.9;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vidik-${city.toLowerCase()}-`));
     const store = createOutcomeLearningStore({ filePath: path.join(dir, 'outcomes.json') });
-    const predicted = liveValue;
-    const observed = liveValue * 0.9;
     const decisionAt = new Date().toISOString();
     const outcomeAt = new Date(Date.now() + 1).toISOString();
-    const recorded = store.recordOutcome({ decisionId, parameterName: 'live_source_metric', city, predicted, observed, checkpoint: '6-month', decisionAt, outcomeAt });
+    const recorded = store.recordOutcome({ decisionId, parameterName: mapping.parameterName, city, predicted, observed, checkpoint: '6-month', decisionAt, outcomeAt });
     assert.equal(recorded.city, city);
     assert.equal(recorded.error, observed - predicted);
 
-    const signal = store.recalibrationSignal({ decisionId, parameterName: 'live_source_metric', currentValue: predicted, learningRate: 0.5 });
+    const signal = store.recalibrationSignal({ decisionId, parameterName: mapping.parameterName, currentValue: predicted, learningRate: 0.5 });
     assert.equal(signal.automaticApply, false);
     assert.ok(Number.isFinite(signal.suggestedValue));
 
     const lifecycle = store.lifecycle(decisionId, new Date(new Date(decisionAt).setUTCMonth(new Date(decisionAt).getUTCMonth() + 6)));
     assert.equal(lifecycle.find(item => item.checkpoint === '6-month').recorded, true);
+    assert.equal(lifecycle.find(item => item.checkpoint === '1-year').recorded, false);
+    assert.equal(lifecycle.find(item => item.checkpoint === '2-year').recorded, false);
+    assert.equal(lifecycle.find(item => item.checkpoint === '5-year').recorded, false);
+    const drift = store.driftReport(decisionId);
+    assert.equal(drift.observations, 1);
     const state = store.snapshot();
     assert.ok(state.audit.some(event => event.type === 'OUTCOME_RECORDED'));
     assert.ok(state.audit.some(event => event.type === 'RECALIBRATION_SIGNAL'));
 
-    console.log(`${city}: LIVE -> EVIDENCE -> DECISION -> OUTCOME -> RECALIBRATION OK | records=${ingestion.recordCount} | field=${field} | recommendation=${result.decisionInput.recommendation} | sha256=${ingestion.provenance.normalizedSha256}`);
+    console.log(`${city}: LIVE -> SEMANTIC MAPPING -> EVIDENCE -> DECISION -> OUTCOME -> RECALIBRATION/DRIFT OK | records=${ingestion.recordCount} | field=${mapping.field} | parameter=${mapping.parameterName} | value=${predicted} | sha256=${ingestion.provenance.normalizedSha256}`);
   }
   console.log('production-real-decision-gamut: PASS');
 })().catch(error => {
