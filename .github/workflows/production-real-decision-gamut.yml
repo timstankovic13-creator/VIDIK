@@ -19,6 +19,8 @@ jobs:
           node-version: 24
       - name: Install
         run: npm install --ignore-scripts
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Live municipal data through real browser decision engine
         run: npm run test:production-real-municipal-integration
       - name: Live municipal decision and learning lifecycle
@@ -36,7 +38,5 @@ jobs:
           npm run test:municipal-evidence-pipeline
           npm run test:outcome-learning
           npm run test:hostile-readiness
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
       - name: Full browser acceptance and hostile lifecycle suites
         run: npx playwright test --reporter=line
