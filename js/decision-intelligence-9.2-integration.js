@@ -18,7 +18,7 @@
   function calibratedScore(c,base){const m=calibrationState(),cal=m.ok?m.calibration:null;if(!cal||cal.application!=='EXPLICIT_PARAMETER_MAPPING'||!Number.isFinite(Number(cal.adjustment)))return {score:base,applied:false,calibration:null};const target=String(cal.targetParameterId||'');if(target!==c.id+':effect')return {score:base,applied:false,calibration:null};return {score:base+V.weights.effect*Number(cal.adjustment),applied:true,calibration:cal};}
   function renderDecisionOutputs(city,topCandidate,admissible,cityGates){
     const why=document.getElementById('why'),uncertainty=document.getElementById('uncertainty'),voi=document.getElementById('voi'),audit=document.getElementById('audit'),rec=document.getElementById('recommendation'),recText=document.getElementById('rec'),gate=document.getElementById('gate'),admissibleEl=document.getElementById('admissible'),lineageEl=document.getElementById('lineage');
-    const displayScore=topCandidate&&Number.isFinite(Number(topCandidate.score))?Number(topCandidate.score):topCandidate?score(topCandidate):null;
+    const displayScore=topCandidate?(Number.isFinite(Number(topCandidate.score))?Number(topCandidate.score):Number(state.decision?.score)):null;
     if(rec) { rec.textContent=topCandidate&&Number.isFinite(displayScore)?topCandidate.name+' · score '+displayScore.toFixed(3):'NO RECOMMENDATION'; rec.className='status '+(topCandidate?'pass':'fail'); }
     if(recText) recText.textContent=topCandidate?topCandidate.name:'NO RECOMMENDATION';
     if(gate) { gate.textContent=topCandidate?'DECISION ADMISSIBLE':'BLOCKED — no city-specific admissible intervention'; gate.className='status '+(topCandidate?'pass':'fail'); }
