@@ -30,7 +30,7 @@ function getNested(record, field) {
 }
 
 function resolveMunicipalMapping(city, records) {
-  const config = MUNICIPAL_PARAMETER_MAPPINGS[String(city || '').trim();
+  const config = MUNICIPAL_PARAMETER_MAPPINGS[String(city || '').trim()];
   if (!config) throw new Error(`no-municipal-parameter-registry:${city}`);
   if (!Array.isArray(records) || !records.length) throw new Error(`no-municipal-records:${city}`);
   for (const mapping of config.mappings) {
