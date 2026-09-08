@@ -27,6 +27,9 @@ jobs:
       - name: Municipal semantic decision gates
         run: npm run test:municipal-semantic-gates
 
+      - name: Three-city production decision acceptance
+        run: npm run test:municipal-decision-run
+
       - name: Municipal hostile production gate
         run: npm run test:municipal-production
 
