@@ -110,4 +110,4 @@ At every transition, VIDIK must retain the identity of the input, its provenance
 
 ## Architecture gate
 
-`tests/vidik-architecture-completeness.test.js` protects the 18-part contract and the comparable-city safety boundary. This gate is intentionally structural; subsequent work must add runtime integration assertions so each part is populated from real production inputs rather than merely present as an empty field.
+`tests/vidik-architecture-completeness.test.js` protects the 18-part contract and the comparable-city safety boundary. Runtime integration is now exercised by `tests/vidik-canonical-production-integration.test.js` through `scripts/municipal-canonical-decision-run.js`, including preservation of an explicitly supplied marginal resource envelope. True marginal-resource optimization remains intentionally blocked until decision-specific comparable marginal effects are available.
