@@ -30,6 +30,9 @@ jobs:
       - name: Three-city production decision acceptance
         run: npm run test:municipal-decision-run
 
+      - name: Five-phase production decision integrity challenge
+        run: npm run test:municipal-decision-integrity
+
       - name: Generate inspectable three-city decision artifact
         run: node scripts/municipal-production-decision-artifact.js
         env:
