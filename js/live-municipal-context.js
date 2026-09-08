@@ -23,10 +23,11 @@
             recordCount: live.recordCount,
             role: 'validated-context; not a causal effect estimate'
           };
+          if (live.parameterLineage) audit.municipal_parameter_lineage = live.parameterLineage;
           auditEl.textContent = JSON.stringify(audit, null, 2);
         } catch {}
       }
-      if (pipelineEl) pipelineEl.textContent = 'Live municipal evidence → validated provenance/context → verified evidence → typed claims → parameter lineage → admissibility gate → optimizer → audit.';
+      if (pipelineEl) pipelineEl.textContent = 'Live municipal source → validated provenance → semantic local context parameter → evidence/transportability gate → causal model/optimizer → audit → learning.';
     }
     return result;
   };
