@@ -63,7 +63,13 @@ function fakeFetch(url) {
   assert.ok(melbourne.interventionComparison.find(x => x.id === 'housing').gate.failures.includes('causal-effect-not-transportable-to-city'));
   assert.ok(melbourne.interventionComparison.find(x => x.id === 'ase').gate.failures.includes('city-specific-ase-admissibility-evidence-missing'));
 
-  assert.deepStrictEqual(result.acceptance, { Ottawa: true, Toronto: true, Melbourne: true });
+  assert.deepStrictEqual(result.acceptance, {
+    Ottawa: ottawa.learning,
+    Toronto: toronto.learning,
+    Melbourne: true
+  });
+  assert.strictEqual(result.acceptance.Ottawa.outcome.error, -0.019999999999999962);
+  assert.strictEqual(result.acceptance.Toronto.recalibration.application, 'EXPLICIT_PARAMETER_MAPPING');
   console.log('municipal-production-decision-run: PASS');
 })().catch(error => {
   console.error(error.stack || error);
