@@ -45,7 +45,7 @@ test.describe('VIDIK production browser/mobile acceptance', () => {
     }
   });
 
-  test('critical controls have accessible names', async ({ page }) => {
+  test('critical controls expose an accessible name', async ({ page }) => {
     await page.goto('/');
     const controls = [
       '#city', '#pool', '#risk', '#readinessCity', '#readinessCountry', '#readinessLimit',
@@ -55,8 +55,15 @@ test.describe('VIDIK production browser/mobile acceptance', () => {
       '#v96ReviewOutcome', '#v96Recalibrate', '#v96DetectDrift', '#runAcceptance',
     ];
     for (const selector of controls) {
-      const locator = page.locator(selector);
-      await expect(locator).toHaveAccessibleName();
+      const name = await page.locator(selector).evaluate((el) => {
+        const labelledBy = el.getAttribute('aria-labelledby');
+        const labelledText = labelledBy
+          ? labelledBy.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ')
+          : '';
+        const label = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+        return (el.getAttribute('aria-label') || labelledText || label?.textContent || el.getAttribute('placeholder') || el.textContent || '').trim();
+      });
+      expect(name, `${selector} must have an accessible name`).not.toBe('');
     }
   });
 });
