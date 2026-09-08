@@ -33,6 +33,9 @@ jobs:
       - name: Five-phase production decision integrity challenge
         run: npm run test:municipal-decision-integrity
 
+      - name: Resource-to-outcome optimization feedback phases 1-5
+        run: npm run test:resource-optimization
+
       - name: Generate inspectable three-city decision artifact
         run: node scripts/municipal-production-decision-artifact.js
         env:

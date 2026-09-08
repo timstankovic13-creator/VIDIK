@@ -2,6 +2,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { evaluateResourceOptimization } = require('../js/vidik-resource-optimization');
 
 const SOURCES = Object.freeze({
   Ottawa: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', sourceType: 'municipal-web-report', dataset: 'ottawa-2024-pit-count', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /In October 2024\s+(?:there were\s+)?([\d,]+) people reported experiencing homelessness in Ottawa\./i, definition: 'People reported experiencing homelessness in the October 2024 Point-in-Time enumeration; dependents excluded from the comparable PiT series.' }),
@@ -48,12 +49,9 @@ function parseObservation(city, text) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${city}:live-source-observation-invalid`);
   return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: 'source-semantic-pattern-capture', capturedValue: value } };
 }
-
 function admissibility(city, intervention, options = {}) {
   const override = options.scenarioEvidence?.[city]?.[intervention.id];
-  if (override) {
-    return { admissible: Boolean(override.admissible), failures: override.admissible ? [] : [override.failure || 'scenario-evidence-inadmissible'], causalEvidence: override.evidence || null, scenario: true };
-  }
+  if (override) return { admissible: Boolean(override.admissible), failures: override.admissible ? [] : [override.failure || 'scenario-evidence-inadmissible'], causalEvidence: override.evidence || null, scenario: true };
   if (intervention.id === 'housing') {
     if (city === 'Melbourne') return { admissible: false, failures: ['causal-effect-not-transportable-to-city'], causalEvidence: { ...CAUSAL.housing, mode: 'cross-country', sourceJurisdiction: 'Canada', targetJurisdiction: 'Australia', rationale: 'No registered Australia/Melbourne transportability evidence for the Canadian Housing First causal estimate.' } };
     if (city === 'Toronto') return { admissible: true, failures: [], causalEvidence: { ...CAUSAL.housing, mode: 'site-supported', sourceJurisdiction: 'Canada', targetJurisdiction: 'Toronto, Canada', rationale: 'The multisite Canadian RCT included Toronto directly; no cross-country transport is required for the causal estimate.' } };
@@ -62,7 +60,6 @@ function admissibility(city, intervention, options = {}) {
   if (intervention.id === 'ase') return { admissible: false, failures: ['city-specific-ase-admissibility-evidence-missing'], causalEvidence: null };
   return { admissible: false, failures: ['no-city-specific-semantic-mapping'], causalEvidence: null };
 }
-
 function scoreIntervention(intervention, gate) {
   if (!gate.admissible || !gate.causalEvidence || !Number.isFinite(gate.causalEvidence.estimate)) return null;
   return gate.causalEvidence.estimate * (1 - intervention.risk);
@@ -80,7 +77,7 @@ function buildLearning(outcome) {
   const error = observed - predicted;
   const adjustment = Math.max(-0.05, Math.min(0.05, error));
   const drift = Math.abs(error) >= 0.05;
-  return { outcome: { ...outcome, kind: outcome.kind || 'observed-outcome', provenance: outcome.provenance || 'caller-supplied' , error }, recalibration: { targetParameterId: 'housing:effect', adjustment, application: 'EXPLICIT_PARAMETER_MAPPING' }, drift: { detected: drift, threshold: 0.05, metric: 'absolute_prediction_error' } };
+  return { outcome: { ...outcome, kind: outcome.kind || 'observed-outcome', provenance: outcome.provenance || 'caller-supplied', error }, recalibration: { targetParameterId: 'housing:effect', adjustment, application: 'EXPLICIT_PARAMETER_MAPPING' }, drift: { detected: drift, threshold: 0.05, metric: 'absolute_prediction_error' } };
 }
 
 async function runCity(city, options = {}) {
@@ -101,12 +98,14 @@ async function runCity(city, options = {}) {
   const selectedEvidence = selected?.gate.causalEvidence;
   const lineage = [{ evidenceId: `municipal:${city}:housing.need`, kind: 'observed_context', parameterId: 'housing.need', source: source.sourceUrl }, ...(selectedEvidence ? [{ evidenceId: selectedEvidence.id, kind: 'causal_effect', parameterId: `${selected.id}:effect`, transportability: selectedEvidence }] : [])];
   const learning = recommendation ? buildLearning(options.outcome) : null;
-  return { schemaVersion: 'production-decision-run.v1', city, objective: 'verified-outcome-improvement', decisionState, decisionId: `VIDIK-${city.toLowerCase()}-${sha256({ city, observation, lineage }).slice(0,12)}`, observedContext: observation, sourceLineage: source, interventionComparison: comparison, recommendation, recommendationName: selected?.name || null, lineage, counterfactual, learning, audit: { generatedAt: retrievedAt, failureClosed: !recommendation, blockedAlternatives: comparison.filter(x => x.status === 'BLOCKED').map(x => ({ id: x.id, failures: x.gate.failures })), causalTransportability: comparison.find(x => x.id === 'housing').gate.causalEvidence, evidenceHash: sha256({ source, observation, lineage, counterfactual }), scenario: Boolean(options.scenarioEvidence) } };
+  const resourceEnvelope = options.resourceEnvelope || null;
+  const optimization = evaluateResourceOptimization(resourceEnvelope, comparison, options.resourceModels || {});
+  return { schemaVersion: 'production-decision-run.v1', city, objective: 'verified-outcome-improvement', decisionState, decisionId: `VIDIK-${city.toLowerCase()}-${sha256({ city, observation, lineage }).slice(0,12)}`, observedContext: observation, sourceLineage: source, interventionComparison: comparison, recommendation, recommendationName: selected?.name || null, lineage, counterfactual, learning, resourceEnvelope, optimization, audit: { generatedAt: retrievedAt, failureClosed: !recommendation, blockedAlternatives: comparison.filter(x => x.status === 'BLOCKED').map(x => ({ id: x.id, failures: x.gate.failures })), causalTransportability: comparison.find(x => x.id === 'housing').gate.causalEvidence, evidenceHash: sha256({ source, observation, lineage, counterfactual }), scenario: Boolean(options.scenarioEvidence) } };
 }
 async function runAll(options = {}) {
   const results = [];
   for (const city of ['Ottawa','Toronto','Melbourne']) results.push(await runCity(city, options));
-  return { schemaVersion: 'production-three-city-acceptance.v1', decisionProblem: 'Allocate a fixed municipal resource pool among the same intervention universe subject to evidence/admissibility gates.', cities: results, comparison: results.map(r => ({ city:r.city, state:r.decisionState, recommendation:r.recommendation, observedField:r.observedContext.field, observedValue:r.observedContext.value })), acceptance: { Ottawa: results.find(r => r.city === 'Ottawa').decisionState === 'RECOMMENDATION' && (!results.find(r => r.city === 'Ottawa').learning || results.find(r => r.city === 'Ottawa').learning), Toronto: results.find(r => r.city === 'Toronto').decisionState === 'RECOMMENDATION' && (!results.find(r => r.city === 'Toronto').learning || results.find(r => r.city === 'Toronto').learning), Melbourne: results.find(r => r.city === 'Melbourne').decisionState === 'BLOCKED' && results.find(r => r.city === 'Melbourne').audit.failureClosed } };
+  return { schemaVersion: 'production-three-city-acceptance.v1', decisionProblem: 'Allocate a fixed municipal resource pool among the same intervention universe subject to evidence/admissibility gates.', cities: results, comparison: results.map(r => ({ city:r.city, state:r.decisionState, recommendation:r.recommendation, observedField:r.observedContext.field, observedValue:r.observedContext.value, optimization:r.optimization.status })), acceptance: { Ottawa: results.find(r => r.city === 'Ottawa').decisionState === 'RECOMMENDATION', Toronto: results.find(r => r.city === 'Toronto').decisionState === 'RECOMMENDATION', Melbourne: results.find(r => r.city === 'Melbourne').decisionState === 'BLOCKED' && results.find(r => r.city === 'Melbourne').audit.failureClosed } };
 }
 if (require.main === module) runAll().then(result => process.stdout.write(JSON.stringify(result,null,2)+'\n')).catch(error => { console.error(error.stack || error); process.exitCode = 1; });
 module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };

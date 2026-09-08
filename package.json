@@ -16,6 +16,7 @@
     "test:municipal-decision-integrity":"node tests/municipal-production-decision-integrity.test.js",
     "test:architecture-completeness":"node tests/vidik-architecture-completeness.test.js",
     "test:canonical-production-integration":"node tests/vidik-canonical-production-integration.test.js",
+    "test:resource-optimization":"node tests/vidik-resource-optimization.test.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision":"node scripts/municipal-canonical-decision-run.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
