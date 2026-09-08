@@ -1,0 +1,23 @@
+name: VIDIK Real-Use Gamut
+
+on:
+  push:
+    branches: ['ci/real-use-gamut']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-use-gamut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm ci
+      - name: Live municipal data through evidence and decision pipeline
+        run: npm run test:real-use-gamut
