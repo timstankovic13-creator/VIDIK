@@ -19,6 +19,8 @@ jobs:
           node-version: 24
       - name: Install
         run: npm install --ignore-scripts
+      - name: Live municipal data through real browser decision engine
+        run: npm run test:production-real-municipal-integration
       - name: Live municipal decision and learning lifecycle
         run: npm run test:production-real-decision
       - name: Full deterministic production gate
