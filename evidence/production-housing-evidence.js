@@ -8,42 +8,42 @@
 
 const PRODUCTION_HOUSING_EVIDENCE = Object.freeze({
   Ottawa: Object.freeze({
-    id: 'housing-first-canada-rct-42pp-ottawa-transported',
-    estimate: 0.42,
-    unit: 'absolute stable-housing probability difference',
-    uncertainty: { low: 0.36, high: 0.48 },
+    id: 'housing-first-canada-small-city-rct-312or-ottawa-transported',
+    estimate: 3.12,
+    unit: 'odds ratio for stable housing',
+    uncertainty: { low: 1.96, high: 4.27 },
     evidenceType: 'causal',
-    source: 'One-year outcomes of a randomized controlled trial of Housing First with ACT in five Canadian cities',
-    sourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/25639993/',
+    source: 'A randomized controlled trial of the effectiveness of Housing First in a small Canadian City',
+    sourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/31438912/',
     sourceJurisdiction: 'Canada',
     targetJurisdiction: 'Ottawa, Canada',
     mode: 'transported',
-    asOf: '2015-02-02',
-    provenance: 'PubMed PMID 25639993; five-city Canadian randomized controlled trial; 73% versus 31% stably housed; adjusted absolute difference 42%, 95% CI 36%-48%.',
+    asOf: '2019-08-22',
+    provenance: 'PubMed PMID 31438912; two-year randomized controlled trial of Housing First with ACT versus treatment as usual in a Canadian city. Housing First participants were about three times as likely to be stably housed (OR 3.12, 95% CI 1.96-4.27). The study was not conducted in Ottawa, so the effect is explicitly transported rather than site-claimed.',
     transportability: {
       admissible: true,
       similarity: 0.94,
-      basis: 'same national housing and health system; Canadian evidence; Ottawa is not a trial site, so the effect is explicitly transported rather than site-claimed.'
+      basis: 'same national housing and health system; Canadian randomized evidence; Ottawa is not the study site, so the effect is explicitly transported.'
     }
   }),
   Toronto: Object.freeze({
-    id: 'housing-first-canada-rct-42pp-toronto-site',
-    estimate: 0.42,
-    unit: 'absolute stable-housing probability difference',
-    uncertainty: { low: 0.36, high: 0.48 },
+    id: 'housing-first-toronto-rct-458pp-stable-housing-time',
+    estimate: 45.8,
+    unit: 'percentage-point difference in mean proportion of time stably housed',
+    uncertainty: { low: 37.1, high: 54.4 },
     evidenceType: 'causal',
-    source: 'One-year outcomes of a randomized controlled trial of Housing First with ACT in five Canadian cities',
-    sourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/25639993/',
+    source: 'How did a Housing First intervention improve health and social outcomes among homeless adults with mental illness in Toronto? Two-year outcomes from a randomised trial',
+    sourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/27619826/',
     siteSourceUrl: 'https://pubmed.ncbi.nlm.nih.gov/22978561/',
     sourceJurisdiction: 'Canada',
     targetJurisdiction: 'Toronto, Canada',
     mode: 'site-supported',
-    asOf: '2015-02-02',
-    provenance: 'PubMed PMID 25639993; the Canadian five-city RCT reported a 42 percentage-point adjusted absolute difference. PubMed PMID 22978561 documents the Toronto randomized trial site and its Housing First intervention.',
+    asOf: '2016-09-12',
+    provenance: 'PubMed PMID 27619826; Toronto At Home/Chez Soi randomized trial, n=197 high-needs participants. Housing First plus ACT spent 45.8 percentage points more time stably housed than treatment as usual over two years (95% CI 37.1%-54.4%). PubMed PMID 22978561 documents the Toronto randomized trial site.',
     transportability: {
       admissible: true,
       similarity: 1.0,
-      basis: 'Toronto was an actual At Home/Chez Soi randomized trial site; no cross-country causal transport is required.'
+      basis: 'Toronto was the actual randomized trial site; no cross-country causal transport is required.'
     }
   }),
   Melbourne: Object.freeze({
