@@ -5,9 +5,9 @@ const crypto = require('crypto');
 const { evaluateResourceOptimization } = require('../js/vidik-resource-optimization');
 
 const SOURCES = Object.freeze({
-  Ottawa: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', sourceType: 'municipal-web-report', dataset: 'ottawa-2024-pit-count', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /In October 2024\s+(?:there were\s+)?([\d,]+) people reported experiencing homelessness in Ottawa\./i, definition: 'People reported experiencing homelessness in the October 2024 Point-in-Time enumeration; dependents excluded from the comparable PiT series.' }),
-  Toronto: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.toronto.ca/news/city-of-toronto-releases-findings-of-2024-street-needs-assessment-homelessness-survey/', sourceType: 'municipal-news-report', dataset: 'toronto-2024-street-needs-assessment', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'estimated_point_in_time', role: 'observed_context', pattern: /An estimated ([\d,]+) people were experiencing homelessness in Toronto last fall/i, definition: 'Estimated people experiencing homelessness in the October 2024 Street Needs Assessment.' }),
-  Melbourne: Object.freeze({ jurisdiction: 'AU-VIC', sourceUrl: 'https://participate.melbourne.vic.gov.au/make-room/project-overview', sourceType: 'municipal-project-report', dataset: 'melbourne-by-name-list-2024', field: 'people_experiencing_chronic_homelessness_or_rough_sleeping', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /as of May 2024, the current number of people recorded as experiencing chronic homelessness and rough sleeping in the City of Melbourne is ([\d,]+)/i, definition: 'People recorded on the Melbourne By Name List as experiencing chronic homelessness and rough sleeping as of May 2024; this is narrower than the Ottawa/Toronto homelessness measures.' })
+  Ottawa: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', sourceType: 'municipal-web-report', dataset: 'ottawa-2024-pit-count', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /In\s+October\s+2024\s*[,:]?\s*(?:there\s+were\s+)?([\d,\s]+?)\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa\.?/i, definition: 'People reported experiencing homelessness in the October 2024 Point-in-Time enumeration; dependents excluded from the comparable PiT series.' }),
+  Toronto: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.toronto.ca/news/city-of-toronto-releases-findings-of-2024-street-needs-assessment-homelessness-survey/', sourceType: 'municipal-news-report', dataset: 'toronto-2024-street-needs-assessment', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'estimated_point_in_time', role: 'observed_context', pattern: /An\s+estimated\s+([\d,\s]+?)\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto\s+last\s+fall/i, definition: 'Estimated people experiencing homelessness in the October 2024 Street Needs Assessment.' }),
+  Melbourne: Object.freeze({ jurisdiction: 'AU-VIC', sourceUrl: 'https://participate.melbourne.vic.gov.au/make-room/project-overview', sourceType: 'municipal-project-report', dataset: 'melbourne-by-name-list-2024', field: 'people_experiencing_chronic_homelessness_or_rough_sleeping', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /as\s+of\s+May\s+2024\s*,?\s*the\s+current\s+number\s+of\s+people\s+recorded\s+as\s+experiencing\s+chronic\s+homelessness\s+and\s+rough\s+sleeping\s+in\s+the\s+City\s+of\s+Melbourne\s+is\s+([\d,\s]+)/i, definition: 'People recorded on the Melbourne By Name List as experiencing chronic homelessness and rough sleeping as of May 2024; this is narrower than the Ottawa/Toronto homelessness measures.' })
 });
 
 const CAUSAL = Object.freeze({ housing: Object.freeze({ id: 'housing-rct', estimate: 0.42, unit: 'absolute stable-housing probability difference', uncertainty: { low: 0.36, high: 0.48 }, source: 'One-year outcomes of a randomized controlled trial of Housing First with ACT in five Canadian cities', jurisdiction: 'Canada' }) });
@@ -46,6 +46,8 @@ function normalizeSourceText(text) {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
@@ -58,7 +60,7 @@ function parseObservation(city, text) {
   const normalizedText = normalizeSourceText(text);
   const match = spec.pattern.exec(normalizedText);
   if (!match) throw new Error(`${city}:live-source-semantic-pattern-not-found`);
-  const value = Number(match[1].replace(/,/g, ''));
+  const value = Number(match[1].replace(/[\s,]/g, ''));
   if (!Number.isFinite(value) || value < 0) throw new Error(`${city}:live-source-observation-invalid`);
   return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: 'source-semantic-pattern-capture', capturedValue: value } };
 }
