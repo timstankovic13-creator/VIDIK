@@ -28,4 +28,4 @@ jobs:
       - name: Run live three-city experiment suite
         run: node scripts/municipal-experiment-runner.js
       - name: Run 40-domain adversarial monster evaluation
-        run: node scripts/vidik-monster-test.js
+        run: node scripts/vidik-monster-test-v4.js
