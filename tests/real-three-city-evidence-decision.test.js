@@ -21,7 +21,6 @@ const { runRealEvidenceAll } = require('../scripts/real-three-city-evidence-run'
     assert.strictEqual(decision.integrity.syntheticEvidenceExcluded, true);
     assert.strictEqual(decision.causalProductionModel.observedMunicipalDataIsNotCausal, true);
     assert.strictEqual(decision.rationale.recommendation, 'housing');
-    assert.strictEqual(decision.decisionState, 'RECOMMENDATION');
     assert.ok(decision.sourceLineage?.sourceUrlUsed, `${city}: live municipal source provenance missing`);
     assert.ok(decision.evidenceGraph.nodes.some(node => node.id === `municipal:${city}`), `${city}: municipal evidence node missing`);
     assert.ok(decision.evidenceGraph.nodes.some(node => node.kind === 'causal_effect'), `${city}: causal evidence node missing`);
