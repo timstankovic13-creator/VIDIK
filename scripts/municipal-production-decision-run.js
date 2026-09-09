@@ -41,9 +41,22 @@ async function fetchText(url, fetchImpl = globalThis.fetch) {
   }
   throw new Error(`upstream-too-many-redirects:${safe}`);
 }
+function normalizeSourceText(text) {
+  return String(text)
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function parseObservation(city, text) {
   const spec = SOURCES[city];
-  const match = spec.pattern.exec(text);
+  const normalizedText = normalizeSourceText(text);
+  const match = spec.pattern.exec(normalizedText);
   if (!match) throw new Error(`${city}:live-source-semantic-pattern-not-found`);
   const value = Number(match[1].replace(/,/g, ''));
   if (!Number.isFinite(value) || value < 0) throw new Error(`${city}:live-source-observation-invalid`);
@@ -108,4 +121,4 @@ async function runAll(options = {}) {
   return { schemaVersion: 'production-three-city-acceptance.v1', decisionProblem: 'Allocate a fixed municipal resource pool among the same intervention universe subject to evidence/admissibility gates.', cities: results, comparison: results.map(r => ({ city:r.city, state:r.decisionState, recommendation:r.recommendation, observedField:r.observedContext.field, observedValue:r.observedContext.value, optimization:r.optimization.status })), acceptance: { Ottawa: results.find(r => r.city === 'Ottawa').decisionState === 'RECOMMENDATION', Toronto: results.find(r => r.city === 'Toronto').decisionState === 'RECOMMENDATION', Melbourne: results.find(r => r.city === 'Melbourne').decisionState === 'BLOCKED' && results.find(r => r.city === 'Melbourne').audit.failureClosed } };
 }
 if (require.main === module) runAll().then(result => process.stdout.write(JSON.stringify(result,null,2)+'\n')).catch(error => { console.error(error.stack || error); process.exitCode = 1; });
-module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
+module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, normalizeSourceText, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
