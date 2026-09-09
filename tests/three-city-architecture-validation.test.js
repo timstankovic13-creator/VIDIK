@@ -71,8 +71,8 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
   // A resource quantity by itself must not manufacture a causal/resource effect.
   for (const city of ['Ottawa', 'Toronto']) {
     assert.strictEqual(baselineByCity[city].resourceEnvelope.marginalUnit.amount, 5000000);
-    assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'NOT_ACTIVATED');
-    assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'NOT_ACTIVATED');
+    assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'BLOCKED');
+    assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'BLOCKED');
   }
   // A blocked city must remain blocked even before an evidenced resource model is supplied.
   assert.strictEqual(baselineByCity.Melbourne.resourceEnvelope.marginalUnit.amount, 5000000);
