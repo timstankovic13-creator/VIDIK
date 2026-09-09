@@ -18,13 +18,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
-          cache: npm
+          node-version: '24'
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Run live three-city experiment suite
         run: node scripts/municipal-experiment-runner.js
