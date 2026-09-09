@@ -27,7 +27,6 @@ function assertCanonicalShape(decision) {
   assert.strictEqual(decision.integrity.syntheticEvidenceExcluded, true);
   assert.strictEqual(decision.outcomeLearningCheckpoints.syntheticDefaultLearning, false);
   assert.strictEqual(decision.causalProductionModel.observedMunicipalDataIsNotCausal, true);
-  assert.ok(decision.sourceLineage === undefined || true);
 }
 
 function assertObservationLineage(decision) {
@@ -70,11 +69,16 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
   assertRecommendationBoundary(baselineByCity.Melbourne, null);
 
   // A resource quantity by itself must not manufacture a causal/resource effect.
-  for (const city of ['Ottawa', 'Toronto', 'Melbourne']) {
+  for (const city of ['Ottawa', 'Toronto']) {
     assert.strictEqual(baselineByCity[city].resourceEnvelope.marginalUnit.amount, 5000000);
     assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'NOT_ACTIVATED');
     assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'NOT_ACTIVATED');
   }
+  // A blocked city must remain blocked even before an evidenced resource model is supplied.
+  assert.strictEqual(baselineByCity.Melbourne.resourceEnvelope.marginalUnit.amount, 5000000);
+  assert.strictEqual(baselineByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED');
+  assert.strictEqual(baselineByCity.Melbourne.causalProductionModel.resourceTranslation.status, 'BLOCKED');
+  assert.strictEqual(baselineByCity.Melbourne.driftFailureRegistry.failureClosed, true);
 
   // Pass B: supply an evidenced resource chain and verify that information crosses the full path.
   const activated = await runCanonicalAll({
