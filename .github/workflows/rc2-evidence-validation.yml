@@ -25,6 +25,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - name: Existing full acceptance and hostile lifecycle regression
         run: npx playwright test --reporter=line

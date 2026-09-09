@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
+          npm install --ignore-scripts
       - name: Outcome learning and quantitative stress
         shell: bash
         run: |
@@ -47,5 +47,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           npm run test:e2e -- --reporter=line
