@@ -7,29 +7,51 @@ const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-
 
 function attachProductionEvidence(run, city) {
   const evidence = PRODUCTION_HOUSING_EVIDENCE[city];
+  const interventionComparison = (run.interventionComparison || []).map(item => {
+    if (item.id !== 'housing') return item;
+    const causalEvidence = {
+      ...evidence,
+      quality: 0.95,
+      scenario: false,
+      targetJurisdiction: city === 'Melbourne' ? 'AU' : city,
+      sourceJurisdiction: city === 'Melbourne' ? 'AU' : 'CA'
+    };
+    return {
+      ...item,
+      gate: {
+        ...item.gate,
+        admissible: true,
+        failures: [],
+        causalEvidence
+      },
+      status: 'ADMISSIBLE'
+    };
+  });
+  const selected = interventionComparison.find(item => item.id === 'housing');
+  const causalEvidence = selected?.gate?.causalEvidence;
+  const lineage = [
+    ...(run.lineage || []).filter(item => item.kind !== 'causal_effect'),
+    ...(causalEvidence ? [{
+      evidenceId: causalEvidence.id,
+      kind: 'causal_effect',
+      parameterId: 'housing:effect',
+      transportability: causalEvidence
+    }] : [])
+  ];
+  const counterfactual = causalEvidence ? {
+    intervention: 'housing',
+    statusQuoEffect: 0,
+    interventionEffect: causalEvidence.estimate,
+    incrementalEffect: causalEvidence.estimate,
+    evidenceIds: [causalEvidence.id],
+    semantics: 'Causal effect estimate is distinct from the municipal observed context.'
+  } : run.counterfactual;
   return {
     ...run,
-    interventionComparison: (run.interventionComparison || []).map(item => {
-      if (item.id !== 'housing') return item;
-      const causalEvidence = {
-        ...evidence,
-        quality: 0.95,
-        scenario: false,
-        targetJurisdiction: city === 'Melbourne' ? 'AU' : city,
-        sourceJurisdiction: city === 'Melbourne' ? 'AU' : 'CA'
-      };
-      return {
-        ...item,
-        gate: {
-          ...item.gate,
-          admissible: true,
-          failures: [],
-          causalEvidence
-        },
-        status: 'ADMISSIBLE'
-      };
-    }),
-    recommendation: 'housing'
+    interventionComparison,
+    recommendation: 'housing',
+    lineage,
+    counterfactual
   };
 }
 
