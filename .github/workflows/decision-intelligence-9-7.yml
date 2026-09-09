@@ -1,0 +1,15 @@
+name: decision-intelligence-9-7
+on:
+  pull_request:
+    branches: ['main']
+  push:
+    branches: ['main', 'feat/**']
+jobs:
+  decision-intelligence:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run test:decision-intelligence
