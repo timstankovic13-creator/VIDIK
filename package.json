@@ -19,6 +19,7 @@
     "test:resource-optimization":"node tests/vidik-resource-optimization.test.js",
     "test:three-city-architecture":"node tests/three-city-architecture-validation.test.js",
     "test:real-three-city-evidence":"node tests/real-three-city-evidence-decision.test.js",
+    "test:independent-evidence-verification":"node tests/independent-evidence-parameter-verification.test.js",
     "test:production-hardening-a-d":"node tests/production-hardening-a-d.test.js",
     "test:monster":"node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
