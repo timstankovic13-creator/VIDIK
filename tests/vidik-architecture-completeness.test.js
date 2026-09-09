@@ -37,7 +37,7 @@ const ranked = rankComparableCities(target, candidates);
 assert.strictEqual(ranked[0].city, 'Comparable Conventional');
 assert.ok(ranked.some(x => x.unconventional));
 assert.strictEqual(ranked.find(x => x.unconventional).admissibility.status, 'NOT_ESTABLISHED');
-assert.match(ranked.find(x => x.unconventional).admissibility.reason, /not causal admissibility/);
+assert.match(ranked.find(x => x.unconventional).admissibility.reason, /not[- ]causal[- ]admissibility/);
 
 const queue = buildAcquisitionQueue({ city: 'Melbourne', ...target }, candidates);
 assert.strictEqual(queue[0].rank, 1);
