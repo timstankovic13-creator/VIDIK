@@ -48,9 +48,9 @@ const PRODUCTION_HOUSING_EVIDENCE = Object.freeze({
   }),
   Melbourne: Object.freeze({
     id: 'j2si-phase2-melbourne-rct-339pp',
-    estimate: 0.339,
+    estimate: 0.3386027536970933,
     unit: 'absolute permanent-housing probability difference',
-    uncertainty: { low: 0.161, high: 0.517 },
+    uncertainty: { low: 0.1407918299907286, high: 0.536413677403458 },
     evidenceType: 'causal',
     source: 'Chronic homelessness in Melbourne: The final outcomes of Journey to Social Inclusion Phase 2',
     sourceUrl: 'https://sacredheartmission.org/wp-content/uploads/2021/12/j2si-phase-2-final-year-outcomes-quantitative-report.pdf',
@@ -59,8 +59,8 @@ const PRODUCTION_HOUSING_EVIDENCE = Object.freeze({
     targetJurisdiction: 'Melbourne, Australia',
     mode: 'site-supported',
     asOf: '2020-12-31',
-    provenance: 'Sacred Heart Mission/Centre for Social Impact J2SI Phase 2 randomized study: 62.2% permanent housing in the intervention group versus 28.3% in the comparison group at Wave 7. Estimate is the unadjusted absolute difference (33.9 percentage points).',
-    uncertaintyMethod: 'Reconstructed unadjusted 95% Wald interval from the reported matched-sample proportions and sample sizes (J n=37, E n=53); this interval is model-derived and is not presented as a source-reported confidence interval.',
+    provenance: 'Sacred Heart Mission/Centre for Social Impact J2SI Phase 2 randomized study: Wave 7 matched sample reported 62.2% permanent housing in the intervention group versus 28.3% in the comparison group. The independently reconstructed estimate uses the reported matched counts (23/37 vs 15/53), yielding an unadjusted absolute difference of 0.3386027536970933 (33.86 percentage points).',
+    uncertaintyMethod: 'Independently reconstructed unadjusted 95% Wald interval from the reported matched-sample counts (J 23/37, E 15/53): 0.1407918299907286 to 0.536413677403458. This interval is model-derived and is not presented as a source-reported confidence interval.',
     transportability: {
       admissible: true,
       similarity: 1.0,
