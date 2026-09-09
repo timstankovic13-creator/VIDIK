@@ -55,14 +55,40 @@ function normalizeSourceText(text) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+function extractNumericObservation(city, text, primaryMatch) {
+  if (primaryMatch) return primaryMatch;
+  const fallbackPatterns = {
+    Ottawa: [
+      /October\s+2024[\s,:-]{0,12}(?:there\s+were\s+)?([\d][\d,\s]{0,12})\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa/i,
+      /([\d][\d,\s]{0,12})\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa/i
+    ],
+    Toronto: [
+      /estimated\s+([\d][\d,\s]{0,12})\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i,
+      /([\d][\d,\s]{0,12})\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i
+    ],
+    Melbourne: [
+      /May\s+2024[\s,:-]{0,12}.*?\b(?:is|was)\s+([\d][\d,\s]{0,12})/i,
+      /chronic\s+homelessness\s+and\s+rough\s+sleeping.*?\b(?:is|was)\s+([\d][\d,\s]{0,12})/i
+    ]
+  };
+  for (const pattern of fallbackPatterns[city] || []) {
+    const match = pattern.exec(text);
+    if (match) return match;
+  }
+  return null;
+}
+
 function parseObservation(city, text) {
   const spec = SOURCES[city];
+  if (!spec) throw new Error(`unsupported-city:${city}`);
   const normalizedText = normalizeSourceText(text);
-  const match = spec.pattern.exec(normalizedText);
+  const primaryMatch = spec.pattern.exec(normalizedText);
+  const match = extractNumericObservation(city, normalizedText, primaryMatch);
   if (!match) throw new Error(`${city}:live-source-semantic-pattern-not-found`);
   const value = Number(match[1].replace(/[\s,]/g, ''));
   if (!Number.isFinite(value) || value < 0) throw new Error(`${city}:live-source-observation-invalid`);
-  return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: 'source-semantic-pattern-capture', capturedValue: value } };
+  return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: primaryMatch ? 'source-semantic-pattern-capture' : 'source-semantic-fallback-capture', capturedValue: value } };
 }
 function admissibility(city, intervention, options = {}) {
   const override = options.scenarioEvidence?.[city]?.[intervention.id];
@@ -123,4 +149,4 @@ async function runAll(options = {}) {
   return { schemaVersion: 'production-three-city-acceptance.v1', decisionProblem: 'Allocate a fixed municipal resource pool among the same intervention universe subject to evidence/admissibility gates.', cities: results, comparison: results.map(r => ({ city:r.city, state:r.decisionState, recommendation:r.recommendation, observedField:r.observedContext.field, observedValue:r.observedContext.value, optimization:r.optimization.status })), acceptance: { Ottawa: results.find(r => r.city === 'Ottawa').decisionState === 'RECOMMENDATION', Toronto: results.find(r => r.city === 'Toronto').decisionState === 'RECOMMENDATION', Melbourne: results.find(r => r.city === 'Melbourne').decisionState === 'BLOCKED' && results.find(r => r.city === 'Melbourne').audit.failureClosed } };
 }
 if (require.main === module) runAll().then(result => process.stdout.write(JSON.stringify(result,null,2)+'\n')).catch(error => { console.error(error.stack || error); process.exitCode = 1; });
-module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, normalizeSourceText, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
+module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, normalizeSourceText, extractNumericObservation, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
