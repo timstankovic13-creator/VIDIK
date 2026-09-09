@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const { CANONICAL_18 } = require('../js/vidik-architecture-contract');
-const { runCanonicalAll, withResourceEnvelope } = require('../scripts/municipal-canonical-decision-run');
+const { runCanonicalAll, withResourceEnvelope, runCanonicalCity } = require('../scripts/municipal-canonical-decision-run');
 
 const RESOURCE_MODELS = {
   housing: {
@@ -74,7 +74,6 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
     assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'BLOCKED');
     assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'BLOCKED');
   }
-  // A blocked city must remain blocked even before an evidenced resource model is supplied.
   assert.strictEqual(baselineByCity.Melbourne.resourceEnvelope.marginalUnit.amount, 5000000);
   assert.strictEqual(baselineByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED');
   assert.strictEqual(baselineByCity.Melbourne.causalProductionModel.resourceTranslation.status, 'BLOCKED');
@@ -104,10 +103,10 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
   assert.strictEqual(activatedByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED');
   assert.strictEqual(activatedByCity.Melbourne.optimizationOpportunityCost.allocation, null);
   assert.strictEqual(activatedByCity.Melbourne.driftFailureRegistry.failureClosed, true);
-  assert.ok(activatedByCity.Melbourne.interventionUniverse.interventions.find(x => x.id === 'housing').status === 'BLOCKED');
+  assert.strictEqual(activatedByCity.Melbourne.interventionUniverse.interventions.find(x => x.id === 'housing').status, 'BLOCKED');
 
-  // Pass C: learning remains an explicit observed-outcome input and does not mutate parameters automatically.
-  const learningRun = await require('../scripts/municipal-canonical-decision-run').runCanonicalCity('Ottawa', {
+  // Pass C: learning remains explicit and does not mutate parameters automatically.
+  const learningRun = await runCanonicalCity('Ottawa', {
     ...withResourceEnvelope({}, 5000000),
     outcome: { observed: 0.40, predicted: 0.42, provenance: 'architecture-validation-observed-outcome' },
     resourceModels: RESOURCE_MODELS
