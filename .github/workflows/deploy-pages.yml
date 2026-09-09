@@ -24,15 +24,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: Validate mobile web payload
         run: |
           test -f index.html
           test -f styles.css
           test -f js/bootstrap.js
           for i in $(seq -w 1 10); do test -f "data/census-${i}.b64"; done
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
 
       - name: Upload VIDIK web artifact
         uses: actions/upload-pages-artifact@v4
