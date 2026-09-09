@@ -13,11 +13,19 @@
     "test:municipal-evidence-pipeline":"node tests/municipal-evidence-pipeline.test.js",
     "test:municipal-semantic-gates":"node tests/municipal-semantic-decision-gates.test.js",
     "test:municipal-decision-run":"node tests/municipal-production-decision-run.test.js",
+    "test:municipal-decision-integrity":"node tests/municipal-production-decision-integrity.test.js",
+    "test:architecture-completeness":"node tests/vidik-architecture-completeness.test.js",
+    "test:canonical-production-integration":"node tests/vidik-canonical-production-integration.test.js",
+    "test:resource-optimization":"node tests/vidik-resource-optimization.test.js",
+    "test:three-city-architecture":"node tests/three-city-architecture-validation.test.js",
+    "test:monster":"node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
+    "run:canonical-municipal-decision":"node scripts/municipal-canonical-decision-run.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
     "test:production-config":"node tests/production-config.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
     "test:production-release-gate":"node tests/production-release-gate.test.js"
   },
-  "devDependencies":{"@playwright/test":"^1.55.0"}
+  "devDependencies":{"@playwright/test":"^1.55.0"},
+  "dependencies":{"pdf-parse":"^1.1.1"}
 }

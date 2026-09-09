@@ -1,0 +1,31 @@
+name: VIDIK Live Municipal Experiments
+
+on:
+  push:
+    branches:
+      - feat/live-city-experiments
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  municipal-experiments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install
+      - name: Run live three-city experiment suite
+        run: node scripts/municipal-experiment-runner.js
+      - name: Run 40-domain adversarial monster evaluation
+        run: node scripts/vidik-monster-test-v4.js
