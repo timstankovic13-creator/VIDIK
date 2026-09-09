@@ -15,7 +15,7 @@ permissions:
 jobs:
   municipal-experiments:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -27,3 +27,5 @@ jobs:
         run: npm install
       - name: Run live three-city experiment suite
         run: node scripts/municipal-experiment-runner.js
+      - name: Run 40-domain adversarial monster evaluation
+        run: node scripts/vidik-monster-test.js
