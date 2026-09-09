@@ -14,7 +14,9 @@ function enrichEvidence(run, options = {}) {
 }
 function marginalEvidenceFromModels(run, options = {}) {
   const models = options.resourceModels || {};
+  const admissibleInterventions = new Set((run.interventionComparison || []).filter(x => x.status === 'ADMISSIBLE').map(x => x.id));
   return Object.entries(models).flatMap(([intervention, model]) => {
+    if (!admissibleInterventions.has(intervention)) return [];
     const declared = model?.marginalEvidence;
     if (!declared) return [];
     const amount = Number(run.resourceEnvelope?.marginalUnit?.amount);
