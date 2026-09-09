@@ -20,27 +20,15 @@ function marginalEvidenceFromModels(run, options = {}) {
     const declared = model?.marginalEvidence;
     if (!declared) return [];
     const amount = Number(run.resourceEnvelope?.marginalUnit?.amount);
-    const chain = {
-      intervention,
-      resourceUnit: run.resourceEnvelope?.marginalUnit?.unit || 'CAD',
-      resourceAmount: amount,
-      incrementalCapacity: amount * Number(model.capacityPerCad),
-      incrementalActivity: amount * Number(model.capacityPerCad) * Number(model.activityPerCapacity),
-      incrementalOutcome: amount * Number(model.capacityPerCad) * Number(model.activityPerCapacity) * Number(model.effectPerActivity),
-      unit: model.effectUnit || model.objectiveMetric,
-      evidenceId: declared.evidenceId,
-      provenance: declared.provenance,
-      uncertainty: declared.uncertainty || model.uncertainty,
-      transportability: declared.transportability,
-      sourceJurisdiction: declared.sourceJurisdiction,
-      targetJurisdiction: declared.targetJurisdiction
-    };
-    return [chain];
+    return [{ intervention, resourceUnit: run.resourceEnvelope?.marginalUnit?.unit || 'CAD', resourceAmount: amount, incrementalCapacity: amount * Number(model.capacityPerCad), incrementalActivity: amount * Number(model.capacityPerCad) * Number(model.activityPerCapacity), incrementalOutcome: amount * Number(model.capacityPerCad) * Number(model.activityPerActivity), unit: model.effectUnit || model.objectiveMetric, evidenceId: declared.evidenceId, provenance: declared.provenance, uncertainty: declared.uncertainty || model.uncertainty, transportability: declared.transportability, sourceJurisdiction: declared.sourceJurisdiction, targetJurisdiction: declared.targetJurisdiction }];
   });
 }
 function applyMarginalEvidence(run, options = {}) {
   const explicit = Array.isArray(options.marginalEvidence) ? options.marginalEvidence : marginalEvidenceFromModels(run, options);
-  const optimization = compareMarginalEvidence(explicit);
+  const comparison = compareMarginalEvidence(explicit);
+  const optimization = explicit.length && comparison.status === 'BLOCKED_MISSING_MARGINAL_EVIDENCE'
+    ? { ...comparison, status: 'BLOCKED', feedback: 'Marginal resource evidence was supplied, but no supplied marginal evidence belongs to an intervention that cleared the city evidence/admissibility gates.' }
+    : comparison;
   return { ...run, optimization: { ...optimization, requestedResource: run.resourceEnvelope || null }, audit: { ...run.audit, marginalOptimization: optimization.status, marginalEvidenceCount: explicit.length } };
 }
 async function runCanonicalCity(city, options = {}) { try { let run = await runCity(city, options); run = enrichEvidence(run, options); run = applyMarginalEvidence(run, options); let canonical = buildCanonicalDecisionObject({ ...run, resourceEnvelope: options.resourceEnvelope || null }); if (options.humanOverride?.city === city) canonical = requestHumanOverride(canonical, options.humanOverride, options.humanOverrideAuthority || {}); return canonical; } catch (error) { return { identityBrief: { decisionId: `VIDIK-${city.toLowerCase()}-blocked`, city, objective: 'verified-outcome-improvement', schemaVersion: 'vidik.canonical-decision-object.v1', immutableSnapshot: true }, resourceEnvelope: { marginalUnit: options.resourceEnvelope?.marginalUnit || { amount: null, unit: 'CAD', status: 'not-specified' }, optimizationStatus: 'BLOCKED' }, objectives: { primary: 'verified-outcome-improvement' }, constraints: { admissibility: false, failureClosed: true }, interventionUniverse: { interventions: [] }, evidenceGraph: { nodes: [], lineage: [] }, claimScaledEvidence: { claims: [], minimumSufficientEvidence: { status: 'not-satisfied' } }, parameters: { selected: null, all: [] }, causalProductionModel: { chain: ['marginal_resource','capacity','activity','immediate_outcome','system_outcome','serious_harm_pathway'], observedMunicipalDataIsNotCausal: true }, uncertaintyBudget: { parameters: [], totalStatus: 'empty' }, optimizationOpportunityCost: { marginalResourceOptimization: false, status: 'BLOCKED' }, rationale: { recommendation: null, why: 'City run failed closed.', whyNot: [{ id: city, failures: [error.message] }] }, integrity: { decisionIntegrity: true, evidenceHash: null, reproducibleRun: false, scenario: false, syntheticEvidenceExcluded: true }, counterfactualVault: { records: [], status: 'NOT_ESTIMABLE' }, governanceOverridesAudit: { humanOverride: null, overrideRequired: false, audit: { failureClosed: true, failure: error.message } }, outcomeLearningCheckpoints: { checkpoints: ['6-month','1-year','2-year','5-year'], current: null, syntheticDefaultLearning: false, recalibrationMutatesParametersAutomatically: false }, driftFailureRegistry: { drift: null, failureClosed: true, failureReasons: [error.message] }, reoptimizationExecutionReadiness: { reoptimization: 'blocked', executionReadiness: 'blocked' } }; } }
