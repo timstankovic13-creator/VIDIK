@@ -1,0 +1,104 @@
+'use strict';
+
+const crypto = require('crypto');
+const VERSION = '9.7.0';
+const finite = x => Number.isFinite(Number(x));
+const clamp01 = x => Math.max(0, Math.min(1, Number(x)));
+const stable = x => Array.isArray(x) ? '[' + x.map(stable).join(',') + ']' : (x && typeof x === 'object' ? '{' + Object.keys(x).sort().map(k => JSON.stringify(k) + ':' + stable(x[k])).join(',') + '}' : JSON.stringify(x));
+const hash = x => crypto.createHash('sha256').update(stable(x)).digest('hex');
+
+function range(p) {
+  const low = Number(p.low), high = Number(p.high), mean = Number(p.mean ?? ((low + high) / 2));
+  if (![low, high, mean].every(finite) || low > high || mean < low || mean > high) throw new Error('invalid-parameter-range:' + p.id);
+  return { id: String(p.id), low, high, mean };
+}
+
+function covariance(parameters, correlations = []) {
+  const ps = parameters.map(range), byId = new Map(ps.map(p => [p.id, p]));
+  const sd = p => (p.high - p.low) / 3.92;
+  let variance = ps.reduce((s, p) => s + sd(p) ** 2, 0);
+  const links = [];
+  for (const c of correlations) {
+    const a = byId.get(String(c.a)), b = byId.get(String(c.b)), rho = Number(c.rho);
+    if (!a || !b || !finite(rho) || rho < -1 || rho > 1 || a.id === b.id) throw new Error('invalid-correlation');
+    const term = 2 * rho * sd(a) * sd(b);
+    variance += term;
+    links.push({ a: a.id, b: b.id, rho, covariance: rho * sd(a) * sd(b) });
+  }
+  if (variance < -1e-12) throw new Error('incoherent-covariance');
+  return { parameters: ps, variance: Math.max(0, variance), standardDeviation: Math.sqrt(Math.max(0, variance)), correlations: links };
+}
+
+function sensitivity({ baseline, parameters, scoreFn, steps = 21 }) {
+  if (typeof scoreFn !== 'function') throw new Error('invalid-score-function');
+  const base = scoreFn({ ...baseline });
+  const n = Math.max(3, Math.floor(Number(steps) || 21));
+  const rows = [];
+  for (const raw of parameters) {
+    const p = range(raw), values = Array.from({ length: n }, (_, i) => p.low + (p.high - p.low) * i / (n - 1));
+    const evaluations = values.map(value => ({ value, result: scoreFn({ ...baseline, [p.id]: value }) }));
+    const recommendations = [...new Set(evaluations.map(x => x.result?.recommendation ?? null))];
+    const scores = evaluations.map(x => Number(x.result?.score)).filter(finite);
+    const minScore = scores.length ? Math.min(...scores) : null, maxScore = scores.length ? Math.max(...scores) : null;
+    const firstDifferent = evaluations.find(x => (x.result?.recommendation ?? null) !== (base?.recommendation ?? null));
+    rows.push({ parameterId: p.id, low: p.low, mean: p.mean, high: p.high, recommendationCount: recommendations.length, recommendations, minScore, maxScore, firstRecommendationFlip: firstDifferent ? { value: firstDifferent.value, from: base?.recommendation ?? null, to: firstDifferent.result?.recommendation ?? null } : null });
+  }
+  return { version: VERSION, baseline: base, parameters: rows, recommendationStable: rows.every(r => !r.firstRecommendationFlip), hash: hash({ baseline: base, parameters: rows }) };
+}
+
+function flipThreshold({ baseline, parameter, scoreFn, direction = 'both', iterations = 50 }) {
+  if (typeof scoreFn !== 'function') throw new Error('invalid-score-function');
+  const p = range(parameter), base = scoreFn({ ...baseline }), target = base?.recommendation ?? null;
+  const search = (lo, hi, wantChange) => {
+    let a = lo, b = hi, hit = null;
+    for (let i = 0; i < iterations; i++) {
+      const mid = (a + b) / 2, result = scoreFn({ ...baseline, [p.id]: mid }), changed = (result?.recommendation ?? null) !== target;
+      if (changed === wantChange) { hit = mid; if (wantChange) b = mid; else a = mid; } else { if (wantChange) a = mid; else b = mid; }
+    }
+    return hit;
+  };
+  const lowResult = scoreFn({ ...baseline, [p.id]: p.low }), highResult = scoreFn({ ...baseline, [p.id]: p.high });
+  const lowFlip = (lowResult?.recommendation ?? null) !== target, highFlip = (highResult?.recommendation ?? null) !== target;
+  const threshold = lowFlip ? search(p.low, p.mean, true) : (highFlip ? search(p.mean, p.high, true) : null);
+  return { parameterId: p.id, baselineRecommendation: target, lowRecommendation: lowResult?.recommendation ?? null, highRecommendation: highResult?.recommendation ?? null, threshold, flipped: lowFlip || highFlip, direction, from: target, to: lowFlip ? lowResult?.recommendation ?? null : highFlip ? highResult?.recommendation ?? null : target };
+}
+
+function uncertainty({ parameters, correlations = [], scoreFn, baseline = {}, samples = 2000, seed = 1729 }) {
+  if (typeof scoreFn !== 'function') throw new Error('invalid-score-function');
+  const c = covariance(parameters, correlations), ps = c.parameters, count = Math.max(100, Math.floor(Number(samples) || 2000));
+  let state = seed >>> 0;
+  const rnd = () => { state = (1664525 * state + 1013904223) >>> 0; return state / 4294967296; };
+  const normal = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const results = [], recommendationCounts = {};
+  for (let i = 0; i < count; i++) {
+    const values = { ...baseline };
+    for (const p of ps) values[p.id] = clamp01(p.mean + ((p.high - p.low) / 3.92) * normal());
+    const result = scoreFn(values), rec = result?.recommendation ?? null;
+    recommendationCounts[rec ?? 'NONE'] = (recommendationCounts[rec ?? 'NONE'] || 0) + 1;
+    results.push({ score: finite(result?.score) ? Number(result.score) : null, recommendation: rec });
+  }
+  const scores = results.map(r => r.score).filter(finite).sort((a, b) => a - b), q = p => scores[Math.min(scores.length - 1, Math.max(0, Math.floor(p * (scores.length - 1))))];
+  return { version: VERSION, sampleCount: count, seed, covariance: c, score: scores.length ? { mean: scores.reduce((a, b) => a + b, 0) / scores.length, p05: q(.05), p50: q(.5), p95: q(.95) } : null, recommendationProbabilities: Object.fromEntries(Object.entries(recommendationCounts).map(([k, v]) => [k, v / count])), hash: hash({ c, results }) };
+}
+
+function voi({ candidates, currentRecommendation, currentValue, decisionValue = 1 }) {
+  if (!Array.isArray(candidates)) throw new Error('invalid-voi-candidates');
+  const rows = candidates.map(c => {
+    const low = Number(c.lowValue ?? c.currentValue), high = Number(c.highValue ?? c.currentValue), pHigh = clamp01(c.pHigh ?? .5), current = Number(c.currentValue ?? currentValue ?? 0), cost = Math.max(0, Number(c.cost || 0));
+    if (![low, high, pHigh, current, cost].every(finite)) throw new Error('invalid-voi-input:' + c.id);
+    const perfect = (1 - pHigh) * low + pHigh * high;
+    const evpi = Math.max(0, (perfect - current) * Number(decisionValue) - cost);
+    return { id: c.id, currentValue: current, lowValue: low, highValue: high, pHigh, expectedPerfectInformationValue: perfect, voi: evpi, cost, couldChangeRecommendation: c.recommendations ? c.recommendations.some(r => r !== currentRecommendation) : Boolean(c.highRecommendation && c.highRecommendation !== currentRecommendation || c.lowRecommendation && c.lowRecommendation !== currentRecommendation) };
+  }).sort((a, b) => b.voi - a.voi || String(a.id).localeCompare(String(b.id)));
+  return { version: VERSION, currentRecommendation: currentRecommendation ?? null, expectedValueOfInformation: rows.reduce((m, r) => Math.max(m, r.voi), 0), ranked: rows, priority: rows.filter(r => r.voi > 0), hash: hash(rows) };
+}
+
+function analyze({ baseline = {}, parameters = [], correlations = [], scoreFn, candidates = [], decisionValue = 1, sensitivitySteps = 21, uncertaintySamples = 2000 }) {
+  const s = sensitivity({ baseline, parameters, scoreFn, steps: sensitivitySteps });
+  const flips = parameters.map(parameter => flipThreshold({ baseline, parameter, scoreFn }));
+  const u = uncertainty({ parameters, correlations, scoreFn, baseline, samples: uncertaintySamples });
+  const v = voi({ candidates, currentRecommendation: s.baseline?.recommendation, currentValue: s.baseline?.score ?? 0, decisionValue });
+  return { version: VERSION, sensitivity: s, recommendationFlips: flips, uncertainty: u, voi: v, integrityHash: hash({ sensitivity: s, recommendationFlips: flips, uncertainty: u, voi: v }) };
+}
+
+module.exports = { VERSION, range, covariance, sensitivity, flipThreshold, uncertainty, voi, analyze, hash };
