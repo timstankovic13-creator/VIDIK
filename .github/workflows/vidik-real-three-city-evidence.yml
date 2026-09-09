@@ -28,7 +28,7 @@ jobs:
       - name: Run real three-city evidence decision validation
         run: npm run test:real-three-city-evidence
       - name: Generate inspectable real three-city decision
-        run: npm run run:real-three-city-evidence -- --marginal-cad=5000000 > /tmp/vidik-real-three-city-decision.json
+        run: node scripts/real-three-city-evidence-run.js --marginal-cad=5000000 > /tmp/vidik-real-three-city-decision.json
       - name: Validate generated decision is real-evidence-backed and marginal-optimization-safe
         run: |
           node - <<'NODE'
