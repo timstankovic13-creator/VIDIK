@@ -18,7 +18,7 @@
     "test:canonical-production-integration":"node tests/vidik-canonical-production-integration.test.js",
     "test:resource-optimization":"node tests/vidik-resource-optimization.test.js",
     "test:three-city-architecture":"node tests/three-city-architecture-validation.test.js",
-    "test:monster":"node scripts/vidik-monster-test.js",
+    "test:monster":"node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision":"node scripts/municipal-canonical-decision-run.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
