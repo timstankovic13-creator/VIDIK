@@ -18,7 +18,6 @@ function buildCanonicalDecisionObject(run) {
   const parameter = causal ? { id: `${selected.id}:effect`, value: causal.estimate, unit: causal.unit, evidenceIds: [causal.id], uncertainty: causal.uncertainty, transportability: causal.mode || null } : null;
   const object = {
     identityBrief: { decisionId: run?.decisionId || null, city, objective: run?.objective || null, schemaVersion: 'vidik.canonical-decision-object.v1', immutableSnapshot: true },
-    sourceLineage: run?.sourceLineage || null,
     resourceEnvelope: { marginalUnit: suppliedResource || { amount: null, unit: 'CAD', status: 'not-specified-in-three-city-acceptance-run' }, optimizationStatus: optimization?.status || (suppliedResource ? 'NOT_ACTIVATED' : 'NOT_SPECIFIED'), feedback: optimization?.feedback || null },
     objectives: { primary: run?.objective || null },
     constraints: { admissibility: true, failureClosed: Boolean(run?.audit?.failureClosed) },
