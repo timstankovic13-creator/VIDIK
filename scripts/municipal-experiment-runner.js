@@ -2,6 +2,7 @@
 'use strict';
 
 const { runAll } = require('./municipal-production-decision-run');
+const { withResourceEnvelope } = require('./municipal-canonical-decision-run');
 
 const LIVE_CACHE = new Map();
 async function cachedFetch(url, init) {
@@ -14,85 +15,84 @@ async function cachedFetch(url, init) {
   return { ok: cached.ok, status: cached.status, headers: cached.headers, text: async () => cached.text };
 }
 
+const HOUSING_RESOURCE_MODEL = {
+  capacityPerCad: 0.000001,
+  activityPerCapacity: 100,
+  effectPerActivity: 0.002,
+  objectiveMetric: 'common_decision_outcome',
+  capacityUnit: 'housing_slots', activityUnit: 'placements', effectUnit: 'common_decision_outcome',
+  evidenceIds: ['resource-capacity:housing', 'resource-activity:housing', 'resource-effect:housing'],
+  uncertainty: { low: 0.30, high: 0.50 }
+};
+const ASE_RESOURCE_MODEL = {
+  capacityPerCad: 0.000002,
+  activityPerCapacity: 80,
+  effectPerActivity: 0.004,
+  objectiveMetric: 'common_decision_outcome',
+  capacityUnit: 'enforcement_slots', activityUnit: 'speed_interventions', effectUnit: 'common_decision_outcome',
+  evidenceIds: ['resource-capacity:ase', 'resource-activity:ase', 'resource-effect:ase'],
+  uncertainty: { low: 0.20, high: 0.40 }
+};
+const COMPLETE_RESOURCE_MODELS = { housing: HOUSING_RESOURCE_MODEL, ase: ASE_RESOURCE_MODEL };
+
 const EXPERIMENTS = [
-  {
-    id: 'baseline-three-city',
-    description: 'Run the same live municipal context through the production decision architecture with default evidence gates.',
-    options: {}
-  },
-  {
-    id: 'ottawa-outcome-within-tolerance',
-    description: 'Run the baseline with an observed Ottawa outcome close to the predicted Housing First effect; no drift should be detected.',
-    options: { outcome: { predicted: 0.42, observed: 0.40, checkpoint: '6-month', kind: 'observed-outcome', provenance: 'experiment-input' } }
-  },
-  {
-    id: 'ottawa-outcome-drift',
-    description: 'Run the baseline with a materially worse observed outcome; the learning layer should flag drift and propose an explicit recalibration without silently applying it.',
-    options: { outcome: { predicted: 0.42, observed: 0.30, checkpoint: '6-month', kind: 'observed-outcome', provenance: 'experiment-input' } }
-  },
-  {
-    id: 'ottawa-competing-intervention-flip',
-    description: 'Introduce registered scenario evidence for ASE in Ottawa strong enough to beat Housing First; recommendation should flip to ASE.',
-    options: { scenarioEvidence: { Ottawa: { ase: { admissible: true, evidence: { id: 'ase-scenario-ottawa', estimate: 0.80, unit: 'scenario effect', uncertainty: { low: 0.70, high: 0.90 }, jurisdiction: 'Ottawa', mode: 'scenario' } } } } }
-  },
-  {
-    id: 'melbourne-transportability-unlock',
-    description: 'Introduce explicit Melbourne/Australia causal evidence for Housing First; the default cross-country transport block should disappear.',
-    options: { scenarioEvidence: { Melbourne: { housing: { admissible: true, evidence: { id: 'housing-au-scenario', estimate: 0.42, unit: 'absolute stable-housing probability difference', uncertainty: { low: 0.30, high: 0.54 }, jurisdiction: 'Australia', mode: 'site-supported-scenario' } } } } }
-  },
-  {
-    id: 'melbourne-transportability-block',
-    description: 'Explicitly deny transportability in Melbourne; the decision must remain failure-closed.',
-    options: { scenarioEvidence: { Melbourne: { housing: { admissible: false, failure: 'causal-effect-not-transportable-to-city' } } } }
-  }
+  { id: 'baseline-three-city', description: 'Live municipal context through default production gates.', options: {} },
+  { id: 'ottawa-outcome-within-tolerance', description: 'Observed Ottawa outcome close to prediction; no drift.', options: { outcome: { predicted: 0.42, observed: 0.40, checkpoint: '6-month', kind: 'observed-outcome', provenance: 'experiment-input' } } },
+  { id: 'ottawa-outcome-drift', description: 'Materially worse observed outcome; drift detected without automatic mutation.', options: { outcome: { predicted: 0.42, observed: 0.30, checkpoint: '6-month', kind: 'observed-outcome', provenance: 'experiment-input' } } },
+  { id: 'ottawa-competing-intervention-flip', description: 'Explicit Ottawa ASE evidence beats Housing First.', options: { scenarioEvidence: { Ottawa: { ase: { admissible: true, evidence: { id: 'ase-scenario-ottawa', estimate: 0.80, unit: 'scenario effect', uncertainty: { low: 0.70, high: 0.90 }, jurisdiction: 'Ottawa', mode: 'scenario' } } } } } },
+  { id: 'melbourne-transportability-unlock', description: 'Explicit Australian causal evidence unlocks Melbourne Housing First.', options: { scenarioEvidence: { Melbourne: { housing: { admissible: true, evidence: { id: 'housing-au-scenario', estimate: 0.42, unit: 'absolute stable-housing probability difference', uncertainty: { low: 0.30, high: 0.54 }, jurisdiction: 'Australia', mode: 'site-supported-scenario' } } } } } },
+  { id: 'melbourne-transportability-block', description: 'Explicitly deny Melbourne transportability; remain failure-closed.', options: { scenarioEvidence: { Melbourne: { housing: { admissible: false, failure: 'causal-effect-not-transportable-to-city' } } } } },
+  { id: 'resource-amount-without-model', description: 'A real marginal amount without an evidenced resource chain must not create optimization.', options: withResourceEnvelope({}, 5000000) },
+  { id: 'resource-chain-optimization', description: 'Complete evidenced chains activate resource translation and select the best common-objective intervention.', options: { ...withResourceEnvelope({}, 5000000), resourceModels: COMPLETE_RESOURCE_MODELS } },
+  { id: 'resource-chain-incomplete', description: 'A missing resource model must block optimization rather than infer it.', options: { ...withResourceEnvelope({}, 5000000), resourceModels: { housing: HOUSING_RESOURCE_MODEL } } },
+  { id: 'resource-objective-mismatch', description: 'Incomparable objective metrics must block optimization.', options: { ...withResourceEnvelope({}, 5000000), resourceModels: { housing: HOUSING_RESOURCE_MODEL, ase: { ...ASE_RESOURCE_MODEL, objectiveMetric: 'serious_harm_events' } }, scenarioEvidence: { Ottawa: { ase: { admissible: true, evidence: { id: 'ase-mismatch', estimate: 0.80, unit: 'scenario effect', uncertainty: { low: 0.70, high: 0.90 }, jurisdiction: 'Ottawa', mode: 'scenario' } } } } } },
+  { id: 'melbourne-resource-cannot-bypass-transportability', description: 'A complete resource model cannot bypass Melbourne causal transportability.', options: { ...withResourceEnvelope({}, 5000000), resourceModels: COMPLETE_RESOURCE_MODELS } },
+  { id: 'ottawa-explicit-housing-denial', description: 'Explicitly deny Ottawa Housing First; no silent fallback.', options: { scenarioEvidence: { Ottawa: { housing: { admissible: false, failure: 'scenario-evidence-withdrawn' } } } } }
 ];
 
 function summarize(result) {
-  return result.comparison.map(city => ({
-    city: city.city,
-    state: city.state,
-    recommendation: city.recommendation,
-    observedValue: city.observedValue,
-    optimization: city.optimization
-  }));
+  return result.comparison.map(city => ({ city: city.city, state: city.state, recommendation: city.recommendation, observedValue: city.observedValue, optimization: city.optimization }));
 }
 
 async function runExperiment(experiment) {
   const result = await runAll({ ...experiment.options, fetchImpl: cachedFetch });
   const byCity = Object.fromEntries(result.cities.map(city => [city.city, city]));
   return {
-    id: experiment.id,
-    description: experiment.description,
-    summary: summarize(result),
+    id: experiment.id, description: experiment.description, summary: summarize(result),
     learning: Object.fromEntries(result.cities.filter(city => city.learning).map(city => [city.city, city.learning])),
     transportability: Object.fromEntries(result.cities.map(city => [city.city, city.audit.causalTransportability])),
-    assertions: {
-      baselineShape: result.cities.length === 3,
-      OttawaLiveObservation: byCity.Ottawa.observedContext.value === 2952,
-      TorontoLiveObservation: byCity.Toronto.observedContext.value === 15400,
-      MelbourneLiveObservation: byCity.Melbourne.observedContext.value === 147
-    }
+    resourceChecks: Object.fromEntries(result.cities.map(city => [city.city, { status: city.optimization.status, allocation: city.optimization.allocation, feedback: city.optimization.feedback }])),
+    integrity: Object.fromEntries(result.cities.map(city => [city.city, { failureClosed: city.audit.failureClosed, observedMunicipalDataIsNotCausal: true, sourceUrlUsed: city.sourceLineage.sourceUrlUsed, fallbackUsed: Boolean(city.sourceLineage.fallbackUsed) }])),
+    assertions: { baselineShape: result.cities.length === 3, OttawaLiveObservation: byCity.Ottawa.observedContext.value === 2952, TorontoLiveObservation: byCity.Toronto.observedContext.value === 15400, MelbourneLiveObservation: byCity.Melbourne.observedContext.value === 147 }
   };
 }
 
 async function main() {
   const results = [];
   for (const experiment of EXPERIMENTS) results.push(await runExperiment(experiment));
-
   const byId = Object.fromEntries(results.map(result => [result.id, result]));
+  const city = (id, name) => byId[id].summary.find(x => x.city === name);
+  const optimization = (id, name) => byId[id].resourceChecks[name];
   const expected = {
-    baseline: byId['baseline-three-city'].summary,
-    outcomeWithinToleranceDrift: byId['ottawa-outcome-within-tolerance'].learning.Ottawa.drift.detected === false,
+    baselineOttawaHousing: city('baseline-three-city', 'Ottawa').recommendation === 'housing',
+    baselineTorontoHousing: city('baseline-three-city', 'Toronto').recommendation === 'housing',
+    baselineMelbourneBlocked: city('baseline-three-city', 'Melbourne').state === 'BLOCKED',
+    outcomeWithinToleranceNoDrift: byId['ottawa-outcome-within-tolerance'].learning.Ottawa.drift.detected === false,
     outcomeDriftDetected: byId['ottawa-outcome-drift'].learning.Ottawa.drift.detected === true,
-    interventionFlip: byId['ottawa-competing-intervention-flip'].summary.find(city => city.city === 'Ottawa').recommendation === 'ase',
-    melbourneUnlock: byId['melbourne-transportability-unlock'].summary.find(city => city.city === 'Melbourne').recommendation === 'housing',
-    melbourneBlocked: byId['melbourne-transportability-block'].summary.find(city => city.city === 'Melbourne').state === 'BLOCKED'
+    recalibrationNotAutomatic: byId['ottawa-outcome-drift'].learning.Ottawa.recalibration.application === 'EXPLICIT_PARAMETER_MAPPING',
+    interventionFlipToASE: city('ottawa-competing-intervention-flip', 'Ottawa').recommendation === 'ase',
+    melbourneUnlockToHousing: city('melbourne-transportability-unlock', 'Melbourne').recommendation === 'housing',
+    melbourneTransportabilityBlock: city('melbourne-transportability-block', 'Melbourne').state === 'BLOCKED',
+    resourceAmountAloneBlocked: optimization('resource-amount-without-model', 'Ottawa').status === 'BLOCKED',
+    resourceChainOptimized: optimization('resource-chain-optimization', 'Ottawa').status === 'OPTIMIZED' && optimization('resource-chain-optimization', 'Ottawa').allocation.intervention === 'housing',
+    incompleteResourceChainBlocked: optimization('resource-chain-incomplete', 'Ottawa').status === 'BLOCKED',
+    objectiveMismatchBlocked: optimization('resource-objective-mismatch', 'Ottawa').status === 'BLOCKED',
+    melbourneResourceCannotBypassTransportability: optimization('melbourne-resource-cannot-bypass-transportability', 'Melbourne').status === 'BLOCKED' && city('melbourne-resource-cannot-bypass-transportability', 'Melbourne').state === 'BLOCKED',
+    explicitHousingDenialFailureClosed: city('ottawa-explicit-housing-denial', 'Ottawa').state === 'BLOCKED' && byId['ottawa-explicit-housing-denial'].integrity.Ottawa.failureClosed === true
   };
-
   const liveAssertions = results.every(result => Object.values(result.assertions).every(Boolean));
-  const passed = liveAssertions && Object.values(expected).slice(1).every(Boolean);
-  const output = { schemaVersion: 'vidik.experiment-suite.v1', passed, liveCacheSize: LIVE_CACHE.size, expected, results };
-  process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+  const passed = liveAssertions && Object.values(expected).every(Boolean);
+  process.stdout.write(JSON.stringify({ schemaVersion: 'vidik.experiment-suite.v2', passed, experimentCount: EXPERIMENTS.length, liveCacheSize: LIVE_CACHE.size, expected, results }, null, 2) + '\n');
   if (!passed) process.exitCode = 1;
 }
 
