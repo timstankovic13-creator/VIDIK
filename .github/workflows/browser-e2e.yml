@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 24
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Install Chromium
         run: npx playwright install chromium
       - name: Run VIDIK 9.6.1 browser acceptance
