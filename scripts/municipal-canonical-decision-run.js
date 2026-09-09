@@ -14,13 +14,13 @@ function enrichEvidence(run, options = {}) {
 }
 function marginalEvidenceFromModels(run, options = {}) {
   const models = options.resourceModels || {};
-  const admissibleInterventions = new Set((run.interventionComparison || []).filter(x => x.status === 'ADMISSIBLE').map(x => x.id));
+  const admissibleInterventions = new Set((run.interventionComparison || []).filter(x => x.gate?.admissible === true || x.status === 'ADMISSIBLE').map(x => x.id));
   return Object.entries(models).flatMap(([intervention, model]) => {
     if (!admissibleInterventions.has(intervention)) return [];
     const declared = model?.marginalEvidence;
     if (!declared) return [];
     const amount = Number(run.resourceEnvelope?.marginalUnit?.amount);
-    return [{ intervention, resourceUnit: run.resourceEnvelope?.marginalUnit?.unit || 'CAD', resourceAmount: amount, incrementalCapacity: amount * Number(model.capacityPerCad), incrementalActivity: amount * Number(model.capacityPerCad) * Number(model.activityPerCapacity), incrementalOutcome: amount * Number(model.capacityPerCad) * Number(model.activityPerActivity), unit: model.effectUnit || model.objectiveMetric, evidenceId: declared.evidenceId, provenance: declared.provenance, uncertainty: declared.uncertainty || model.uncertainty, transportability: declared.transportability, sourceJurisdiction: declared.sourceJurisdiction, targetJurisdiction: declared.targetJurisdiction }];
+    return [{ intervention, resourceUnit: run.resourceEnvelope?.marginalUnit?.unit || 'CAD', resourceAmount: amount, incrementalCapacity: amount * Number(model.capacityPerCad), incrementalActivity: amount * Number(model.capacityPerCad) * Number(model.activityPerCapacity), incrementalOutcome: amount * Number(model.capacityPerCad) * Number(model.effectPerActivity), unit: model.effectUnit || model.objectiveMetric, evidenceId: declared.evidenceId, provenance: declared.provenance, uncertainty: declared.uncertainty || model.uncertainty, transportability: declared.transportability, sourceJurisdiction: declared.sourceJurisdiction, targetJurisdiction: declared.targetJurisdiction }];
   });
 }
 function applyMarginalEvidence(run, options = {}) {
