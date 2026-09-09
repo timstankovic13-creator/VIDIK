@@ -28,7 +28,7 @@ function applyMarginalEvidence(run, options = {}) {
   const explicit = Array.isArray(options.marginalEvidence) ? options.marginalEvidence : marginalEvidenceFromModels(run, options);
   const evidenceComparison = compareMarginalEvidence(explicit);
   if (evidenceComparison.status !== 'OPTIMIZED') {
-    const status = explicit.length ? 'BLOCKED' : 'BLOCKED_MISSING_MARGINAL_EVIDENCE';
+    const status = Object.keys(options.resourceModels || {}).length || explicit.length ? 'BLOCKED' : 'BLOCKED_MISSING_MARGINAL_EVIDENCE';
     return { ...run, optimization: { ...evidenceComparison, status, requestedResource: run.resourceEnvelope || null, allocation: null }, audit: { ...run.audit, marginalOptimization: status, marginalEvidenceCount: explicit.length } };
   }
   const modelOptimization = Object.keys(options.resourceModels || {}).length
