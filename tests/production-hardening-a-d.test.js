@@ -50,7 +50,7 @@ async function main() {
   const Ottawa = await runCanonicalCity('Ottawa');
   assert.strictEqual(Ottawa.identityBrief?.city, 'Ottawa');
   assert(Ottawa.rationale && (Ottawa.rationale.recommendation === null || typeof Ottawa.rationale.recommendation === 'string'));
-  assert(Ottawa.optimization && ['OPTIMIZED', 'BLOCKED_MISSING_MARGINAL_EVIDENCE'].includes(Ottawa.optimization.status));
+  assert(['OPTIMIZED', 'BLOCKED_MISSING_MARGINAL_EVIDENCE'].includes(Ottawa.resourceEnvelope?.optimizationStatus));
 
   const all = await runCanonicalAll();
   assert.strictEqual(all.cities.length, 3);
