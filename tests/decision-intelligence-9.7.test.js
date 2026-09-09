@@ -1,0 +1,52 @@
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const DI = require('../js/decision-intelligence-9.7');
+const Store = require('../js/decision-artifact-store');
+
+const parameters = [{ id: 'effect', low: .20, mean: .42, high: .60 }, { id: 'risk', low: .10, mean: .22, high: .40 }];
+const scoreFn = x => {
+  const housing = Number(x.effect ?? .42) - Number(x.risk ?? .22);
+  const alternate = .30;
+  return housing >= alternate ? { recommendation: 'housing', score: housing } : { recommendation: 'alternate', score: alternate };
+};
+
+const s = DI.sensitivity({ baseline: { effect: .42, risk: .22 }, parameters, scoreFn, steps: 31 });
+assert.strictEqual(s.baseline.recommendation, 'housing');
+assert.ok(s.parameters.length === 2);
+assert.ok(s.hash && s.hash.length === 64);
+
+const flip = DI.flipThreshold({ baseline: { effect: .42, risk: .22 }, parameter: parameters[0], scoreFn });
+assert.strictEqual(flip.flipped, true);
+assert.ok(flip.threshold > .20 && flip.threshold < .42);
+
+const u1 = DI.uncertainty({ baseline: { effect: .42, risk: .22 }, parameters, correlations: [{ a: 'effect', b: 'risk', rho: .25 }], scoreFn, samples: 1200, seed: 99 });
+const u2 = DI.uncertainty({ baseline: { effect: .42, risk: .22 }, parameters, correlations: [{ a: 'effect', b: 'risk', rho: .25 }], scoreFn, samples: 1200, seed: 99 });
+assert.deepStrictEqual(u1, u2);
+assert.ok(u1.recommendationProbabilities.housing > 0 && u1.recommendationProbabilities.alternate > 0);
+
+const v = DI.voi({ currentRecommendation: 'housing', currentValue: .20, decisionValue: 1, candidates: [
+  { id: 'effect', currentValue: .20, lowValue: .05, highValue: .70, pHigh: .5, cost: .02, highRecommendation: 'housing', lowRecommendation: 'alternate' },
+  { id: 'stable', currentValue: .01, lowValue: .01, highValue: .01, pHigh: .5, cost: .02 }
+] });
+assert.strictEqual(v.priority.length, 1);
+assert.strictEqual(v.priority[0].id, 'effect');
+assert.ok(v.priority[0].couldChangeRecommendation);
+
+const bundle = DI.analyze({ baseline: { effect: .42, risk: .22 }, parameters, correlations: [{ a: 'effect', b: 'risk', rho: .25 }], scoreFn, candidates: [{ id: 'effect', currentValue: .20, lowValue: .05, highValue: .70, pHigh: .5, cost: .02, lowRecommendation: 'alternate', highRecommendation: 'housing' }], uncertaintySamples: 500, sensitivitySteps: 11 });
+assert.ok(bundle.integrityHash.length === 64);
+assert.ok(Array.isArray(bundle.recommendationFlips));
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vidik-artifact-'));
+const file = path.join(tmp, 'artifacts.json');
+const input = { decision: { identityBrief: { decisionId: 'D-1' } }, audit: { event: 'decision-created' }, counterfactual: { status: 'RECORDED' }, evidence: [{ id: 'E-1' }], parameters, analysis: bundle, governance: { override: null }, learning: { checkpoints: ['6mo', '1yr', '2yr', '5yr'] }, provenance: { commit: 'test' } };
+const a = Store.artifact(input); assert.strictEqual(Store.verifyArtifact(a).ok, true);
+const r1 = Store.append(file, a); const r2 = Store.append(file, { ...input, decisionId: 'D-2' });
+assert.strictEqual(Store.verifyChain(Store.readStore ? Store.readStore(file) : JSON.parse(fs.readFileSync(file, 'utf8'))).ok, true);
+assert.strictEqual(r2.previousHash, r1.chainHash);
+const tampered = JSON.parse(fs.readFileSync(file, 'utf8')); tampered[0].artifact.analysis = {}; fs.writeFileSync(file, JSON.stringify(tampered));
+assert.strictEqual(Store.verifyChain(tampered).ok, false);
+fs.rmSync(tmp, { recursive: true, force: true });
+console.log('decision-intelligence-9.7: PASS');
