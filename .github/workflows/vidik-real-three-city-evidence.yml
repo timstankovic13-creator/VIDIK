@@ -1,0 +1,46 @@
+name: VIDIK Real Three-City Evidence
+
+on:
+  push:
+    branches:
+      - feat/real-three-city-evidence-runs
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-three-city-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install
+      - name: Run real three-city evidence decision validation
+        run: npm run test:real-three-city-evidence
+      - name: Generate inspectable real three-city decision
+        run: npm run run:real-three-city-evidence -- --marginal-cad=5000000 > /tmp/vidik-real-three-city-decision.json
+      - name: Validate generated decision is real-evidence-backed and marginal-optimization-safe
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('/tmp/vidik-real-three-city-decision.json', 'utf8'));
+          if (result.cities.length !== 3) throw new Error('expected three cities');
+          for (const city of result.cities) {
+            if (city.rationale?.recommendation !== 'housing') throw new Error(`${city.identityBrief?.city}: missing real-evidence recommendation`);
+            if (city.audit?.syntheticEvidenceExcluded !== true) throw new Error(`${city.identityBrief?.city}: synthetic evidence boundary missing`);
+            if (city.audit?.realMunicipalSource !== true) throw new Error(`${city.identityBrief?.city}: live municipal source boundary missing`);
+            if (city.audit?.realCausalEvidence !== true) throw new Error(`${city.identityBrief?.city}: real causal evidence boundary missing`);
+            if (city.optimizationOpportunityCost?.status !== 'BLOCKED_MISSING_MARGINAL_EVIDENCE') throw new Error(`${city.identityBrief?.city}: marginal optimization must remain blocked without decision-specific marginal evidence`);
+          }
+          console.log('VIDIK real three-city evidence production gate: PASS');
+          NODE
