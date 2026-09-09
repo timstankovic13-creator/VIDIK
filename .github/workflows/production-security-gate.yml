@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci --ignore-scripts; else npm install --ignore-scripts; fi
+          npm install --ignore-scripts
       - name: High-severity dependency audit
         shell: bash
         run: npm audit --audit-level=high
@@ -48,7 +48,7 @@ jobs:
       - run: npm install --ignore-scripts
       - name: Install Playwright Chromium
         shell: bash
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Run outcome-learning lifecycle acceptance
         shell: bash
         run: npx playwright test tests/e2e/municipal-lifecycle-10.spec.js
