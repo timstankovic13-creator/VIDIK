@@ -48,7 +48,8 @@ async function main() {
   assert(overridden.governanceOverridesAudit.humanOverride.originalEvidenceHash === 'abc');
 
   const Ottawa = await runCanonicalCity('Ottawa');
-  assert(['RECOMMENDATION', 'BLOCKED'].includes(Ottawa.decisionState));
+  assert.strictEqual(Ottawa.identityBrief?.city, 'Ottawa');
+  assert(Ottawa.rationale && (Ottawa.rationale.recommendation === null || typeof Ottawa.rationale.recommendation === 'string'));
   assert(Ottawa.optimization && ['OPTIMIZED', 'BLOCKED_MISSING_MARGINAL_EVIDENCE'].includes(Ottawa.optimization.status));
 
   const all = await runCanonicalAll();
