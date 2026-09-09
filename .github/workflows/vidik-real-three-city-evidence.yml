@@ -41,6 +41,15 @@ jobs:
             if (city.audit?.realMunicipalSource !== true) throw new Error(`${city.identityBrief?.city}: live municipal source boundary missing`);
             if (city.audit?.realCausalEvidence !== true) throw new Error(`${city.identityBrief?.city}: real causal evidence boundary missing`);
             if (city.optimizationOpportunityCost?.status !== 'BLOCKED_MISSING_MARGINAL_EVIDENCE') throw new Error(`${city.identityBrief?.city}: marginal optimization must remain blocked without decision-specific marginal evidence`);
+            if (city.evidenceGraph?.nodes?.some(node => node.id === `municipal:${city.identityBrief.city}`) !== true) throw new Error(`${city.identityBrief?.city}: municipal provenance node missing`);
+            if (city.evidenceGraph?.nodes?.some(node => node.kind === 'causal_effect') !== true) throw new Error(`${city.identityBrief?.city}: causal evidence node missing`);
           }
           console.log('VIDIK real three-city evidence production gate: PASS');
           NODE
+      - name: Publish inspectable decision artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-real-three-city-decision
+          path: /tmp/vidik-real-three-city-decision.json
+          if-no-files-found: error
+          retention-days: 14
