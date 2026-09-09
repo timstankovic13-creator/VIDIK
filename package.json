@@ -1,7 +1,7 @@
 {
   "name":"vidik-9.1.3",
   "private":true,
-  "version":"9.1.3",
+  "version":"9.3.0",
   "scripts":{
     "test:e2e":"playwright test",
     "test:municipal-contracts":"node tests/municipal-adapters.test.js",
@@ -21,10 +21,12 @@
     "test:real-three-city-evidence":"node tests/real-three-city-evidence-decision.test.js",
     "test:independent-evidence-verification":"node tests/independent-evidence-parameter-verification.test.js",
     "test:production-hardening-a-d":"node tests/production-hardening-a-d.test.js",
+    "test:decision-intelligence":"node tests/decision-intelligence-9.7.test.js",
     "test:monster":"node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision":"node scripts/municipal-canonical-decision-run.js",
     "run:real-three-city-evidence":"node scripts/real-three-city-evidence-run.js",
+    "run:persisted-artifacts":"node scripts/persist-canonical-decision-artifact.js",
     "test:outcome-learning":"node tests/outcome-learning.test.js",
     "test:production-config":"node tests/production-config.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
