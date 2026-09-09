@@ -21,8 +21,7 @@ function covariance(parameters, correlations = []) {
   for (const c of correlations) {
     const a = byId.get(String(c.a)), b = byId.get(String(c.b)), rho = Number(c.rho);
     if (!a || !b || !finite(rho) || rho < -1 || rho > 1 || a.id === b.id) throw new Error('invalid-correlation');
-    const term = 2 * rho * sd(a) * sd(b);
-    variance += term;
+    variance += 2 * rho * sd(a) * sd(b);
     links.push({ a: a.id, b: b.id, rho, covariance: rho * sd(a) * sd(b) });
   }
   if (variance < -1e-12) throw new Error('incoherent-covariance');
@@ -39,9 +38,8 @@ function sensitivity({ baseline, parameters, scoreFn, steps = 21 }) {
     const evaluations = values.map(value => ({ value, result: scoreFn({ ...baseline, [p.id]: value }) }));
     const recommendations = [...new Set(evaluations.map(x => x.result?.recommendation ?? null))];
     const scores = evaluations.map(x => Number(x.result?.score)).filter(finite);
-    const minScore = scores.length ? Math.min(...scores) : null, maxScore = scores.length ? Math.max(...scores) : null;
     const firstDifferent = evaluations.find(x => (x.result?.recommendation ?? null) !== (base?.recommendation ?? null));
-    rows.push({ parameterId: p.id, low: p.low, mean: p.mean, high: p.high, recommendationCount: recommendations.length, recommendations, minScore, maxScore, firstRecommendationFlip: firstDifferent ? { value: firstDifferent.value, from: base?.recommendation ?? null, to: firstDifferent.result?.recommendation ?? null } : null });
+    rows.push({ parameterId: p.id, low: p.low, mean: p.mean, high: p.high, recommendationCount: recommendations.length, recommendations, minScore: scores.length ? Math.min(...scores) : null, maxScore: scores.length ? Math.max(...scores) : null, firstRecommendationFlip: firstDifferent ? { value: firstDifferent.value, from: base?.recommendation ?? null, to: firstDifferent.result?.recommendation ?? null } : null });
   }
   return { version: VERSION, baseline: base, parameters: rows, recommendationStable: rows.every(r => !r.firstRecommendationFlip), hash: hash({ baseline: base, parameters: rows }) };
 }
@@ -49,18 +47,19 @@ function sensitivity({ baseline, parameters, scoreFn, steps = 21 }) {
 function flipThreshold({ baseline, parameter, scoreFn, direction = 'both', iterations = 50 }) {
   if (typeof scoreFn !== 'function') throw new Error('invalid-score-function');
   const p = range(parameter), base = scoreFn({ ...baseline }), target = base?.recommendation ?? null;
-  const search = (lo, hi, wantChange) => {
-    let a = lo, b = hi, hit = null;
+  const changed = value => (scoreFn({ ...baseline, [p.id]: value })?.recommendation ?? null) !== target;
+  const binary = (stableValue, changedValue, changedAtLow) => {
+    let stablePoint = stableValue, changedPoint = changedValue;
     for (let i = 0; i < iterations; i++) {
-      const mid = (a + b) / 2, result = scoreFn({ ...baseline, [p.id]: mid }), changed = (result?.recommendation ?? null) !== target;
-      if (changed === wantChange) { hit = mid; if (wantChange) b = mid; else a = mid; } else { if (wantChange) a = mid; else b = mid; }
+      const mid = (stablePoint + changedPoint) / 2;
+      if (changed(mid)) changedPoint = mid; else stablePoint = mid;
     }
-    return hit;
+    return (stablePoint + changedPoint) / 2;
   };
+  const lowChanged = changed(p.low), highChanged = changed(p.high);
+  const threshold = lowChanged ? binary(p.mean, p.low, true) : (highChanged ? binary(p.mean, p.high, false) : null);
   const lowResult = scoreFn({ ...baseline, [p.id]: p.low }), highResult = scoreFn({ ...baseline, [p.id]: p.high });
-  const lowFlip = (lowResult?.recommendation ?? null) !== target, highFlip = (highResult?.recommendation ?? null) !== target;
-  const threshold = lowFlip ? search(p.low, p.mean, true) : (highFlip ? search(p.mean, p.high, true) : null);
-  return { parameterId: p.id, baselineRecommendation: target, lowRecommendation: lowResult?.recommendation ?? null, highRecommendation: highResult?.recommendation ?? null, threshold, flipped: lowFlip || highFlip, direction, from: target, to: lowFlip ? lowResult?.recommendation ?? null : highFlip ? highResult?.recommendation ?? null : target };
+  return { parameterId: p.id, baselineRecommendation: target, lowRecommendation: lowResult?.recommendation ?? null, highRecommendation: highResult?.recommendation ?? null, threshold, flipped: lowChanged || highChanged, direction, from: target, to: lowChanged ? lowResult?.recommendation ?? null : highChanged ? highResult?.recommendation ?? null : target };
 }
 
 function uncertainty({ parameters, correlations = [], scoreFn, baseline = {}, samples = 2000, seed = 1729 }) {
