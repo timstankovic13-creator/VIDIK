@@ -3,6 +3,7 @@
 const assert = require('assert');
 const { CANONICAL_18 } = require('../js/vidik-architecture-contract');
 const { runRealEvidenceAll } = require('../scripts/real-three-city-evidence-run');
+const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-evidence');
 
 (async () => {
   const result = await runRealEvidenceAll();
@@ -41,7 +42,11 @@ const { runRealEvidenceAll } = require('../scripts/real-three-city-evidence-run'
   assert.strictEqual(result.evidenceRegistry.Ottawa.mode, 'transported');
   assert.strictEqual(result.evidenceRegistry.Toronto.mode, 'site-supported');
   assert.strictEqual(result.evidenceRegistry.Melbourne.mode, 'site-supported');
-  assert.strictEqual(result.evidenceRegistry.Melbourne.estimate, 0.339);
+  assert.strictEqual(
+    result.evidenceRegistry.Melbourne.estimate,
+    PRODUCTION_HOUSING_EVIDENCE.Melbourne.estimate,
+    'Melbourne estimate must match the independently reconstructed production evidence value'
+  );
 
   console.log('VIDIK real three-city evidence decision validation: PASS');
   console.log('Ottawa=Housing First recommendation using transported Canadian RCT evidence');
