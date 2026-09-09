@@ -8,11 +8,19 @@ const LIVE_CACHE = new Map();
 async function cachedFetch(url, init) {
   if (!LIVE_CACHE.has(url)) {
     const response = await fetch(url, init);
-    const text = await response.text();
-    LIVE_CACHE.set(url, { ok: response.ok, status: response.status, headers: response.headers, text });
+    const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+    const isPdf = contentType.includes('pdf') || url.toLowerCase().endsWith('.pdf');
+    const body = isPdf ? Buffer.from(await response.arrayBuffer()) : await response.text();
+    LIVE_CACHE.set(url, { ok: response.ok, status: response.status, headers: response.headers, body, isPdf });
   }
   const cached = LIVE_CACHE.get(url);
-  return { ok: cached.ok, status: cached.status, headers: cached.headers, text: async () => cached.text };
+  return {
+    ok: cached.ok,
+    status: cached.status,
+    headers: cached.headers,
+    text: async () => cached.isPdf ? cached.body.toString('binary') : cached.body,
+    arrayBuffer: async () => cached.isPdf ? cached.body.buffer.slice(cached.body.byteOffset, cached.body.byteOffset + cached.body.byteLength) : Buffer.from(cached.body).buffer.slice(Buffer.from(cached.body).byteOffset, Buffer.from(cached.body).byteOffset + Buffer.from(cached.body).byteLength)
+  };
 }
 
 const HOUSING_RESOURCE_MODEL = { capacityPerCad: 0.000001, activityPerCapacity: 100, effectPerActivity: 0.002, objectiveMetric: 'common_decision_outcome', capacityUnit: 'housing_slots', activityUnit: 'placements', effectUnit: 'common_decision_outcome', evidenceIds: ['resource-capacity:housing', 'resource-activity:housing', 'resource-effect:housing'], uncertainty: { low: 0.30, high: 0.50 } };
