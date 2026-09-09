@@ -27,6 +27,7 @@ jobs:
           set -euo pipefail
           npm run test:production-release-gate
           npm run test:production-config
+          npm run test:decision-intelligence
           npm run test:municipal-contracts
           npm run test:municipal-ingestion
           npm run test:municipal-live
