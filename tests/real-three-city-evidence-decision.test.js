@@ -21,16 +21,17 @@ const { runRealEvidenceAll } = require('../scripts/real-three-city-evidence-run'
     assert.strictEqual(decision.integrity.syntheticEvidenceExcluded, true);
     assert.strictEqual(decision.causalProductionModel.observedMunicipalDataIsNotCausal, true);
     assert.strictEqual(decision.rationale.recommendation, 'housing');
-    assert.ok(decision.sourceLineage?.sourceUrlUsed, `${city}: live municipal source provenance missing`);
-    assert.ok(decision.evidenceGraph.nodes.some(node => node.id === `municipal:${city}`), `${city}: municipal evidence node missing`);
+    const municipalNode = decision.evidenceGraph.nodes.find(node => node.id === `municipal:${city}`);
+    assert.ok(municipalNode, `${city}: municipal evidence node missing`);
+    assert.ok(municipalNode.provenance?.sourceUrlUsed, `${city}: live municipal source provenance missing`);
     assert.ok(decision.evidenceGraph.nodes.some(node => node.kind === 'causal_effect'), `${city}: causal evidence node missing`);
     assert.ok(decision.evidenceGraph.lineage.some(x => x.kind === 'causal_effect'), `${city}: causal evidence lineage missing`);
     assert.ok(decision.parameters.selected?.evidenceIds?.length >= 1, `${city}: selected evidence lineage missing`);
     assert.ok(decision.uncertaintyBudget.parameters.length >= 1, `${city}: uncertainty budget missing`);
     assert.strictEqual(decision.counterfactualVault.status, 'RECORDED');
-    assert.strictEqual(decision.audit.syntheticEvidenceExcluded, true);
-    assert.strictEqual(decision.audit.realMunicipalSource, true);
-    assert.strictEqual(decision.audit.realCausalEvidence, true);
+    assert.strictEqual(decision.governanceOverridesAudit.audit.syntheticEvidenceExcluded, true);
+    assert.strictEqual(decision.governanceOverridesAudit.audit.realMunicipalSource, true);
+    assert.strictEqual(decision.governanceOverridesAudit.audit.realCausalEvidence, true);
   }
 
   assert.strictEqual(byCity.Ottawa.optimizationOpportunityCost.status, 'BLOCKED_MISSING_MARGINAL_EVIDENCE');
