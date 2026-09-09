@@ -54,7 +54,6 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
 }
 
 (async () => {
-  // Pass A: live three-city production path, with a real marginal amount but no invented effect model.
   const baseline = await runCanonicalAll(withResourceEnvelope({}, 5000000));
   assert.strictEqual(baseline.cities.length, 3);
   const baselineByCity = Object.fromEntries(baseline.cities.map(x => [x.identityBrief.city, x]));
@@ -68,18 +67,16 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
   assertRecommendationBoundary(baselineByCity.Toronto, 'housing');
   assertRecommendationBoundary(baselineByCity.Melbourne, null);
 
-  // A resource quantity by itself must not manufacture a causal/resource effect.
   for (const city of ['Ottawa', 'Toronto']) {
     assert.strictEqual(baselineByCity[city].resourceEnvelope.marginalUnit.amount, 5000000);
-    assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'BLOCKED');
-    assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'BLOCKED');
+    assert.strictEqual(baselineByCity[city].optimizationOpportunityCost.status, 'BLOCKED_MISSING_MARGINAL_EVIDENCE');
+    assert.strictEqual(baselineByCity[city].causalProductionModel.resourceTranslation.status, 'BLOCKED_MISSING_MARGINAL_EVIDENCE');
   }
   assert.strictEqual(baselineByCity.Melbourne.resourceEnvelope.marginalUnit.amount, 5000000);
-  assert.strictEqual(baselineByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED');
-  assert.strictEqual(baselineByCity.Melbourne.causalProductionModel.resourceTranslation.status, 'BLOCKED');
+  assert.strictEqual(baselineByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED_MISSING_MARGINAL_EVIDENCE');
+  assert.strictEqual(baselineByCity.Melbourne.causalProductionModel.resourceTranslation.status, 'BLOCKED_MISSING_MARGINAL_EVIDENCE');
   assert.strictEqual(baselineByCity.Melbourne.driftFailureRegistry.failureClosed, true);
 
-  // Pass B: supply an evidenced resource chain and verify that information crosses the full path.
   const activated = await runCanonicalAll({
     ...withResourceEnvelope({}, 5000000),
     resourceModels: RESOURCE_MODELS
@@ -99,13 +96,11 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
     assert.strictEqual(decision.reoptimizationExecutionReadiness.reoptimization, 'resource-allocation-computed');
   }
 
-  // Melbourne must remain failure-closed: a resource model cannot bypass causal transportability.
   assert.strictEqual(activatedByCity.Melbourne.optimizationOpportunityCost.status, 'BLOCKED');
   assert.strictEqual(activatedByCity.Melbourne.optimizationOpportunityCost.allocation, null);
   assert.strictEqual(activatedByCity.Melbourne.driftFailureRegistry.failureClosed, true);
   assert.strictEqual(activatedByCity.Melbourne.interventionUniverse.interventions.find(x => x.id === 'housing').status, 'BLOCKED');
 
-  // Pass C: learning remains explicit and does not mutate parameters automatically.
   const learningRun = await runCanonicalCity('Ottawa', {
     ...withResourceEnvelope({}, 5000000),
     outcome: { observed: 0.40, predicted: 0.42, provenance: 'architecture-validation-observed-outcome' },
@@ -115,7 +110,6 @@ function assertRecommendationBoundary(decision, expectedRecommendation) {
   assert.strictEqual(learningRun.outcomeLearningCheckpoints.current.outcome.error, -0.019999999999999962);
   assert.strictEqual(learningRun.outcomeLearningCheckpoints.recalibrationMutatesParametersAutomatically, false);
 
-  // Invalid resource quantities remain fail-closed at the boundary.
   assert.throws(() => withResourceEnvelope({}, 0), /positive-finite/);
   assert.throws(() => withResourceEnvelope({}, Infinity), /positive-finite/);
 
