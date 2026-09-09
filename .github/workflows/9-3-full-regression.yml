@@ -20,7 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if test -f package-lock.json || test -f npm-shrinkwrap.json; then npm ci; else npm install --ignore-scripts; fi
+          npm install --ignore-scripts
       - name: Deterministic production release gate
         shell: bash
         run: |
@@ -40,7 +40,7 @@ jobs:
           npm run test:outcome-learning
           npm run test:hostile-readiness
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Full Playwright acceptance and hostile lifecycle suites
         shell: bash
         run: |
