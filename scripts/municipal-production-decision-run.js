@@ -5,9 +5,9 @@ const crypto = require('crypto');
 const { evaluateResourceOptimization } = require('../js/vidik-resource-optimization');
 
 const SOURCES = Object.freeze({
-  Ottawa: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', sourceType: 'municipal-web-report', dataset: 'ottawa-2024-pit-count', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /In\s+October\s+2024\s*[,:]?\s*(?:there\s+were\s+)?([\d,\s]+?)\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa\.?/i, definition: 'People reported experiencing homelessness in the October 2024 Point-in-Time enumeration; dependents excluded from the comparable PiT series.' }),
-  Toronto: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.toronto.ca/news/city-of-toronto-releases-findings-of-2024-street-needs-assessment-homelessness-survey/', sourceType: 'municipal-news-report', dataset: 'toronto-2024-street-needs-assessment', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'estimated_point_in_time', role: 'observed_context', pattern: /An\s+estimated\s+([\d,\s]+?)\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto\s+last\s+fall/i, definition: 'Estimated people experiencing homelessness in the October 2024 Street Needs Assessment.' }),
-  Melbourne: Object.freeze({ jurisdiction: 'AU-VIC', sourceUrl: 'https://participate.melbourne.vic.gov.au/make-room/project-overview', sourceType: 'municipal-project-report', dataset: 'melbourne-by-name-list-2024', field: 'people_experiencing_chronic_homelessness_or_rough_sleeping', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /as\s+of\s+May\s+2024\s*,?\s*the\s+current\s+number\s+of\s+people\s+recorded\s+as\s+experiencing\s+chronic\s+homelessness\s+and\s+rough\s+sleeping\s+in\s+the\s+City\s+of\s+Melbourne\s+is\s+([\d,\s]+)/i, definition: 'People recorded on the Melbourne By Name List as experiencing chronic homelessness and rough sleeping as of May 2024; this is narrower than the Ottawa/Toronto homelessness measures.' })
+  Ottawa: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', fallbackSourceUrls: ['https://www.ottawa.ca/en/city-hall/city-news/newsroom/personalized-approach-helps-connect-those-experiencing-homelessness'], sourceType: 'municipal-web-report', dataset: 'ottawa-2024-pit-count', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /In\s+October\s+2024\s*[,:]?\s*(?:there\s+were\s+)?([\d,\s]+?)\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa\.?/i, fallbackPatterns: [/October\s+23[\s,:-]{0,20}(?:there\s+were\s+)?([\d,\s]+?)\s+people\s+in\s+Ottawa\s+experiencing\s+homelessness/i, /([\d,\s]+?)\s+people\s+in\s+Ottawa\s+experiencing\s+homelessness/i], definition: 'People reported experiencing homelessness in the October 2024 Point-in-Time enumeration; dependents excluded from the comparable PiT series.' }),
+  Toronto: Object.freeze({ jurisdiction: 'CA-ON', sourceUrl: 'https://www.toronto.ca/news/city-of-toronto-releases-findings-of-2024-street-needs-assessment-homelessness-survey/', sourceType: 'municipal-news-report', dataset: 'toronto-2024-street-needs-assessment', field: 'people_experiencing_homelessness', unit: 'people', aggregation: 'estimated_point_in_time', role: 'observed_context', pattern: /An\s+estimated\s+([\d,\s]+?)\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto\s+last\s+fall/i, fallbackPatterns: [/estimated\s+([\d,\s]+?)\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i, /([\d,\s]+?)\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i], definition: 'Estimated people experiencing homelessness in the October 2024 Street Needs Assessment.' }),
+  Melbourne: Object.freeze({ jurisdiction: 'AU-VIC', sourceUrl: 'https://participate.melbourne.vic.gov.au/make-room/project-overview', sourceType: 'municipal-project-report', dataset: 'melbourne-by-name-list-2024', field: 'people_experiencing_chronic_homelessness_or_rough_sleeping', unit: 'people', aggregation: 'reported_point_in_time', role: 'observed_context', pattern: /as\s+of\s+May\s+2024\s*,?\s*the\s+current\s+number\s+of\s+people\s+recorded\s+as\s+experiencing\s+chronic\s+homelessness\s+and\s+rough\s+sleeping\s+in\s+the\s+City\s+of\s+Melbourne\s+is\s+([\d,\s]+)/i, fallbackPatterns: [/chronic\s+homelessness\s+and\s+rough\s+sleeping.*?\b(?:is|was)\s+([\d,\s]+)/i], definition: 'People recorded on the Melbourne By Name List as experiencing chronic homelessness and rough sleeping as of May 2024; this is narrower than the Ottawa/Toronto homelessness measures.' })
 });
 
 const CAUSAL = Object.freeze({ housing: Object.freeze({ id: 'housing-rct', estimate: 0.42, unit: 'absolute stable-housing probability difference', uncertainty: { low: 0.36, high: 0.48 }, source: 'One-year outcomes of a randomized controlled trial of Housing First with ACT in five Canadian cities', jurisdiction: 'Canada' }) });
@@ -42,53 +42,38 @@ async function fetchText(url, fetchImpl = globalThis.fetch) {
   throw new Error(`upstream-too-many-redirects:${safe}`);
 }
 function normalizeSourceText(text) {
-  return String(text)
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  return String(text).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16))).replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10))).replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, ' ').trim();
 }
-
 function extractNumericObservation(city, text, primaryMatch) {
-  if (primaryMatch) return primaryMatch;
-  const fallbackPatterns = {
-    Ottawa: [
-      /October\s+2024[\s,:-]{0,12}(?:there\s+were\s+)?([\d][\d,\s]{0,12})\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa/i,
-      /([\d][\d,\s]{0,12})\s+people\s+reported\s+experiencing\s+homelessness\s+in\s+Ottawa/i
-    ],
-    Toronto: [
-      /estimated\s+([\d][\d,\s]{0,12})\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i,
-      /([\d][\d,\s]{0,12})\s+people\s+were\s+experiencing\s+homelessness\s+in\s+Toronto/i
-    ],
-    Melbourne: [
-      /May\s+2024[\s,:-]{0,12}.*?\b(?:is|was)\s+([\d][\d,\s]{0,12})/i,
-      /chronic\s+homelessness\s+and\s+rough\s+sleeping.*?\b(?:is|was)\s+([\d][\d,\s]{0,12})/i
-    ]
-  };
-  for (const pattern of fallbackPatterns[city] || []) {
+  if (primaryMatch) return { match: primaryMatch, method: 'source-semantic-pattern-capture' };
+  for (const pattern of SOURCES[city].fallbackPatterns || []) {
     const match = pattern.exec(text);
-    if (match) return match;
+    if (match) return { match, method: 'source-semantic-fallback-capture' };
   }
   return null;
 }
-
 function parseObservation(city, text) {
   const spec = SOURCES[city];
   if (!spec) throw new Error(`unsupported-city:${city}`);
   const normalizedText = normalizeSourceText(text);
-  const primaryMatch = spec.pattern.exec(normalizedText);
-  const match = extractNumericObservation(city, normalizedText, primaryMatch);
-  if (!match) throw new Error(`${city}:live-source-semantic-pattern-not-found`);
-  const value = Number(match[1].replace(/[\s,]/g, ''));
+  const result = extractNumericObservation(city, normalizedText, spec.pattern.exec(normalizedText));
+  if (!result) throw new Error(`${city}:live-source-semantic-pattern-not-found`);
+  const value = Number(result.match[1].replace(/[\s,]/g, ''));
   if (!Number.isFinite(value) || value < 0) throw new Error(`${city}:live-source-observation-invalid`);
-  return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: primaryMatch ? 'source-semantic-pattern-capture' : 'source-semantic-fallback-capture', capturedValue: value } };
+  return { city, dataset: spec.dataset, field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role, value, definition: spec.definition, extraction: { method: result.method, capturedValue: value } };
+}
+async function fetchAndParseObservation(city, options = {}) {
+  const spec = SOURCES[city];
+  const candidates = [spec.sourceUrl, ...(spec.fallbackSourceUrls || [])];
+  const failures = [];
+  for (const url of candidates) {
+    try {
+      const fetched = await fetchText(url, options.fetchImpl);
+      try { return { fetched, observation: parseObservation(city, fetched.text), sourceUrlUsed: url, fallbackUsed: url !== spec.sourceUrl }; }
+      catch (error) { failures.push(`${url}:${error.message}`); }
+    } catch (error) { failures.push(`${url}:${error.message}`); }
+  }
+  throw new Error(`${city}:live-source-semantic-pattern-not-found:${failures.join('|')}`);
 }
 function admissibility(city, intervention, options = {}) {
   const override = options.scenarioEvidence?.[city]?.[intervention.id];
@@ -112,36 +97,26 @@ function chooseRecommendation(comparison) {
 }
 function buildLearning(outcome) {
   if (!outcome) return null;
-  const predicted = Number(outcome.predicted);
-  const observed = Number(outcome.observed);
+  const predicted = Number(outcome.predicted), observed = Number(outcome.observed);
   if (!Number.isFinite(predicted) || !Number.isFinite(observed)) throw new Error('outcome-must-be-finite');
   const error = observed - predicted;
-  const adjustment = Math.max(-0.05, Math.min(0.05, error));
-  const drift = Math.abs(error) >= 0.05;
-  return { outcome: { ...outcome, kind: outcome.kind || 'observed-outcome', provenance: outcome.provenance || 'caller-supplied', error }, recalibration: { targetParameterId: 'housing:effect', adjustment, application: 'EXPLICIT_PARAMETER_MAPPING' }, drift: { detected: drift, threshold: 0.05, metric: 'absolute_prediction_error' } };
+  return { outcome: { ...outcome, kind: outcome.kind || 'observed-outcome', provenance: outcome.provenance || 'caller-supplied', error }, recalibration: { targetParameterId: 'housing:effect', adjustment: Math.max(-0.05, Math.min(0.05, error)), application: 'EXPLICIT_PARAMETER_MAPPING' }, drift: { detected: Math.abs(error) >= 0.05, threshold: 0.05, metric: 'absolute_prediction_error' } };
 }
-
 async function runCity(city, options = {}) {
   const spec = SOURCES[city];
   if (!spec) throw new Error(`unsupported-city:${city}`);
   const retrievedAt = new Date().toISOString();
-  const fetched = await fetchText(spec.sourceUrl, options.fetchImpl);
-  const observation = parseObservation(city, fetched.text);
-  const source = { provider: city === 'Melbourne' ? 'City of Melbourne' : city === 'Toronto' ? 'City of Toronto' : 'City of Ottawa', sourceUrl: spec.sourceUrl, sourceType: spec.sourceType, dataset: spec.dataset, retrievedAt, finalUrl: fetched.finalUrl, semanticContract: { field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role } };
-  const comparison = INTERVENTIONS.map(intervention => {
-    const gate = admissibility(city, intervention, options);
-    return { ...intervention, gate, score: scoreIntervention(intervention, gate), status: gate.admissible ? 'ADMISSIBLE' : 'BLOCKED' };
-  });
+  const { fetched, observation, sourceUrlUsed, fallbackUsed } = await fetchAndParseObservation(city, options);
+  const source = { provider: city === 'Melbourne' ? 'City of Melbourne' : city === 'Toronto' ? 'City of Toronto' : 'City of Ottawa', sourceUrl: spec.sourceUrl, sourceUrlUsed, sourceType: spec.sourceType, dataset: spec.dataset, retrievedAt, finalUrl: fetched.finalUrl, fallbackUsed, semanticContract: { field: spec.field, unit: spec.unit, aggregation: spec.aggregation, role: spec.role } };
+  const comparison = INTERVENTIONS.map(intervention => { const gate = admissibility(city, intervention, options); return { ...intervention, gate, score: scoreIntervention(intervention, gate), status: gate.admissible ? 'ADMISSIBLE' : 'BLOCKED' }; });
   const recommendation = chooseRecommendation(comparison);
   const decisionState = recommendation ? 'RECOMMENDATION' : 'BLOCKED';
-  const selected = comparison.find(x => x.id === recommendation);
-  const counterfactual = selected?.id === 'housing' ? { intervention: 'housing', statusQuoEffect: 0, interventionEffect: selected.gate.causalEvidence.estimate, incrementalEffect: selected.gate.causalEvidence.estimate, evidenceIds: [selected.gate.causalEvidence.id], semantics: 'Causal effect estimate is distinct from the municipal observed context.' } : selected ? { intervention: selected.id, statusQuoEffect: 0, interventionEffect: selected.gate.causalEvidence.estimate, incrementalEffect: selected.gate.causalEvidence.estimate, evidenceIds: [selected.gate.causalEvidence.id], semantics: 'Controlled scenario evidence; not a production claim.' } : null;
-  const selectedEvidence = selected?.gate.causalEvidence;
-  const lineage = [{ evidenceId: `municipal:${city}:housing.need`, kind: 'observed_context', parameterId: 'housing.need', source: source.sourceUrl }, ...(selectedEvidence ? [{ evidenceId: selectedEvidence.id, kind: 'causal_effect', parameterId: `${selected.id}:effect`, transportability: selectedEvidence }] : [])];
+  const selected = comparison.find(x => x.id === recommendation), selectedEvidence = selected?.gate.causalEvidence;
+  const counterfactual = selectedEvidence ? { intervention: selected.id, statusQuoEffect: 0, interventionEffect: selectedEvidence.estimate, incrementalEffect: selectedEvidence.estimate, evidenceIds: [selectedEvidence.id], semantics: selected.id === 'housing' ? 'Causal effect estimate is distinct from the municipal observed context.' : 'Controlled scenario evidence; not a production claim.' } : null;
+  const lineage = [{ evidenceId: `municipal:${city}:housing.need`, kind: 'observed_context', parameterId: 'housing.need', source: source.sourceUrlUsed }, ...(selectedEvidence ? [{ evidenceId: selectedEvidence.id, kind: 'causal_effect', parameterId: `${selected.id}:effect`, transportability: selectedEvidence }] : [])];
   const learning = recommendation ? buildLearning(options.outcome) : null;
-  const resourceEnvelope = options.resourceEnvelope || null;
-  const optimization = evaluateResourceOptimization(resourceEnvelope, comparison, options.resourceModels || {});
-  return { schemaVersion: 'production-decision-run.v1', city, objective: 'verified-outcome-improvement', decisionState, decisionId: `VIDIK-${city.toLowerCase()}-${sha256({ city, observation, lineage }).slice(0,12)}`, observedContext: observation, sourceLineage: source, interventionComparison: comparison, recommendation, recommendationName: selected?.name || null, lineage, counterfactual, learning, resourceEnvelope, optimization, audit: { generatedAt: retrievedAt, failureClosed: !recommendation, blockedAlternatives: comparison.filter(x => x.status === 'BLOCKED').map(x => ({ id: x.id, failures: x.gate.failures })), causalTransportability: comparison.find(x => x.id === 'housing').gate.causalEvidence, evidenceHash: sha256({ source, observation, lineage, counterfactual }), scenario: Boolean(options.scenarioEvidence) } };
+  const optimization = evaluateResourceOptimization(options.resourceEnvelope || null, comparison, options.resourceModels || {});
+  return { schemaVersion: 'production-decision-run.v1', city, objective: 'verified-outcome-improvement', decisionState, decisionId: `VIDIK-${city.toLowerCase()}-${sha256({ city, observation, lineage }).slice(0,12)}`, observedContext: observation, sourceLineage: source, interventionComparison: comparison, recommendation, recommendationName: selected?.name || null, lineage, counterfactual, learning, resourceEnvelope: options.resourceEnvelope || null, optimization, audit: { generatedAt: retrievedAt, failureClosed: !recommendation, blockedAlternatives: comparison.filter(x => x.status === 'BLOCKED').map(x => ({ id: x.id, failures: x.gate.failures })), causalTransportability: comparison.find(x => x.id === 'housing').gate.causalEvidence, evidenceHash: sha256({ source, observation, lineage, counterfactual }), scenario: Boolean(options.scenarioEvidence) } };
 }
 async function runAll(options = {}) {
   const results = [];
@@ -149,4 +124,4 @@ async function runAll(options = {}) {
   return { schemaVersion: 'production-three-city-acceptance.v1', decisionProblem: 'Allocate a fixed municipal resource pool among the same intervention universe subject to evidence/admissibility gates.', cities: results, comparison: results.map(r => ({ city:r.city, state:r.decisionState, recommendation:r.recommendation, observedField:r.observedContext.field, observedValue:r.observedContext.value, optimization:r.optimization.status })), acceptance: { Ottawa: results.find(r => r.city === 'Ottawa').decisionState === 'RECOMMENDATION', Toronto: results.find(r => r.city === 'Toronto').decisionState === 'RECOMMENDATION', Melbourne: results.find(r => r.city === 'Melbourne').decisionState === 'BLOCKED' && results.find(r => r.city === 'Melbourne').audit.failureClosed } };
 }
 if (require.main === module) runAll().then(result => process.stdout.write(JSON.stringify(result,null,2)+'\n')).catch(error => { console.error(error.stack || error); process.exitCode = 1; });
-module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, normalizeSourceText, extractNumericObservation, parseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
+module.exports = { SOURCES, CAUSAL, INTERVENTIONS, fetchText, normalizeSourceText, extractNumericObservation, parseObservation, fetchAndParseObservation, admissibility, scoreIntervention, chooseRecommendation, buildLearning, runCity, runAll };
