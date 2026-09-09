@@ -25,5 +25,6 @@
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
     "test:production-release-gate":"node tests/production-release-gate.test.js"
   },
-  "devDependencies":{"@playwright/test":"^1.55.0"}
+  "devDependencies":{"@playwright/test":"^1.55.0"},
+  "dependencies":{"pdf-parse":"^1.1.1"}
 }
