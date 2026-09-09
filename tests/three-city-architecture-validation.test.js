@@ -14,7 +14,15 @@ const RESOURCE_MODELS = {
     activityUnit: 'placements',
     effectUnit: 'common_decision_outcome',
     evidenceIds: ['resource-capacity:housing', 'resource-activity:housing', 'resource-effect:housing'],
-    uncertainty: { low: 0.30, high: 0.50 }
+    uncertainty: { low: 0.30, high: 0.50 },
+    marginalEvidence: {
+      evidenceId: 'resource-marginal:housing:architecture-validation',
+      provenance: 'architecture-validation-decision-specific-marginal-resource-model',
+      uncertainty: { low: 0.30, high: 0.50 },
+      transportability: { admissible: true, similarity: 1.0 },
+      sourceJurisdiction: 'Canada',
+      targetJurisdiction: 'Canada'
+    }
   }
 };
 
