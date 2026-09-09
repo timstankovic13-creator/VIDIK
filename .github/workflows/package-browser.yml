@@ -1,0 +1,81 @@
+name: VIDIK Browser Package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_NAME: VIDIK-browser
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate browser entrypoint and census payload
+        run: |
+          test -f index.html
+          test -f styles.css
+          test -f js/bootstrap.js
+          for i in $(seq -w 1 10); do test -f "data/census-${i}.b64"; done
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Smoke test local browser server
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/vidik-http.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          sleep 1
+          curl --fail --silent --show-error http://127.0.0.1:8765/index.html >/tmp/vidik-index.html
+          grep -q 'VIDIK' /tmp/vidik-index.html
+          curl --fail --silent --show-error http://127.0.0.1:8765/data/census-01.b64 | head -c 20 >/dev/null
+
+      - name: Add package instructions
+        run: |
+          cat > README-START-HERE.txt <<'EOF'
+          VIDIK — START HERE
+
+          WINDOWS
+          Double-click START-VIDIK.bat.
+
+          MAC / LINUX
+          Double-click START-VIDIK.command.
+          If your system asks for permission, allow the file to run.
+
+          IMPORTANT
+          Do not open index.html directly. The launcher starts a tiny local web server
+          so VIDIK can load its local evidence/readiness data correctly.
+
+          VIDIK then opens in your normal browser. No GitHub, npm, Node, or coding is
+          required for normal use after the launcher prerequisites are installed.
+          EOF
+
+      - name: Build ZIP
+        run: |
+          chmod +x START-VIDIK.command
+          mkdir -p dist
+          zip -qr "dist/${PACKAGE_NAME}.zip" . \
+            -x '.git/*' \
+            -x '.github/*' \
+            -x 'dist/*' \
+            -x 'node_modules/*' \
+            -x 'test-results/*' \
+            -x 'playwright-report/*'
+
+      - name: Upload downloadable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: VIDIK-browser
+          path: dist/VIDIK-browser.zip
+          if-no-files-found: error
+          retention-days: 30
