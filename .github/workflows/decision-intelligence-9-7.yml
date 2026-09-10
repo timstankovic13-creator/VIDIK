@@ -14,3 +14,4 @@ jobs:
           node-version: 24
       - run: npm run test:decision-intelligence
       - run: node tests/canonical-decision-intelligence.test.js
+      - run: npm run test:production-hardening-16
