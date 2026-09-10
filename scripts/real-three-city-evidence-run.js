@@ -5,6 +5,12 @@ const { buildCanonicalDecisionObject } = require('../js/vidik-canonical-decision
 const { enrichEvidence, applyMarginalEvidence, withResourceEnvelope } = require('./municipal-canonical-decision-run');
 const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-evidence');
 
+function chooseRecommendation(comparison) {
+  const admissible = comparison.filter(item => item.status === 'ADMISSIBLE' && Number.isFinite(item.score));
+  if (!admissible.length) return null;
+  return admissible.slice().sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))[0].id;
+}
+
 function attachProductionEvidence(run, city) {
   const evidence = PRODUCTION_HOUSING_EVIDENCE[city];
   const interventionComparison = (run.interventionComparison || []).map(item => {
@@ -13,8 +19,8 @@ function attachProductionEvidence(run, city) {
       ...evidence,
       quality: 0.95,
       scenario: false,
-      targetJurisdiction: city === 'Melbourne' ? 'AU' : city,
-      sourceJurisdiction: city === 'Melbourne' ? 'AU' : 'CA'
+      sourceJurisdiction: evidence.sourceJurisdiction,
+      targetJurisdiction: evidence.targetJurisdiction
     };
     return {
       ...item,
@@ -24,22 +30,26 @@ function attachProductionEvidence(run, city) {
         failures: [],
         causalEvidence
       },
-      status: 'ADMISSIBLE'
+      status: 'ADMISSIBLE',
+      score: Number.isFinite(causalEvidence.estimate)
+        ? causalEvidence.estimate * (1 - Number(item.risk || 0))
+        : null
     };
   });
-  const selected = interventionComparison.find(item => item.id === 'housing');
+  const recommendation = chooseRecommendation(interventionComparison);
+  const selected = interventionComparison.find(item => item.id === recommendation);
   const causalEvidence = selected?.gate?.causalEvidence;
   const lineage = [
     ...(run.lineage || []).filter(item => item.kind !== 'causal_effect'),
     ...(causalEvidence ? [{
       evidenceId: causalEvidence.id,
       kind: 'causal_effect',
-      parameterId: 'housing:effect',
+      parameterId: `${selected.id}:effect`,
       transportability: causalEvidence
     }] : [])
   ];
   const counterfactual = causalEvidence ? {
-    intervention: 'housing',
+    intervention: selected.id,
     statusQuoEffect: 0,
     interventionEffect: causalEvidence.estimate,
     incrementalEffect: causalEvidence.estimate,
@@ -49,7 +59,7 @@ function attachProductionEvidence(run, city) {
   return {
     ...run,
     interventionComparison,
-    recommendation: 'housing',
+    recommendation,
     lineage,
     counterfactual
   };
