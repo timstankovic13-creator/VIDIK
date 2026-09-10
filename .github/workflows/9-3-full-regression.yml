@@ -2,7 +2,7 @@ name: VIDIK 9.6.1 Full Regression
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'prep/**']
+    branches: [main, 'prep/**', 'feat/**']
   pull_request:
     branches: [main]
 permissions:
@@ -28,6 +28,7 @@ jobs:
           npm run test:production-release-gate
           npm run test:production-config
           npm run test:decision-intelligence
+          npm run test:production-hardening-16
           npm run test:municipal-contracts
           npm run test:municipal-ingestion
           npm run test:municipal-live
