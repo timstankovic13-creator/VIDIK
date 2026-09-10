@@ -9,7 +9,7 @@ const Store = require('../js/decision-artifact-store');
 const parameters = [{ id: 'effect', low: .20, mean: .42, high: .60 }, { id: 'risk', low: .10, mean: .22, high: .40 }];
 const scoreFn = x => {
   const housing = Number(x.effect ?? .42) - Number(x.risk ?? .22);
-  const alternate = .30;
+  const alternate = .19;
   return housing >= alternate ? { recommendation: 'housing', score: housing } : { recommendation: 'alternate', score: alternate };
 };
 
