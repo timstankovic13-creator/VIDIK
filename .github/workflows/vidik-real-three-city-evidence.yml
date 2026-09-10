@@ -37,7 +37,11 @@ jobs:
           if (result.cities.length !== 3) throw new Error('expected three cities');
           for (const city of result.cities) {
             const audit = city.governanceOverridesAudit?.audit;
-            if (city.rationale?.recommendation !== 'housing') throw new Error(`${city.identityBrief?.city}: missing real-evidence recommendation`);
+            const recommendation = city.rationale?.recommendation;
+            const selected = city.parameters?.selected;
+            if (!recommendation) throw new Error(`${city.identityBrief?.city}: no admissible recommendation produced`);
+            if (city.interventionUniverse?.interventions?.some(item => item.id === recommendation) !== true) throw new Error(`${city.identityBrief?.city}: recommendation is outside the intervention universe`);
+            if (selected?.id && selected.id !== recommendation) throw new Error(`${city.identityBrief?.city}: selected parameter does not match recommendation`);
             if (city.integrity?.syntheticEvidenceExcluded !== true) throw new Error(`${city.identityBrief?.city}: synthetic evidence boundary missing`);
             if (audit?.syntheticEvidenceExcluded !== true) throw new Error(`${city.identityBrief?.city}: audit synthetic evidence boundary missing`);
             if (audit?.realMunicipalSource !== true) throw new Error(`${city.identityBrief?.city}: live municipal source boundary missing`);
