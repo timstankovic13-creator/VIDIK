@@ -24,8 +24,8 @@ function mockFetch() {
     }
     if (parsed.hostname === 'api.crossref.org') {
       return { ok: true, json: async () => ({ message: { items: [
-        { DOI: '10.1000/example', title: ['Problem-oriented policing randomized evaluation'], URL: 'https://doi.org/10.1000/example', published: { 'date-parts': [[2020]] } },
-        { DOI: '10.1000/example-2', title: ['Hospital violence intervention cost study'], URL: 'https://doi.org/10.1000/example-2', published: { 'date-parts': [[2021]] } },
+        { DOI: '10.1000/example', title: ['Problem-oriented policing randomized evaluation'], URL: 'https://doi.org/10.1000/example', 'published-print': { 'date-parts': [[2020]] } },
+        { DOI: '10.1000/example-2', title: ['Hospital violence intervention cost study'], URL: 'https://doi.org/10.1000/example-2', 'published-print': { 'date-parts': [[2021]] } },
       ] } }) };
     }
     throw new Error(`unexpected-url:${url}`);
@@ -45,9 +45,16 @@ function mockFetch() {
   assert.strictEqual(normalized.discoveryStatus, 'discovered');
   assert.strictEqual(normalized.causalAdmissibility, 'unverified');
   assert.strictEqual(normalized.transportability, 'unverified');
+  assert.deepStrictEqual(normalized.interventionTerms, ['test']);
 
   const duplicate = dedupeRecords([normalized, { ...normalized, provider: 'crossref' }]);
   assert.strictEqual(duplicate.length, 1);
+
+  const crossProviderDuplicate = dedupeRecords([
+    normalizeRecord('pubmed', { id: 'pubmed:1', doi: '10.1000/shared', title: 'Shared study' }, 'q1'),
+    normalizeRecord('crossref', { id: 'doi:10.1000/shared', doi: '10.1000/shared', title: 'Shared study' }, 'q2'),
+  ]);
+  assert.strictEqual(crossProviderDuplicate.length, 1);
 
   const gaps = buildEvidenceGaps(spec, [normalized], ['hot-spots policing']);
   assert(gaps.includes('causal-design-not-yet-established'));
@@ -67,6 +74,7 @@ function mockFetch() {
   assert.strictEqual(result.schemaVersion, 'vidik-evidence-discovery.v1');
   assert.strictEqual(result.status, 'discovered');
   assert(result.records.length >= 3);
+  assert(result.records.every(record => record.provider && record.query));
   assert(result.candidates.some(candidate => candidate.origin === 'seed'));
   assert(result.candidates.some(candidate => candidate.origin === 'literature-discovered'));
   assert.strictEqual(result.recommendationReady, false);
