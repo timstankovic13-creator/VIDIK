@@ -21,7 +21,18 @@ const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-
     assert.strictEqual(decision.integrity.decisionIntegrity, true);
     assert.strictEqual(decision.integrity.syntheticEvidenceExcluded, true);
     assert.strictEqual(decision.causalProductionModel.observedMunicipalDataIsNotCausal, true);
-    assert.strictEqual(decision.rationale.recommendation, 'housing');
+
+    const recommendation = decision.rationale.recommendation;
+    assert.ok(recommendation, `${city}: evidence-driven recommendation required`);
+    const selected = decision.interventionUniverse.interventions.find(item => item.id === recommendation);
+    assert.ok(selected, `${city}: recommendation must come from the intervention universe`);
+    assert.strictEqual(decision.parameters.selected?.id, recommendation, `${city}: selected parameter must match recommendation`);
+    const comparison = decision.parameters.all.find(item => item.id === recommendation) || decision.interventionComparison?.find(item => item.id === recommendation);
+    assert.ok(comparison, `${city}: selected intervention comparison missing`);
+    assert.strictEqual(comparison.status, 'ADMISSIBLE', `${city}: recommendation must be admissible`);
+    assert.ok(comparison.gate?.causalEvidence?.id, `${city}: recommendation must carry causal evidence lineage`);
+    assert.strictEqual(comparison.gate.causalEvidence.scenario, false, `${city}: production recommendation cannot use scenario evidence`);
+
     const municipalNode = decision.evidenceGraph.nodes.find(node => node.id === `municipal:${city}`);
     assert.ok(municipalNode, `${city}: municipal evidence node missing`);
     assert.ok(municipalNode.provenance?.sourceUrlUsed, `${city}: live municipal source provenance missing`);
@@ -49,9 +60,7 @@ const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-
   );
 
   console.log('VIDIK real three-city evidence decision validation: PASS');
-  console.log('Ottawa=Housing First recommendation using transported Canadian RCT evidence');
-  console.log('Toronto=Housing First recommendation using Toronto-supported Canadian RCT evidence');
-  console.log('Melbourne=Housing/support recommendation using Melbourne J2SI randomized evidence');
+  console.log('Recommendations are selected from the admissible evidence-backed intervention universe; no intervention is hardcoded as the winner.');
   console.log('Marginal optimization remains BLOCKED until defensible decision-specific marginal resource evidence is supplied.');
 })().catch(error => {
   console.error(error.stack || error);
