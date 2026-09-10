@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24' }
+        with: { node-version: '20' }
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: RC2 acquisition and learning tests
         run: node --test tests/rc2-evidence-acquisition.test.js tests/rc2-evidence-governance.test.js tests/rc2-stress-and-learning.test.js tests/rc2-cases-004-012-gate.test.js tests/evidence-discovery-engine.test.js tests/evidence-discovery-promotion.test.js
@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24' }
+        with: { node-version: '20' }
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npx playwright install chromium
       - name: Full Playwright acceptance and hostile lifecycle regression
