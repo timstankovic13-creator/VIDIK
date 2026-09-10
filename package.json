@@ -22,6 +22,7 @@
     "test:independent-evidence-verification":"node tests/independent-evidence-parameter-verification.test.js",
     "test:production-hardening-a-d":"node tests/production-hardening-a-d.test.js",
     "test:decision-intelligence":"node tests/decision-intelligence-9.7.test.js",
+    "test:production-hardening-16":"node tests/vidik-production-hardening-16.test.js",
     "test:monster":"node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision":"node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision":"node scripts/municipal-canonical-decision-run.js",
