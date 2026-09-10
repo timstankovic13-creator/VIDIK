@@ -1,5 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
+async function openLifecycle(page){await page.locator('#seeAnalysis').click();await page.locator('details.advanced').filter({hasText:'Decision lifecycle & governance'}).locator('summary').click();await expect(page.locator('#lifecycleActor')).toBeAttached();}
+
 test.describe('VIDIK 9.5 decision lifecycle', () => {
   async function ready(page) {
     await page.goto('/');
@@ -9,10 +11,11 @@ test.describe('VIDIK 9.5 decision lifecycle', () => {
     });
     await expect.poll(async()=>await page.evaluate(()=>window.VIDIK_DECISION_9_4?.runtimeStatus)).toBe('READY');
     await expect.poll(async()=>await page.evaluate(()=>!!window.VIDIK_DECISION_LIFECYCLE_9_5)).toBe(true);
+    await openLifecycle(page);
   }
   test.beforeEach(async ({page})=>{await ready(page);await page.evaluate(()=>localStorage.removeItem('VIDIK_DECISION_LIFECYCLE_V9_5'));});
 
-  test('persists a READY decision and restores it as decision memory', async ({page})=>{
+  test('persists a READY decision and restores it as decision memory', async({page})=>{
     const result=await page.evaluate(async()=>window.VIDIK_DECISION_LIFECYCLE_9_5.persist());
     expect(result.ok).toBe(true); expect(result.record.schema).toBe('VIDIK.DecisionLifecycle.v9.5');
     expect(result.record.originalRecommendation).toBeTruthy(); expect(result.record.decisionObject.schema).toBe('VIDIK.DecisionObject.v9.4');
