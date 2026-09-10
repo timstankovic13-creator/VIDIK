@@ -1,9 +1,9 @@
 name: decision-intelligence-9-7
 on:
-  pull_request:
-    branches: ['main']
   push:
     branches: ['main', 'feat/**']
+  pull_request:
+    branches: ['main']
 jobs:
   decision-intelligence:
     runs-on: ubuntu-24.04
@@ -13,3 +13,4 @@ jobs:
         with:
           node-version: 24
       - run: npm run test:decision-intelligence
+      - run: node tests/canonical-decision-intelligence.test.js

@@ -1,14 +1,70 @@
 'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
 const SCHEMA = 'VIDIK.DecisionArtifact.v1';
 const stable = x => Array.isArray(x) ? '[' + x.map(stable).join(',') + ']' : (x && typeof x === 'object' ? '{' + Object.keys(x).sort().map(k => JSON.stringify(k) + ':' + stable(x[k])).join(',') + '}' : JSON.stringify(x));
 const sha256 = x => crypto.createHash('sha256').update(stable(x)).digest('hex');
-function artifact(input = {}) { for (const key of ['decision','audit','counterfactual','evidence','parameters','analysis','governance','learning']) if (!(key in input)) throw new Error('artifact-missing-section:' + key); const body = { schema: SCHEMA, version: 1, decisionId: input.decisionId || input.decision?.identityBrief?.decisionId || null, createdAt: input.createdAt || new Date().toISOString(), decision: input.decision, audit: input.audit, counterfactual: input.counterfactual, evidence: input.evidence, parameters: input.parameters, analysis: input.analysis, governance: input.governance, learning: input.learning, provenance: input.provenance || null }; body.integrity = { algorithm: 'SHA-256', contentHash: sha256(body) }; return body; }
-function verifyArtifact(a) { if (!a || a.schema !== SCHEMA || !a.integrity?.contentHash) return { ok: false, reason: 'invalid-artifact-envelope' }; const copy = JSON.parse(JSON.stringify(a)); delete copy.integrity; const actual = sha256(copy); return actual === a.integrity.contentHash ? { ok: true, contentHash: actual } : { ok: false, reason: 'artifact-integrity-mismatch', expected: a.integrity.contentHash, actual }; }
-function readStore(file) { if (!fs.existsSync(file)) return []; const raw = fs.readFileSync(file, 'utf8').trim(); if (!raw) return []; const parsed = JSON.parse(raw); if (!Array.isArray(parsed)) throw new Error('artifact-store-must-be-array'); return parsed; }
-function verifyChain(records) { let previous = ''; for (const record of records) { const valid = verifyArtifact(record.artifact); if (!valid.ok) return valid; if (record.previousHash !== previous) return { ok: false, reason: 'artifact-chain-mismatch' }; const expected = sha256({ artifactHash: record.artifact.integrity.contentHash, previousHash: record.previousHash, sequence: record.sequence }); if (expected !== record.chainHash) return { ok: false, reason: 'artifact-chain-integrity-mismatch' }; previous = record.chainHash; } return { ok: true, length: records.length, head: previous }; }
-function append(file, input) { fs.mkdirSync(path.dirname(file), { recursive: true }); const records = readStore(file), chain = verifyChain(records); if (!chain.ok) throw new Error(chain.reason); const a = input.schema === SCHEMA ? input : artifact(input), valid = verifyArtifact(a); if (!valid.ok) throw new Error(valid.reason); const previousHash = records.at(-1)?.chainHash || '', record = { sequence: records.length, previousHash, artifact: a }; record.chainHash = sha256({ artifactHash: a.integrity.contentHash, previousHash, sequence: record.sequence }); fs.writeFileSync(file + '.tmp', JSON.stringify([...records, record], null, 2) + '\n'); fs.renameSync(file + '.tmp', file); return record; }
-function replay(file, decisionFn) { const records = readStore(file), chain = verifyChain(records); if (!chain.ok) return chain; if (typeof decisionFn !== 'function') throw new Error('replay-function-required'); return { ok: true, chain, results: records.map(record => ({ sequence: record.sequence, decisionId: record.artifact.decisionId, result: decisionFn(record.artifact) })) }; }
-module.exports = { SCHEMA, artifact, verifyArtifact, verifyChain, append, replay, readStore };
+
+function artifact(input = {}) {
+  const required = ['decision', 'audit', 'counterfactual', 'evidence', 'parameters', 'analysis', 'governance', 'learning'];
+  for (const key of required) if (!(key in input)) throw new Error('artifact-missing-section:' + key);
+  const createdAt = input.createdAt || new Date().toISOString();
+  const body = { schema: SCHEMA, version: 1, decisionId: input.decisionId || input.decision?.identityBrief?.decisionId || null, createdAt, decision: input.decision, audit: input.audit, counterfactual: input.counterfactual, evidence: input.evidence, parameters: input.parameters, analysis: input.analysis, governance: input.governance, learning: input.learning, provenance: input.provenance || null };
+  body.integrity = { algorithm: 'SHA-256', contentHash: sha256(body) };
+  return body;
+}
+
+function verifyArtifact(a) {
+  if (!a || a.schema !== SCHEMA || !a.integrity?.contentHash) return { ok: false, reason: 'invalid-artifact-envelope' };
+  const copy = JSON.parse(JSON.stringify(a)); delete copy.integrity;
+  const actual = sha256(copy);
+  return actual === a.integrity.contentHash ? { ok: true, contentHash: actual } : { ok: false, reason: 'artifact-integrity-mismatch', expected: a.integrity.contentHash, actual };
+}
+
+function readStore(file) {
+  if (!fs.existsSync(file)) return [];
+  const raw = fs.readFileSync(file, 'utf8').trim();
+  if (!raw) return [];
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed)) throw new Error('artifact-store-must-be-array');
+  return parsed;
+}
+
+function verifyChain(records) {
+  let previous = '';
+  for (const record of records) {
+    const valid = verifyArtifact(record.artifact);
+    if (!valid.ok) return valid;
+    if (record.previousHash !== previous) return { ok: false, reason: 'artifact-chain-mismatch' };
+    const expected = sha256({ artifactHash: record.artifact.integrity.contentHash, previousHash: record.previousHash, sequence: record.sequence });
+    if (expected !== record.chainHash) return { ok: false, reason: 'artifact-chain-integrity-mismatch' };
+    previous = record.chainHash;
+  }
+  return { ok: true, length: records.length, head: previous };
+}
+
+function append(file, input) {
+  const dir = path.dirname(file); fs.mkdirSync(dir, { recursive: true });
+  const records = readStore(file), chain = verifyChain(records); if (!chain.ok) throw new Error(chain.reason);
+  const next = records.length;
+  const a = input.schema === SCHEMA ? input : artifact(input);
+  const valid = verifyArtifact(a); if (!valid.ok) throw new Error(valid.reason);
+  const previousHash = records.at(-1)?.chainHash || '';
+  const record = { sequence: next, previousHash, artifact: a };
+  record.chainHash = sha256({ artifactHash: a.integrity.contentHash, previousHash, sequence: next });
+  fs.writeFileSync(file + '.tmp', JSON.stringify([...records, record], null, 2) + '\n', { encoding: 'utf8', flag: 'w' });
+  fs.renameSync(file + '.tmp', file);
+  return record;
+}
+
+function replay(file, decisionFn) {
+  const records = readStore(file), chain = verifyChain(records); if (!chain.ok) return chain;
+  if (typeof decisionFn !== 'function') throw new Error('replay-function-required');
+  const results = records.map(record => ({ sequence: record.sequence, decisionId: record.artifact.decisionId, result: decisionFn(record.artifact) }));
+  return { ok: true, chain, results };
+}
+
+module.exports = { SCHEMA, artifact, verifyArtifact, verifyChain, append, replay };
