@@ -1,9 +1,12 @@
 const {test,expect}=require('@playwright/test');
 
+async function openLifecycle(page){await page.locator('#seeAnalysis').click();await page.locator('details.advanced').filter({hasText:'Decision lifecycle & governance'}).locator('summary').click();}
+
 test('frozen decision lifecycle: persistence → snapshot → override → outcome review → recalibration → drift → integrity',async({page})=>{
   await page.goto('/');
   await page.evaluate(()=>localStorage.clear());
   await page.evaluate(()=>{window.VIDIK_DECISION_9_4={runtimeStatus:'READY',recommendation:null,objective:'Frozen Cases 001-014 historical decision set',decisionBoundary:'2023-12-06'};});
+  await openLifecycle(page);
 
   const persisted=await page.evaluate(()=>window.VIDIK_DECISION_LIFECYCLE_9_6.persist());
   expect(persisted.ok).toBe(true);
