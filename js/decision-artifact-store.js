@@ -46,18 +46,39 @@ function verifyChain(records) {
   return { ok: true, length: records.length, head: previous };
 }
 
+function acquireLock(lockFile, attempts = 200) {
+  for (let i = 0; i < attempts; i++) {
+    try { return fs.openSync(lockFile, 'wx'); } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const wait = Math.min(25, 2 + i);
+      const until = Date.now() + wait;
+      while (Date.now() < until) {}
+    }
+  }
+  throw new Error('artifact-store-lock-timeout');
+}
+
 function append(file, input) {
   const dir = path.dirname(file); fs.mkdirSync(dir, { recursive: true });
-  const records = readStore(file), chain = verifyChain(records); if (!chain.ok) throw new Error(chain.reason);
-  const next = records.length;
-  const a = input.schema === SCHEMA ? input : artifact(input);
-  const valid = verifyArtifact(a); if (!valid.ok) throw new Error(valid.reason);
-  const previousHash = records.at(-1)?.chainHash || '';
-  const record = { sequence: next, previousHash, artifact: a };
-  record.chainHash = sha256({ artifactHash: a.integrity.contentHash, previousHash, sequence: next });
-  fs.writeFileSync(file + '.tmp', JSON.stringify([...records, record], null, 2) + '\n', { encoding: 'utf8', flag: 'w' });
-  fs.renameSync(file + '.tmp', file);
-  return record;
+  const lockFile = file + '.lock';
+  const lockFd = acquireLock(lockFile);
+  const tempFile = file + `.tmp-${process.pid}-${Date.now()}`;
+  try {
+    const records = readStore(file), chain = verifyChain(records); if (!chain.ok) throw new Error(chain.reason);
+    const next = records.length;
+    const a = input.schema === SCHEMA ? input : artifact(input);
+    const valid = verifyArtifact(a); if (!valid.ok) throw new Error(valid.reason);
+    const previousHash = records.at(-1)?.chainHash || '';
+    const record = { sequence: next, previousHash, artifact: a };
+    record.chainHash = sha256({ artifactHash: a.integrity.contentHash, previousHash, sequence: next });
+    fs.writeFileSync(tempFile, JSON.stringify([...records, record], null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(tempFile, file);
+    return record;
+  } finally {
+    try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch {}
+    try { fs.closeSync(lockFd); } catch {}
+    try { fs.unlinkSync(lockFile); } catch {}
+  }
 }
 
 function replay(file, decisionFn) {
@@ -67,4 +88,4 @@ function replay(file, decisionFn) {
   return { ok: true, chain, results };
 }
 
-module.exports = { SCHEMA, artifact, verifyArtifact, verifyChain, append, replay };
+module.exports = { SCHEMA, artifact, verifyArtifact, readStore, verifyChain, append, replay };
