@@ -1,11 +1,11 @@
 'use strict';
 (function(){
  function renderUniverse(){
-  if(typeof VIDIK_INTERVENTION_UNIVERSE==='undefined')return setTimeout(renderUniverse,50);
+  if(typeof VIDIK_INTERVENTION_UNIVERSE==='undefined'||typeof VIDIK_UNIVERSE_EVIDENCE==='undefined')return setTimeout(renderUniverse,50);
   const input=document.getElementById('decisionProblem');if(!input)return;
   const p=input.value||'',matches=vidikUniverseForProblem(p),box=document.getElementById('answerFirst');
   if(!box||!p.trim()||!matches.length)return;
-  const ev=matches.flatMap(m=>VIDIK_INTERVENTION_UNIVERSE.evidence[m.domain]||[]),unique=[...new Map(ev.map(x=>[x.name,x])).values()];
+  const ev=matches.flatMap(m=>(VIDIK_UNIVERSE_EVIDENCE[m.domain]||[])),unique=[...new Map(ev.map(x=>[x.name,x])).values()];
   box.querySelector('.universe-panel')?.remove();
   const panel=document.createElement('div');panel.className='answer-action universe-panel';
   const domainText=matches.map(m=>m.name).join(' · '),classes=matches.flatMap(m=>m.classes).filter((x,i,a)=>a.indexOf(x)===i);
