@@ -20,7 +20,7 @@ const run = {
 };
 const object = buildCanonicalDecisionObject(run);
 assert.ok(object.uncertaintyBudget.decisionIntelligence);
-assert.strictEqual(object.uncertaintyBudget.decisionIntelligence.version, '9.7.0');
+assert.strictEqual(object.uncertaintyBudget.decisionIntelligence.version, '9.7.1');
 assert.ok(object.integrity.decisionIntelligenceHash);
 assert.ok(object.parameters.all[0].uncertainty);
 assert.ok(Array.isArray(object.uncertaintyBudget.decisionIntelligence.recommendationFlips));
