@@ -22,7 +22,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function clean(value) {
-  return String(value || '').replace(/\\s+/g, ' ').trim();
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 function slug(value) {
@@ -75,7 +75,7 @@ function safeText(value) {
 function extractTerms(title) {
   return unique(safeText(title).toLowerCase()
     .replace(/[^a-z0-9 -]/g, ' ')
-    .split(/\\s+/)
+    .split(/\s+/)
     .filter(word => word.length >= 5 && !STOP_WORDS.has(word)))
     .slice(0, 8);
 }
@@ -85,9 +85,11 @@ function normalizeRecord(provider, item, query) {
   const abstract = safeText(item.abstract || item.description || item.snippet);
   const url = clean(item.url || item.link || item.doiUrl);
   const publishedAt = clean(item.publishedAt || item.published || item.date);
+  const doi = clean(item.doi);
   if (!title) return null;
   return {
-    id: clean(item.id || item.doi || item.pmid || `${provider}:${slug(title)}`),
+    id: clean(item.id || doi || item.pmid || `${provider}:${slug(title)}`),
+    doi,
     provider,
     title,
     abstract,
