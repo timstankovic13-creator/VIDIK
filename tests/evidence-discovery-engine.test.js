@@ -41,11 +41,11 @@ function mockFetch() {
   assert(plan.queries.some(query => query.includes('systematic review')));
   assert(plan.requiredEvidenceFields.includes('resourceOrCost'));
 
-  const normalized = normalizeRecord('pubmed', { id: '1', title: 'Test intervention evaluation', url: 'https://example.test' }, 'query');
+  const normalized = normalizeRecord('pubmed', { id: '1', title: 'Novel intervention evaluation', url: 'https://example.test' }, 'query');
   assert.strictEqual(normalized.discoveryStatus, 'discovered');
   assert.strictEqual(normalized.causalAdmissibility, 'unverified');
   assert.strictEqual(normalized.transportability, 'unverified');
-  assert.deepStrictEqual(normalized.interventionTerms, ['test']);
+  assert.deepStrictEqual(normalized.interventionTerms, ['novel']);
 
   const duplicate = dedupeRecords([normalized, { ...normalized, provider: 'crossref' }]);
   assert.strictEqual(duplicate.length, 1);
