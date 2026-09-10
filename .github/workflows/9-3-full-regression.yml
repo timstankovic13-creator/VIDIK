@@ -2,7 +2,7 @@ name: VIDIK 9.6.1 Full Regression
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'prep/**', 'feat/**']
+    branches: [main, 'prep/**']
   pull_request:
     branches: [main]
 permissions:
