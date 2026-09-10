@@ -4,5 +4,5 @@ const V={version:'9.2.0',city:'Ottawa',currency:'CAD',objective:{id:'verified-ou
 // Advanced governance/lifecycle panels stay collapsed, but remain user-openable on the product surface.
 (function(){const s=document.createElement('style');s.textContent='.analysis-area>details.advanced.card{display:block !important}';document.head.appendChild(s)})();
 
-// Load the jurisdiction-portable municipal intervention universe and its product bridge.
-(function(){const s=document.createElement('script');s.src='./js/intervention-universe.js?v=20260910-universe-2';document.head.appendChild(s);const u=document.createElement('script');u.src='./js/municipal-universe-ui.js?v=20260910-universe-2';document.head.appendChild(u)})();
+// Load the jurisdiction-portable municipal intervention universe, evidence map and product bridge.
+(function(){const s=document.createElement('script');s.src='./js/intervention-universe.js?v=20260910-universe-3';document.head.appendChild(s);const e=document.createElement('script');e.src='./js/municipal-universe-evidence.js?v=20260910-universe-1';document.head.appendChild(e);const u=document.createElement('script');u.src='./js/municipal-universe-ui.js?v=20260910-universe-3';document.head.appendChild(u)})();
