@@ -24,3 +24,5 @@ test('broader intervention universe is explicit and fail-closed',()=>{
  }
  assert.ok(names.length>50,'VIDIK intervention universe must be materially broader than the seeded production candidates');
 });
+
+// Regression guard: universe expansion must never silently widen optimization eligibility.
