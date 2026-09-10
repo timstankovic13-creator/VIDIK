@@ -42,7 +42,7 @@ const ASE_STRONG = {
   assert.strictEqual(parseObservation('Toronto', FIXTURES.Toronto).value, 15877);
   assert.strictEqual(parseObservation('Melbourne', FIXTURES.Melbourne).value, 163);
   const productionShape = await runAll({ fetchImpl: fakeFetch });
-  assert.deepStrictEqual(productionShape.comparison.map(x => x.observedValue), [3111, 15877, 163]);
+  assert.deepStrictEqual(productionShape.cities.map(x => x.observedValue), [3111, 15877, 163]);
 
   // Phase 2: no synthetic learning result may be emitted by a normal production run.
   assert.strictEqual(productionShape.cities.find(x => x.city === 'Ottawa').learning, null);
