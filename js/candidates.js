@@ -22,3 +22,35 @@ const C=[
 {id:'ase',name:'Automated speed enforcement / speed management',evidence:['ase-eval','ottawa-road','ase-status'],min:0,max:400000,dependsOn:[],risk:.28,params:{need:{value:.70,unit:'normalized',derivation:'Ottawa fatal/major-injury road-safety baseline rubric',uncertainty:{low:.60,high:.80},evidenceIds:['ottawa-road']},effect:{value:.45,unit:'relative reduction in speeding proportion',derivation:'Toronto evaluation risk ratio 0.55 => 45% relative reduction in speeding; explicitly an intermediate outcome',uncertainty:{low:.35,high:.55},evidenceIds:['ase-eval'],causal:true},capacity:{value:.50,unit:'normalized',derivation:'current legal/operational constraint rubric',uncertainty:{low:.35,high:.65},evidenceIds:['ase-status']},feasibility:{value:.35,unit:'normalized',derivation:'legal-status constraint applied through feasibility rubric',uncertainty:{low:.20,high:.50},evidenceIds:['ase-status']},equity:{value:.60,unit:'normalized',derivation:'normative policy weight, explicitly user-adjustable; not an empirical effect',uncertainty:{low:.60,high:.60},evidenceIds:[]}}},
 {id:'paramedic',name:'Additional paramedic capacity',evidence:['ottawa-budget'],min:0,max:400000,dependsOn:[],risk:.20,params:{need:{value:.68,unit:'normalized',derivation:'placeholder pending linked Ottawa EMS demand/outcome dataset',uncertainty:{low:.30,high:.90},evidenceIds:[]},effect:null,capacity:{value:.61,unit:'normalized',derivation:'budget-derived capacity availability',uncertainty:{low:.50,high:.72},evidenceIds:['ottawa-budget']},feasibility:{value:.74,unit:'normalized',derivation:'budget allocation evidence',uncertainty:{low:.62,high:.82},evidenceIds:['ottawa-budget']},equity:{value:.70,unit:'normalized',derivation:'normative policy weight, explicitly user-adjustable; not an empirical effect',uncertainty:{low:.70,high:.70},evidenceIds:[]}}}
 ];
+
+/* The intervention universe is broader than the evidence-backed candidate registry. Keep
+   unsupported universe options visible to the decision surface, but outside the optimizer
+   until candidate-specific parameters and evidence exist. This preserves fail-closed behavior
+   without changing the semantics of the production candidate registry. */
+(function(){
+  function surfaceUniverse(){
+    const host=document.getElementById('candidates');
+    if(!host||typeof hEsc!=='function')return;
+    const existing=new Set(C.map(c=>c.name));
+    const rows=[];
+    const seen=new Set();
+    for(const [domain,names] of INTERVENTION_UNIVERSE){
+      for(const name of names){
+        const key=String(name).toLowerCase();
+        if(seen.has(key)||existing.has(name))continue;
+        seen.add(key);
+        rows.push('<div class="candidate universe-candidate" data-universe-domain="'+hEsc(domain)+'"><b>'+hEsc(name)+'</b><div class="small">BLOCKED: no candidate-specific evidence/parameters</div></div>');
+      }
+    }
+    if(rows.length){
+      host.insertAdjacentHTML('beforeend','<div class="universe-heading"><b>Broader intervention universe</b><div class="small">Options are surfaced for completeness but cannot enter optimization until their evidence and parameters are verified.</div></div>'+rows.join(''));
+    }
+  }
+  window.addEventListener('DOMContentLoaded',()=>{
+    if(typeof window.render==='function'){
+      const baseRender=window.render;
+      window.render=function(){baseRender();surfaceUniverse();};
+      surfaceUniverse();
+    }
+  });
+})();
