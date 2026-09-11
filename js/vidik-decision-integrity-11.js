@@ -12,6 +12,8 @@
     const all=problem=>w.vidikUniverseItemsForProblem(problem||'');
     const municipal=(items,j)=>j?items.filter(x=>x.authority!=='OUTSIDE_MUNICIPAL_AUTHORITY'):items;
     const allowed=['ADMISSIBLE','BLOCKED','NOT_APPLICABLE','EVIDENCE_NEEDED'];
+    function stable(x){if(Array.isArray(x))return '['+x.map(stable).join(',')+']';if(x&&typeof x==='object')return '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+stable(x[k])).join(',')+'}';return JSON.stringify(x);}
+    function digest(x){let a=2166136261,b=2246822519,s=stable(x);for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^c,3266489917);}return (a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');}
     function assess(problem,jurisdiction){
       const every=all(problem),items=municipal(every,jurisdiction),r=read(),dispositions=items.map(x=>r[x.id]).filter(Boolean),by=new Map(dispositions.map(x=>[x.universeId,x]));
       const unresolved=items.filter(x=>!by.has(x.id)).map(x=>({id:x.id,name:x.name,authority:x.authority,domain:x.domain}));
@@ -35,14 +37,18 @@
       }
       const r=read();r[item.id]={...clone(record),universeId:item.id,authority:item.authority,dispositionAt:now()};write(r);return {ok:true,disposition:r[item.id]};
     }
+    function seal(d){if(!d||!d.id)return {ok:false,code:'INVALID_DECISION'};const payload=clone(d),audit=Array.isArray(payload.audit)?payload.audit:[],chain=[];let previous='GENESIS';for(const event of audit){const node={previous,event};const h=digest(node);chain.push({hash:h,previous,event});previous=h;}const artifact={schema:'VIDIK-SEALED-DECISION-11',version:'11.0.0',sealedAt:now(),decisionId:d.id,payload,auditChain:chain,auditHead:previous,integrityClass:'tamper-evident-local'};artifact.artifactHash=digest(artifact);return {ok:true,artifact};}
+    function verifySealed(input){try{const a=typeof input==='string'?JSON.parse(input):input;if(!a||a.schema!=='VIDIK-SEALED-DECISION-11')return {ok:false,code:'INVALID_SEALED_ARTIFACT'};const expected=digest({...a,artifactHash:undefined});if(expected!==a.artifactHash)return {ok:false,code:'ARTIFACT_HASH_MISMATCH'};let previous='GENESIS';for(const node of a.auditChain||[]){if(node.previous!==previous||digest({previous:node.previous,event:node.event})!==node.hash)return {ok:false,code:'AUDIT_CHAIN_BROKEN'};previous=node.hash;}if(previous!==a.auditHead)return {ok:false,code:'AUDIT_HEAD_MISMATCH'};return {ok:true,artifactHash:a.artifactHash,auditHead:a.auditHead,integrityClass:a.integrityClass};}catch(_){return {ok:false,code:'INVALID_SEALED_ARTIFACT'};}}
     const originalCreate=P.createDecision,originalEvaluate=P.evaluate,originalPortfolio=P.optimizeMunicipalPortfolio;
     P.setMunicipalUniverseDisposition=disposition;
     P.getMunicipalUniverseDispositions=(problem,j)=>Object.values(read()).filter(x=>all(problem).some(i=>i.id===x.universeId)&&(!j||x.authority!=='OUTSIDE_MUNICIPAL_AUTHORITY'));
     P.assessMunicipalDecisionUniverse=assess;
+    P.sealDecisionArtifact=seal;
+    P.verifySealedDecisionArtifact=verifySealed;
     P.createDecision=function(input){const d=originalCreate(input);if(d.audience==='municipal'){const a=assess(d.problem,d.jurisdiction);d.universeCoverage=a;d.governance=d.governance||{};d.governance.universe={...a,required:true};d.audit.push({event:'UNIVERSE_INTEGRITY_ASSESSED',at:now(),candidateCount:a.candidateCount,dispositionCount:a.dispositionCount,complete:a.complete,optimizable:a.optimizable});}return d;};
     P.evaluate=function(d,fn){if(d?.audience==='municipal'){const a=assess(d.problem,d.jurisdiction);d.universeCoverage=a;d.governance=d.governance||{};d.governance.universe={...a,required:true};if(!a.complete)return {ok:false,code:'MUNICIPAL_UNIVERSE_INCOMPLETE',message:'Decision universe is incomplete: every discovered candidate needs an explicit disposition.',details:a};if(!a.optimizable)return {ok:false,code:'MUNICIPAL_UNIVERSE_NOT_OPTIMIZABLE',message:'Decision universe is classified but contains unresolved evidence-needed candidates or no admissible options.',details:a};}return originalEvaluate(d,fn);};
     P.optimizeMunicipalPortfolio=function(d,budgetId){if(d?.audience==='municipal'){const a=assess(d.problem,d.jurisdiction);if(!a.complete)return {ok:false,code:'MUNICIPAL_UNIVERSE_INCOMPLETE',details:a};if(!a.optimizable)return {ok:false,code:'MUNICIPAL_UNIVERSE_NOT_OPTIMIZABLE',details:a};const r=read();const admissible=municipal(all(d.problem),d.jurisdiction).filter(x=>r[x.id]?.state==='ADMISSIBLE');d.options=admissible.map(x=>{const v=r[x.id];return {id:x.id,universeId:x.id,name:x.name,evidenceStatus:'VERIFIED',objectiveMetric:v.objectiveMetric||d.objective,cost:v.cost,maxCost:v.maxCost??v.cost,minCost:v.minCost??v.cost,expectedValue:v.expectedValue,capacity:v.capacity,resources:v.resources||{},dependsOn:v.dependsOn||[],excludes:v.excludes||[],minShare:v.minShare,maxShare:v.maxShare};});d.universeCoverage=a;}return originalPortfolio?originalPortfolio(d,budgetId):{ok:false,code:'OPTIMIZER_API_UNAVAILABLE'};};
-    w.VIDIK_DECISION_INTEGRITY_11={VERSION:'11.0.0',ready:true,states:allowed,rule:'DISCOVER → DISPOSITION → ADMISSIBILITY → FULL-ENVELOPE OPTIMIZE',assess,disposition};
+    w.VIDIK_DECISION_INTEGRITY_11={VERSION:'11.0.0',ready:true,states:allowed,rule:'DISCOVER → DISPOSITION → ADMISSIBILITY → FULL-ENVELOPE OPTIMIZE',assess,disposition,seal,verifySealed};
   }
   boot();
 })(window);
