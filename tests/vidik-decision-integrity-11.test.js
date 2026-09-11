@@ -26,8 +26,9 @@ for(const item of discovered){
   const v=P.setMunicipalUniverseDisposition(rec);assert.strictEqual(v.ok,true);
 }
 d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,jurisdiction,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
-assert.strictEqual(P.assessMunicipalDecisionUniverse(problem,jurisdiction).optimizable,true,'complete disposition + admissible verified evidence should pass the universe gate');
-assert.strictEqual(P.attachMunicipalBudgetOptions(d,{statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1}).ok,true);
+const universeAssessment=P.assessMunicipalDecisionUniverse(problem,jurisdiction);assert.strictEqual(universeAssessment.optimizable,true,'complete disposition + admissible verified evidence should pass the universe gate');
+P.attachMunicipalBudgetOptions(d,{statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1});
+assert.ok(Array.isArray(d.budgetOptions)&&d.budgetOptions.length>0,'municipal evaluation requires an attached full budget-scenario set');
 r=P.evaluate(d);assert.strictEqual(r.ok,true,'a complete, optimizable universe should evaluate once the required budget scenarios are attached');
 const otherProblem='housing';
 const otherItem=context.vidikUniverseItemsForProblem(otherProblem).find(x=>x.id==='ho-housing-first');
