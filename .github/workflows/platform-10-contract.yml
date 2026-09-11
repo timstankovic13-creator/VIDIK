@@ -1,0 +1,35 @@
+name: VIDIK Platform 10 Contract
+
+on:
+  pull_request:
+    paths:
+      - 'js/vidik-platform-10.js'
+      - 'tests/vidik-platform-10.test.js'
+      - 'package.json'
+      - '.github/workflows/platform-10-contract.yml'
+  push:
+    branches:
+      - main
+      - 'feat/production-core-steps-5-6'
+    paths:
+      - 'js/vidik-platform-10.js'
+      - 'tests/vidik-platform-10.test.js'
+      - 'package.json'
+      - '.github/workflows/platform-10-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Platform 10 contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run contract test
+        run: npm run test:platform-10
