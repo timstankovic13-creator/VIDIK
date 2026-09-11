@@ -25,9 +25,12 @@ assert.equal(blocked.recommendationAllowed, false);
 assert.deepEqual(H.validateArtifactCompleteness(artifact).missing, []);
 assert.deepEqual(H.validateArtifactCompleteness({ decision }).missing.sort(), ['analysis','audit','counterfactual','evidence','governance','learning','parameters']);
 
-const ready = H.readiness({ decision, artifact, artifactVerification: { ok: true }, universe: { interventions: [] }, governanceResult: g, learning: { checkpoints: H.CHECKPOINTS } });
+const incomplete = H.readiness({ decision, artifact, artifactVerification: { ok: true }, universe: { interventions: [{id:'x'}], complete: false }, governanceResult: g, learning: { checkpoints: H.CHECKPOINTS } });
+assert.equal(incomplete.status, 'NOT_READY');
+assert.ok(incomplete.failures.includes('intervention-universe-incomplete'));
+const ready = H.readiness({ decision, artifact, artifactVerification: { ok: true }, universe: { interventions: [{id:'x'}], complete: true }, governanceResult: g, learning: { checkpoints: H.CHECKPOINTS } });
 assert.equal(ready.status, 'READY');
-const notReady = H.readiness({ decision, artifact, artifactVerification: { ok: false }, universe: { interventions: [] }, governanceResult: blocked, learning: { checkpoints: H.CHECKPOINTS } });
+const notReady = H.readiness({ decision, artifact, artifactVerification: { ok: false }, universe: { interventions: [{id:'x'}], complete: true }, governanceResult: blocked, learning: { checkpoints: H.CHECKPOINTS } });
 assert.equal(notReady.status, 'NOT_READY');
 assert.ok(notReady.failures.includes('artifact-integrity-unverified'));
 assert.ok(notReady.failures.includes('governance-blocked'));
