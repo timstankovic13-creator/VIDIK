@@ -28,8 +28,13 @@ for(const item of discovered){
 d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,jurisdiction,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
 const universeAssessment=P.assessMunicipalUniverse(problem,[],jurisdiction);assert.strictEqual(universeAssessment.complete,false,'the public governance assessment must remain incomplete until verified coverage is supplied');
 const generatedBudget=P.generateMunicipalBudgetOptions({statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1});assert.strictEqual(generatedBudget.ok,true);d.budgetOptions=generatedBudget.options;assert.ok(Array.isArray(d.budgetOptions)&&d.budgetOptions.length>0);
-d.options=[{id:'ps-status-quo',universeId:'ps-status-quo',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,capacity:1,expectedValue:0},{id:'ps-cvi',universeId:'ps-cvi',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,maxCost:100000,increment:100000,capacity:1,expectedValue:10}];
-r=P.evaluate(d,(_,opts)=>({recommended:opts[0],ranked:opts}));assert.ok(r&&r.ok===true,'complete municipal evaluation must succeed: '+JSON.stringify(r));assert.ok(d.recommendation,'a complete, optimizable universe should reach the canonical evaluator and produce a recommendation');
+const completeOptions=discovered.map(item=>item.id==='ps-status-quo'
+  ?{id:'ps-status-quo',universeId:'ps-status-quo',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,capacity:1,expectedValue:0}
+  :item.id==='ps-cvi'
+    ?{id:'ps-cvi',universeId:'ps-cvi',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,maxCost:100000,increment:100000,capacity:1,expectedValue:10}
+    :{id:item.id,universeId:item.id,evidenceStatus:'BLOCKED',unknown:true,objectiveMetric:'violent crime reduction'});
+d.options=completeOptions;
+r=P.evaluate(d,(_,opts)=>({recommended:opts.find(x=>x.id==='ps-cvi')||opts[0],ranked:opts}));assert.ok(r&&r.ok===true,'complete municipal evaluation must succeed only after every discovered intervention is classified: '+JSON.stringify(r));assert.ok(d.recommendation,'a fully classified universe should reach the canonical evaluator and produce a recommendation');
 const otherProblem='housing';
 const otherItem=context.vidikUniverseItemsForProblem(otherProblem).find(x=>x.id==='ho-housing-first');
 assert.ok(otherItem);
