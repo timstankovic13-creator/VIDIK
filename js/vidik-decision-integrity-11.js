@@ -2,8 +2,8 @@
 /* VIDIK Decision Integrity 11: decision-specific universe disposition, admissibility gates, and audit consistency. */
 (function(w){
   function boot(){
-    const P=w.VIDIK_PLATFORM_10,O=w.VIDIK_MUNICIPAL_BUDGET_OPTIMIZER_10;
-    if(!P||!w.vidikUniverseItemsForProblem||!O){setTimeout(boot,25);return;}
+    const P=w.VIDIK_PLATFORM_10;
+    if(!P||!w.vidikUniverseItemsForProblem){setTimeout(boot,25);return;}
     if(typeof P.listVerifiedMunicipalInterventions!=='function'&&typeof P.discoverMunicipalUniverse==='function')P.listVerifiedMunicipalInterventions=(problem,jurisdiction)=>P.discoverMunicipalUniverse(problem,jurisdiction)?.verified||[];
     if(typeof P.listVerifiedMunicipalInterventions!=='function'){setTimeout(boot,25);return;}
     const KEY='VIDIK_P11_UNIVERSE_DISPOSITIONS';
