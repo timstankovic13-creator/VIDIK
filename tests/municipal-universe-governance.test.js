@@ -1,7 +1,8 @@
 'use strict';
 const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');const path=require('node:path');
 const U=fs.readFileSync(path.join(__dirname,'../js/intervention-universe.js'),'utf8');const P=fs.readFileSync(path.join(__dirname,'../js/vidik-platform-10.js'),'utf8');const G=fs.readFileSync(path.join(__dirname,'../js/municipal-universe-governance.js'),'utf8');
-const store=new Map(),listeners=[];const context={console,Date,Math,JSON,Number,String,Object,Array,setTimeout:(fn)=>{listeners.push(fn)},window:{localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}}};vm.createContext(context);vm.runInContext(U,context);vm.runInContext(P,context);vm.runInContext(G,context);while(listeners.length){const fn=listeners.shift();fn();if(listeners.length>2)break;}
+const store=new Map(),listeners=[];const context={console,Date,Math,JSON,Number,String,Object,Array,setTimeout:(fn)=>{listeners.push(fn)},window:{localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}}};vm.createContext(context);vm.runInContext(U,context);vm.runInContext(P,context);vm.runInContext(G,context);let guard=0;while(listeners.length&&guard++<20){const fn=listeners.shift();fn();}
+assert.ok(guard<20,'VIDIK governance initialization did not settle');
 const GAPI=context.window.VIDIK_PLATFORM_10;assert.equal(GAPI.UNIVERSE_CONTRACT?.verificationRegistry,true);
 const crime=GAPI.discoverMunicipalUniverse('Minimize violent crime','Ottawa');assert.ok(crime.items.length>=25);assert.equal(crime.coverage.complete,false);assert.equal(crime.coverage.verifiedCount,0);
 const hot=crime.items.find(x=>x.id==='ps-hotspots');assert.ok(hot);
