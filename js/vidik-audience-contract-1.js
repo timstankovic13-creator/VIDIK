@@ -14,11 +14,9 @@
   w.VIDIK_AUDIENCE_CONTRACT_1=api;
   const P=w.VIDIK_PLATFORM_10;
   if(P){P.AUDIENCE_PROFILES=profiles;P.getAudienceProfile=profile;P.listAudienceProfiles=api.listAudienceProfiles;P.validateAudienceDecision=validate;if(Array.isArray(P.AUDIENCES)&&!P.AUDIENCES.includes('developer'))P.AUDIENCES.push('developer');}
-  if(document&&document.addEventListener){document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof document!=='undefined'&&document.addEventListener){document.addEventListener('DOMContentLoaded',()=>{
     const grid=document.querySelector('.audience-grid');
-    if(grid&&!grid.querySelector('[data-audience="developer"]')){
-      const card=document.createElement('button');card.type='button';card.className='audience-card';card.dataset.audience='developer';card.innerHTML='<strong>Developer / Project</strong><span>Evaluate sites, phasing, infrastructure and development options with evidence, uncertainty and community-impact constraints.</span>';grid.appendChild(card);
-    }
-    document.addEventListener('click',e=>{const card=e.target.closest('[data-audience="developer"],[data-audience="business"]');if(!card)return;if(card.dataset.audience==='developer'){e.preventDefault();e.stopImmediatePropagation();document.querySelectorAll('.audience-card').forEach(x=>x.classList.toggle('selected',x===card));const ws=document.getElementById('nonMunicipalWorkspace');if(ws){ws.hidden=false;const title=ws.querySelector('[data-role="audience-title"]');if(title)title.textContent='Developer / Project Decision Workspace';const intro=ws.querySelector('[data-role="audience-intro"]');if(intro)intro.textContent='Frame a site, infrastructure, phasing, or development decision without pretending unknown evidence is zero.';}}},{capture:true});
+    if(grid&&!grid.querySelector('[data-audience="developer"]')){const card=document.createElement('button');card.type='button';card.className='audience-card';card.dataset.audience='developer';card.innerHTML='<strong>Developer / Project</strong><span>Evaluate sites, phasing, infrastructure and development options with evidence, uncertainty and community-impact constraints.</span>';grid.appendChild(card);}
+    document.addEventListener('click',e=>{const card=e.target.closest('[data-audience="developer"]');if(!card)return;e.preventDefault();e.stopImmediatePropagation();document.querySelectorAll('.audience-card').forEach(x=>x.classList.toggle('selected',x===card));const ws=document.getElementById('nonMunicipalWorkspace');if(ws){ws.hidden=false;const title=ws.querySelector('[data-role="audience-title"]');if(title)title.textContent='Developer / Project Decision Workspace';const intro=ws.querySelector('[data-role="audience-intro"]');if(intro)intro.textContent='Frame a site, infrastructure, phasing, or development decision without pretending unknown evidence is zero.';}},{capture:true});
   });}
 })(window);
