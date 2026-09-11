@@ -27,8 +27,7 @@ for(const item of discovered){
 }
 d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,jurisdiction,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
 const universeAssessment=P.assessMunicipalDecisionUniverse(problem,jurisdiction);assert.strictEqual(universeAssessment.optimizable,true,'complete disposition + admissible verified evidence should pass the universe gate');
-P.attachMunicipalBudgetOptions(d,{statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1});
-assert.ok(Array.isArray(d.budgetOptions)&&d.budgetOptions.length>0,'municipal evaluation requires an attached full budget-scenario set');
+const generatedBudget=P.generateMunicipalBudgetOptions({statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1});assert.strictEqual(generatedBudget.ok,true);d.budgetOptions=generatedBudget.options;assert.ok(Array.isArray(d.budgetOptions)&&d.budgetOptions.length>0);
 d.options=[{id:'ps-status-quo',universeId:'ps-status-quo',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,capacity:1,expectedValue:0},{id:'ps-cvi',universeId:'ps-cvi',evidenceStatus:'VERIFIED',objectiveMetric:'violent crime reduction',cost:0,maxCost:100000,increment:100000,capacity:1,expectedValue:10}];
 r=P.evaluate(d);assert.strictEqual(r.ok,true,'a complete, optimizable universe should evaluate once the required budget scenarios and admissible options are present');
 const otherProblem='housing';
