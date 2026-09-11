@@ -1,0 +1,24 @@
+name: VIDIK Audience Contract
+on:
+  pull_request:
+    paths:
+      - 'js/vidik-audience-contract-1.js'
+      - 'tests/vidik-audience-contract-1.test.js'
+      - 'js/vidik-platform-10.js'
+      - '.github/workflows/audience-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/vidik-audience-contract-1.js'
+      - 'tests/vidik-audience-contract-1.test.js'
+      - 'js/vidik-platform-10.js'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run audience contract test
+        run: node tests/vidik-audience-contract-1.test.js
