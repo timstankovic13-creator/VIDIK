@@ -30,6 +30,8 @@ assert.strictEqual(budget.ok,true);
 const portfolio=P.optimizeMunicipalPortfolio(d,'full-request');
 assert.ok(portfolio.ok===true||portfolio.code==='NO_FEASIBLE_PORTFOLIO','portfolio path must optimize or fail closed, never silently rank');
 if(portfolio.ok)assert.strictEqual(portfolio.solver.fullEnvelopeCompared,true);
+const sealed=P.sealDecisionArtifact(d);assert.strictEqual(sealed.ok,true);assert.strictEqual(P.verifySealedDecisionArtifact(sealed.artifact).ok,true);
+const tampered=JSON.parse(JSON.stringify(sealed.artifact));tampered.payload.problem='tampered';assert.strictEqual(P.verifySealedDecisionArtifact(tampered).ok,false);
 const bad=P.setMunicipalUniverseDisposition({problem,universeId:'does-not-exist',state:'ADMISSIBLE',rationale:'bad'});
 assert.strictEqual(bad.ok,false);assert.strictEqual(bad.code,'UNKNOWN_UNIVERSE_ITEM');
 console.log('VIDIK decision integrity 11: PASS');
