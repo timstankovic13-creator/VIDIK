@@ -84,3 +84,11 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
+(function(){
+  const src='js/vidik-platform-10.js';
+  function load(){
+    if(document.querySelector('script[data-vidik-platform-10]')||document.querySelector('script[src*="vidik-platform-10.js"]'))return;
+    const s=document.createElement('script');s.dataset.vidikPlatform10='';s.src=src;s.async=false;document.head.appendChild(s);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
+})();
