@@ -27,7 +27,7 @@ jobs:
         run: npm install
       - name: Run live three-city experiment suite
         run: node scripts/municipal-experiment-runner.js
-      - name: Run 40-domain adversarial monster evaluation v5
-        run: node scripts/vidik-monster-test-v5.js
+      - name: Run 40-domain adversarial monster evaluation v6
+        run: node scripts/vidik-monster-test-v6.js
       - name: Run shared evidence governance contract
         run: node tests/vidik-evidence-governance-1.test.js
