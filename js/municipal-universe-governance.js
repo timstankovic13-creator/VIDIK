@@ -1,8 +1,9 @@
 'use strict';
 (function(w){
   function wait(){
-    const U=w.VIDIK_INTERVENTION_UNIVERSE,P=w.VIDIK_PLATFORM_10;
-    if(!U||!P){setTimeout(wait,25);return;}
+    const P=w.VIDIK_PLATFORM_10;
+    const universeReady=typeof w.vidikUniverseItemsForProblem==='function';
+    if(!universeReady||!P){setTimeout(wait,25);return;}
     const KEY='VIDIK_P10_UNIVERSE_VERIFICATIONS',memory={};
     const scope=(problem,jurisdiction)=>JSON.stringify([String(problem||''),String(jurisdiction||'')]);
     const read=()=>{try{return JSON.parse(w.localStorage?.getItem(KEY)||'{}')}catch(_){return {}}};
