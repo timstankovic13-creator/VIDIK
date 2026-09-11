@@ -38,7 +38,7 @@ test('Case 001 Ottawa blind runtime — strict temporal boundary, normalized pro
   expect(result.boundary).toBe('2023-12-06');
   expect(result.admissibleSourceIds).toEqual(['S01-draft-budget-2024','S02-census-2021','S03-housing-rct']);
   expect(result.excludedSourceIds).toEqual(['S04-ottawa-housing-2022-update']);
-  expect(result.coreEngineVersion).toBe('9.2.0'); expect(result.lifecycleVersion).toBe('9.6.1');
+  expect(result.coreEngineVersion).toBe('10.0.0'); expect(result.lifecycleVersion).toBe('9.6.1');
   expect(result.reconstruction.provenanceComplete).toBe(true);
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').status).toBe('observed');
   expect(result.reconstruction.parameters.find(p => p.parameterType === 'effect').sourceIds).toEqual(['S03-housing-rct']);
@@ -58,7 +58,7 @@ test('Case 001 reconstruction adversarial gates reject temporal leakage and assu
     const future = { id: 'FUTURE', publishedAt: '2024-01-15', publicationDateVerified: true, admissibleAtBoundary: false };
     const unverified = { id: 'UNVERIFIED', publishedAt: null, publicationDateVerified: false, admissibleAtBoundary: false };
     const temporal = VIDIK_HistoricalParameters.admissibility(future, boundary); const unknownDate = VIDIK_HistoricalParameters.admissibility(unverified, boundary);
-    const reconstruction = VIDIK_HistoricalParameters.reconstruct({ boundary, sources: { S: { id: 'S', publishedAt: '2023-10-01', publicationDateVerified: true, admissibleAtBoundary: true, claims: [{ id: 'S-C', type: 'assumption' }] } }, candidateId: 'housing', claimRules: [{ parameterType: 'cost', sourceIds: ['S'], claimType: 'assumption', unit: 'CAD', value: 1000000, denominator: 'unknown', geography: 'Ottawa', population: 'housing', measurementPeriod: '2023', uncertainty: 'unknown', status: 'assumed', assumptionJustification: 'not-reviewed' }] });
+    const reconstruction = VIDIK_HistoricalParameters.reconstruct({ boundary, sources: { S: { id: 'S', publishedAt: '2023-10-01', publicationDateVerified: true, admissibleAtBoundary: true, claims: [{ id: 'S-C', type: 'assumption' }] }, candidateId: 'housing', claimRules: [{ parameterType: 'cost', sourceIds: ['S'], claimType: 'assumption', unit: 'CAD', value: 1000000, denominator: 'unknown', geography: 'Ottawa', population: 'housing', measurementPeriod: '2023', uncertainty: 'unknown', status: 'assumed', assumptionJustification: 'not-reviewed' }] });
     const cost = reconstruction.parameters.find(p => p.parameterType === 'cost');
     return { temporal, unknownDate, assumptionStatus: cost.status, assumptionReason: cost.reason };
   });
