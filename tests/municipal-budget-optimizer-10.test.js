@@ -1,7 +1,12 @@
 'use strict';
 const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
 const code=fs.readFileSync(require('node:path').join(__dirname,'../js/municipal-budget-optimizer-10.js'),'utf8');const c={window:{},console};vm.createContext(c);vm.runInContext(code,c);const O=c.window.VIDIK_MUNICIPAL_BUDGET_OPTIMIZER_10;
+assert.equal(O.VERSION,'10.1.0');
 assert.equal(O.validate({budget:100,interventions:[{id:'a',cost:50,maxCost:100,expectedValue:10}]}).ok,true);
 assert.equal(O.validate({budget:100,interventions:[{id:'a',cost:null,maxCost:100,expectedValue:10}]}).code,'INCOMPLETE_PORTFOLIO_PARAMETERS');
 const r=O.optimize({budget:100,interventions:[{id:'a',cost:50,maxCost:50,expectedValue:10},{id:'b',cost:50,maxCost:50,expectedValue:20}]});assert.equal(r.ok,true);assert.equal(r.unallocated,0);assert.equal(r.fullEnvelopeCompared,true);assert.equal(r.allocation.length,2);
-console.log('VIDIK municipal budget optimizer: PASS');
+const constrained=O.optimize({budget:100,interventions:[{id:'a',cost:50,maxCost:50,expectedValue:100,resources:{staff:2}},{id:'b',cost:50,maxCost:50,expectedValue:60,resources:{staff:1}}],resourceLimits:{staff:1}});assert.equal(constrained.ok,true);assert.deepEqual(constrained.allocation.map(x=>x.id),['b']);assert.equal(constrained.unallocated,50);
+const dependent=O.optimize({budget:100,interventions:[{id:'base',cost:50,maxCost:50,expectedValue:10},{id:'addon',cost:50,maxCost:50,expectedValue:100,dependsOn:['base']}]});assert.equal(dependent.ok,true);assert.deepEqual(dependent.allocation.map(x=>x.id),['base','addon']);
+const blocked=O.optimize({budget:100,requireEvidence:true,interventions:[{id:'unknown',cost:50,maxCost:50,expectedValue:10,evidenceStatus:'EVIDENCE_NEEDED'}]});assert.equal(blocked.code,'UNVERIFIED_INTERVENTION');
+const incomparable=O.optimize({budget:100,interventions:[{id:'a',cost:50,maxCost:50,expectedValue:10,objectiveMetric:'housing'},{id:'b',cost:50,maxCost:50,expectedValue:20,objectiveMetric:'crime'}]});assert.equal(incomparable.code,'INCOMPARABLE_OBJECTIVES');
+console.log('VIDIK municipal budget optimizer 10.1: PASS — bounded portfolio, dependency/resource constraints, evidence gate');
