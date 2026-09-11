@@ -3,7 +3,7 @@
 (function(w){
   function boot(){
     const P=w.VIDIK_PLATFORM_10,U=w.VIDIK_INTERVENTION_UNIVERSE,O=w.VIDIK_MUNICIPAL_BUDGET_OPTIMIZER_10,G=w.VIDIK_MUNICIPAL_UNIVERSE_GOVERNANCE;
-    if(!P||!U||!w.vidikUniverseItemsForProblem||!O||!G||!P.listVerifiedMunicipalInterventions){setTimeout(boot,25);return;}
+    if(!P||!U||!w.vidikUniverseItemsForProblem||!O||!P.listVerifiedMunicipalInterventions){setTimeout(boot,25);return;}
     const KEY='VIDIK_P11_UNIVERSE_DISPOSITIONS';
     const scope=(problem,jurisdiction)=>JSON.stringify([String(problem||''),String(jurisdiction||'')]);
     const key=(problem,jurisdiction,id)=>scope(problem,jurisdiction)+'::'+id;
