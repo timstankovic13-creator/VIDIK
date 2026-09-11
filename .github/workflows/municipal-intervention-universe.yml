@@ -1,22 +1,10 @@
 name: VIDIK Municipal Intervention Universe
 on:
   pull_request:
-    paths:
-      - 'js/intervention-universe.js'
-      - 'js/municipal-universe-governance.js'
-      - 'js/municipal-universe-ui.js'
-      - 'js/municipal-universe-evidence.js'
-      - 'tests/municipal-intervention-universe.test.js'
-      - 'package.json'
+    paths: ['js/intervention-universe.js','js/municipal-universe-governance.js','js/municipal-universe-ui.js','js/municipal-universe-evidence.js','js/municipal-budget-optimizer-10.js','tests/municipal-intervention-universe.test.js','tests/municipal-budget-optimizer-10.test.js','package.json']
   push:
     branches: [main, 'feat/production-core-steps-5-6']
-    paths:
-      - 'js/intervention-universe.js'
-      - 'js/municipal-universe-governance.js'
-      - 'js/municipal-universe-ui.js'
-      - 'js/municipal-universe-evidence.js'
-      - 'tests/municipal-intervention-universe.test.js'
-      - 'package.json'
+    paths: ['js/intervention-universe.js','js/municipal-universe-governance.js','js/municipal-universe-ui.js','js/municipal-universe-evidence.js','js/municipal-budget-optimizer-10.js','tests/municipal-intervention-universe.test.js','tests/municipal-budget-optimizer-10.test.js','package.json']
 permissions:
   contents: read
 jobs:
@@ -25,6 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+        with: {node-version: 20}
       - run: npm run test:intervention-universe
+      - run: npm run test:municipal-budget-optimizer
