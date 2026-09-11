@@ -2,7 +2,7 @@
 const assert=require('assert');
 const fs=require('fs');
 const vm=require('vm');
-const files=['js/intervention-universe.js','js/municipal-budget-optimizer-10.js','js/vidik-platform-10.js','js/vidik-decision-integrity-11.js'];
+const files=['js/intervention-universe.js','js/municipal-budget-optimizer-10.js','js/vidik-platform-10.js','js/municipal-universe-governance.js','js/vidik-decision-integrity-11.js'];
 const store=new Map();
 const localStorage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)};
 const context={console,localStorage,setTimeout:(fn)=>fn(),clearTimeout:()=>{}};context.window=context;
@@ -13,20 +13,23 @@ const P=context.VIDIK_PLATFORM_10;
 const problem='violent crime';
 const discovered=context.vidikUniverseItemsForProblem(problem).filter(x=>x.authority!=='OUTSIDE_MUNICIPAL_AUTHORITY');
 assert.ok(discovered.length>=25,'violent-crime discovery must be broad');
-let d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100},provenance:[{id:'fixture'}]});
+let d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
 let r=P.evaluate(d);
 assert.strictEqual(r.ok,false);assert.strictEqual(r.code,'MUNICIPAL_UNIVERSE_INCOMPLETE');
 for(const item of discovered){
   const state=item.id==='ps-status-quo'||item.id==='ps-cvi'?'ADMISSIBLE':'NOT_APPLICABLE';
-  const rec={problem,universeId:item.id,state,rationale:state==='ADMISSIBLE'?'Decision baseline or evidence-backed fixture for integrity test.':'Explicitly not selected for this test decision; requires separate evidence/admissibility review.',objectiveMetric:'violent crime reduction'};
-  if(state==='ADMISSIBLE')Object.assign(rec,{evidenceIds:['fixture'],cost:state==='ADMISSIBLE'?0:1,maxCost:100000,capacity:1,expectedValue:item.id==='ps-cvi'?10:0,uncertainty:{low:0,high:1},constraints:{legal:[],implementation:[],capacity:[]}});
+  const rec={problem,universeId:item.id,state,rationale:state==='ADMISSIBLE'?'Decision baseline or evidence-backed fixture for integrity test.':'Explicitly classified outside the admissible set for this decision test; separate evidence review remains required.',objectiveMetric:'violent crime reduction'};
+  if(state==='ADMISSIBLE')Object.assign(rec,{evidenceIds:['fixture'],cost:0,maxCost:100000,capacity:1,expectedValue:item.id==='ps-cvi'?10:0,uncertainty:{low:0,high:1},constraints:{legal:[],implementation:[],capacity:[]}});
   const v=P.setMunicipalUniverseDisposition(rec);assert.strictEqual(v.ok,true);
 }
-d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,statusQuo:{description:'Existing municipal allocation'},options:[],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
+d=P.createDecision({audience:'municipal',objective:'violent crime reduction',problem,statusQuo:{description:'Existing municipal allocation'},options:[{id:'placeholder'}],evidence:[{id:'fixture'}],uncertainty:{overall:0.5},opportunityCost:{known:true},equity:{assessed:true},constraints:{budget:100000},provenance:[{id:'fixture'}]});
 r=P.evaluate(d);
 assert.strictEqual(r.ok,true,'complete disposition + admissible evidence should pass the universe gate');
-const portfolio=P.optimizeMunicipalPortfolio(d,'status-quo');
-assert.ok(portfolio.ok===true||portfolio.code==='MUNICIPAL_BUDGET_REQUIRED'||portfolio.code==='NO_FEASIBLE_PORTFOLIO','portfolio path must fail closed, never silently rank');
+const budget=P.attachMunicipalBudgetOptions(d,{statusQuoBudget:100000,requestedBudget:100000,availableBudget:100000,currency:'CAD',years:1});
+assert.strictEqual(budget.ok,true);
+const portfolio=P.optimizeMunicipalPortfolio(d,'full-request');
+assert.ok(portfolio.ok===true||portfolio.code==='NO_FEASIBLE_PORTFOLIO','portfolio path must optimize or fail closed, never silently rank');
+if(portfolio.ok)assert.strictEqual(portfolio.solver.fullEnvelopeCompared,true);
 const bad=P.setMunicipalUniverseDisposition({problem,universeId:'does-not-exist',state:'ADMISSIBLE',rationale:'bad'});
 assert.strictEqual(bad.ok,false);assert.strictEqual(bad.code,'UNKNOWN_UNIVERSE_ITEM');
 console.log('VIDIK decision integrity 11: PASS');
