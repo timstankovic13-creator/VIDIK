@@ -1,0 +1,21 @@
+'use strict';
+(function(w){
+ const catalog=[
+  {id:'biz-build-vs-buy',audiences:['business'],domains:['operations','technology','procurement'],name:'Build / insource versus buy / outsource',kind:'operating-model'},
+  {id:'biz-capital-priority',audiences:['business'],domains:['investment','portfolio'],name:'Reallocate capital across existing priorities',kind:'capital-allocation'},
+  {id:'biz-expand-vs-deepen',audiences:['business'],domains:['growth','market'],name:'Expand into a new market versus deepen the current market',kind:'growth'},
+  {id:'biz-process-redesign',audiences:['business'],domains:['operations'],name:'Redesign the operating process before adding capacity',kind:'operations'},
+  {id:'biz-vendor-portfolio',audiences:['business'],domains:['procurement'],name:'Change vendor / supplier portfolio',kind:'procurement'},
+  {id:'biz-risk-control',audiences:['business'],domains:['risk','operations'],name:'Add or redesign a risk-control intervention',kind:'risk'},
+  {id:'dev-site-compare',audiences:['developer'],domains:['site','development'],name:'Compare candidate sites / parcels',kind:'site-selection'},
+  {id:'dev-phase',audiences:['developer'],domains:['development','construction'],name:'Change project phasing or delivery sequence',kind:'phasing'},
+  {id:'dev-density-mix',audiences:['developer'],domains:['development','planning'],name:'Compare density / use mix alternatives',kind:'project-scope'},
+  {id:'dev-infrastructure',audiences:['developer'],domains:['infrastructure','development'],name:'Compare infrastructure investment alternatives',kind:'infrastructure'},
+  {id:'dev-climate-resilience',audiences:['developer'],domains:['infrastructure','risk'],name:'Add or compare climate / resilience measures',kind:'resilience'},
+  {id:'dev-community-mitigation',audiences:['developer'],domains:['community','development'],name:'Compare community-impact mitigation packages',kind:'community-impact'}
+ ];
+ function discover(problem,audience){const p=String(problem||'').toLowerCase();const a=audience==='enterprise'?'business':audience==='property'||audience==='development'?'developer':audience;return catalog.filter(x=>x.audiences.includes(a)).map(x=>{let relevanceScore=0;for(const d of x.domains)if(p.includes(d))relevanceScore+=2;if(/cost|budget|money|capital|spend|saving/.test(p)&&/capital|operating-model|procurement|operations/.test(x.kind))relevanceScore+=1;if(/site|land|parcel|build|development|project/.test(p)&&a==='developer')relevanceScore+=2;if(/risk|resilien|flood|climate/.test(p)&&x.kind==='resilience')relevanceScore+=3;return {...x,relevanceScore};}).sort((a,b)=>b.relevanceScore-a.relevanceScore||a.id.localeCompare(b.id));}
+ w.VIDIK_CROSS_AUDIENCE_UNIVERSE_1={version:'1.0.0',catalog,discover};
+ function mount(){const host=document.getElementById('audienceDecisionWorkspace');if(!host||host.dataset.crossUniverseMounted==='1')return;host.dataset.crossUniverseMounted='1';const problem=host.querySelector('#audienceProblem'),aud=document.querySelector('[data-audience].selected')?.dataset.audience||'business';const box=document.createElement('div');box.className='card';box.id='crossAudienceDiscovery';box.innerHTML='<div class="eyebrow">DISCOVERY-FIRST</div><h4>Candidate universe</h4><p class="muted">These are candidate hypotheses, not recommendations. Evidence status must be established before VIDIK can adopt one.</p><div id="crossAudienceCandidates"></div>';host.insertBefore(box,host.querySelector('#audienceEvaluate')?.parentElement||null);const render=()=>{const rows=discover(problem?.value||'',aud);document.getElementById('crossAudienceCandidates').innerHTML=rows.map(x=>'<label style="display:block;margin:.45rem 0"><input type="checkbox" value="'+x.id+'"> '+x.name+' <small>· candidate · evidence required</small></label>').join('')};problem?.addEventListener('input',render);render();}
+ if(typeof document!=='undefined'){const mo=new MutationObserver(mount);mo.observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('DOMContentLoaded',mount);}
+})(window);
