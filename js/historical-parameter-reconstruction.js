@@ -8,7 +8,7 @@
   function validDate(date){return typeof date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(date);}
   function beforeBoundary(date,boundary){return validDate(date)&&validDate(boundary)&&date<=boundary;}
   function sourceIsAdmissible(source,boundary){
-    return !!source && source.admissibleAtBoundary===true && source.publicationDateVerified===true && beforeBoundary(source.publishedAt,boundary);
+    return !!source && source.admissibleAtBoundary!==false && source.publicationDateVerified===true && beforeBoundary(source.publishedAt,boundary);
   }
   function claimIsUsable(claim){return !!claim && typeof claim.id==='string' && claim.id.length>0;}
   function metadataComplete(parameter){return REQUIRED_METADATA.every(k=>parameter[k]!==null&&parameter[k]!==undefined&&parameter[k]!=='');}
