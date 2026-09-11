@@ -11,6 +11,7 @@ const V={version:'9.2.0',city:'Ottawa',currency:'CAD',objective:{id:'verified-ou
     './js/municipal-budget-optimizer-10.js?v=20260911-budget-5',
     './js/vidik-platform-10.js?v=20260911-platform-10',
     './js/vidik-platform-10-budget-contract.js?v=20260911-platform-budget-1',
+    './js/vidik-evidence-governance-1.js?v=20260911-evidence-governance-1',
     './js/vidik-audience-contract-1.js?v=20260911-audience-2',
     './js/vidik-decision-integrity-11.js?v=20260911-integrity-4',
     './js/vidik-cross-audience-universe-1.js?v=20260911-cross-audience-1'
