@@ -32,7 +32,8 @@
     "test:production-config":"node tests/production-config.test.js",
     "test:hostile-readiness":"node tests/hostile-engine-and-production-readiness-15.test.js",
     "test:production-release-gate":"node tests/production-release-gate.test.js",
-    "test:platform-10":"node tests/vidik-platform-10.test.js"
+    "test:platform-10":"node tests/vidik-platform-10.test.js",
+    "test:intervention-universe":"node tests/municipal-intervention-universe.test.js"
   },
   "devDependencies":{"@playwright/test":"^1.55.0"},
   "dependencies":{"pdf-parse":"^1.1.1"}
