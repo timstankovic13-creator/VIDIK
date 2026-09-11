@@ -7,7 +7,10 @@ vm.runInContext(fs.readFileSync('js/vidik-audience-contract-1.js','utf8'),contex
 const P=context.VIDIK_PLATFORM_10;
 for(const audience of ['business','developer']){
  const d=P.createDecision({audience,objective:'Strategic project decision',problem:'Strategic project decision',statusQuo:{description:'Continue current approach'},options:[{id:'o1',name:'Option A',evidenceStatus:'EVIDENCE_REVIEW_REQUIRED'}],evidence:[{id:'e1'}],uncertainty:{overall:.5},opportunityCost:{known:false},equity:{assessed:false},constraints:{implementation:[]},provenance:[{id:'e1'}]});
- assert.strictEqual(d.audience,audience);assert.strictEqual(P.validateDecision(d).ok,true);assert.ok(P.scoreIntegrity(d).total>=11);
+ assert.strictEqual(d.audience,audience);assert.strictEqual(P.validateDecision(d).ok,true);
+ const integrity=P.scoreIntegrity(d);
+ assert.strictEqual(integrity.total,11);
+ assert.ok(integrity.score>=70,'business/developer decision should retain a meaningful integrity score without fabricated municipal-only fields');
  const r=P.evaluate(d,(_,opts)=>({ranked:opts,recommended:null}));
  assert.strictEqual(r.ok,true);assert.strictEqual(r.decision.audience,audience);assert.strictEqual(r.recommendation,null);assert.strictEqual(r.decision.budgetOptions,undefined);
 }
