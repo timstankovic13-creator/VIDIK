@@ -13,7 +13,7 @@
   const api={version:'1.0.0',profiles,aliases,getAudienceProfile:profile,listAudienceProfiles:()=>Object.keys(profiles),validateAudienceDecision:validate,developerIntegration:{apiStable:true,decisionObjectBoundary:'required',rawDataPassthrough:false,provenanceRequired:true,uncertaintyRequired:true,auditRequired:true}};
   w.VIDIK_AUDIENCE_CONTRACT_1=api;
   const P=w.VIDIK_PLATFORM_10;
-  if(P){P.AUDIENCE_PROFILES=profiles;P.getAudienceProfile=profile;P.listAudienceProfiles=api.listAudienceProfiles;P.validateAudienceDecision=validate;if(Array.isArray(P.AUDIENCES)&&!P.AUDIENCES.includes('developer'))P.AUDIENCES.push('developer');}
+  if(P){P.AUDIENCE_PROFILES=profiles;P.getAudienceProfile=profile;P.listAudienceProfiles=api.listAudienceProfiles;P.validateAudienceDecision=validate;if(Array.isArray(P.AUDIENCES)&&!P.AUDIENCES.includes('developer'))P.AUDIENCES=P.AUDIENCES.concat('developer');}
   if(typeof document!=='undefined'&&document.addEventListener){document.addEventListener('DOMContentLoaded',()=>{
     const grid=document.querySelector('.audience-grid');
     if(grid&&!grid.querySelector('[data-audience="developer"]')){const card=document.createElement('button');card.type='button';card.className='audience-card';card.dataset.audience='developer';card.innerHTML='<strong>Developer / Project</strong><span>Evaluate sites, phasing, infrastructure and development options with evidence, uncertainty and community-impact constraints.</span>';grid.appendChild(card);}
