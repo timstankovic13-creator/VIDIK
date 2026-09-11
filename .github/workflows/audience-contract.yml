@@ -4,6 +4,7 @@ on:
     paths:
       - 'js/vidik-audience-contract-1.js'
       - 'tests/vidik-audience-contract-1.test.js'
+      - 'tests/vidik-audience-runtime-11.test.js'
       - 'js/vidik-platform-10.js'
       - '.github/workflows/audience-contract.yml'
   push:
@@ -11,6 +12,7 @@ on:
     paths:
       - 'js/vidik-audience-contract-1.js'
       - 'tests/vidik-audience-contract-1.test.js'
+      - 'tests/vidik-audience-runtime-11.test.js'
       - 'js/vidik-platform-10.js'
 jobs:
   contract:
@@ -22,3 +24,5 @@ jobs:
           node-version: 20
       - name: Run audience contract test
         run: node tests/vidik-audience-contract-1.test.js
+      - name: Run audience runtime test
+        run: node tests/vidik-audience-runtime-11.test.js
