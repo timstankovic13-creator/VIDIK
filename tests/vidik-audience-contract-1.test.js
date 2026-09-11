@@ -7,7 +7,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('js/vidik-audience-contract-1.js','utf8'),context,{filename:'js/vidik-audience-contract-1.js'});
 const A=context.VIDIK_AUDIENCE_CONTRACT_1;
 assert.ok(A);
-assert.deepStrictEqual(A.listAudienceProfiles(),['municipal','business','developer','research','public']);
+assert.deepStrictEqual(Array.from(A.listAudienceProfiles()),['municipal','business','developer','research','public']);
 assert.strictEqual(context.VIDIK_PLATFORM_10.AUDIENCES.includes('developer'),true);
 assert.strictEqual(A.getAudienceProfile('enterprise').label,'Business / Enterprise');
 assert.strictEqual(A.getAudienceProfile('property').label,'Developer / Project');
