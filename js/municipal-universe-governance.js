@@ -4,6 +4,9 @@
     const P=w.VIDIK_PLATFORM_10;
     const universeReady=typeof w.vidikUniverseItemsForProblem==='function';
     if(!universeReady||!P){setTimeout(wait,25);return;}
+    const originalCreate=P.createDecision;
+    const originalEvaluate=P.evaluate;
+    if(typeof originalCreate!=='function'||typeof originalEvaluate!=='function'){setTimeout(wait,25);return;}
     const KEY='VIDIK_P10_UNIVERSE_VERIFICATIONS',memory={};
     const scope=(problem,jurisdiction)=>JSON.stringify([String(problem||''),String(jurisdiction||'')]);
     const read=()=>{try{return JSON.parse(w.localStorage?.getItem(KEY)||'{}')}catch(_){return {}}};
@@ -15,7 +18,8 @@
     P.assessMunicipalUniverse=assess;P.verifyMunicipalIntervention=verify;P.listVerifiedMunicipalInterventions=(problem,jurisdiction)=>verified(problem,jurisdiction);P.clearMunicipalInterventionVerification=id=>{const r=read();Object.keys(r).filter(k=>r[k]?.universeId===id).forEach(k=>delete r[k]);Object.keys(memory).filter(k=>memory[k]?.universeId===id).forEach(k=>delete memory[k]);write(r);return {ok:true,id}};
     P.createDecision=function(input){const d=originalCreate(input);if(d.audience==='municipal'){const items=all(d.problem||''),registry=verified(d.problem,d.jurisdiction),verifiedIds=registry.map(x=>x.universeId),coverage=assess(d.problem,verifiedIds,d.jurisdiction);d.interventionUniverse=items;d.universeCoverage=coverage;d.governance.universe={required:true,complete:coverage.complete,candidateCount:coverage.candidateCount,verifiedCount:coverage.verifiedCount,coverageRatio:coverage.coverageRatio,unresolved:coverage.unresolved,outsideAuthority:coverage.outsideAuthority};d.audit.push({event:'INTERVENTION_UNIVERSE_DISCOVERED',at:new Date().toISOString(),candidateCount:items.length,verifiedCount:coverage.verifiedCount,complete:coverage.complete});}return d;};
     P.evaluate=function(d,fn){if(d&&d.audience==='municipal'){const coverage=d.universeCoverage||assess(d.problem,(verified(d.problem,d.jurisdiction)||[]).map(x=>x.universeId),d.jurisdiction);if(!coverage.complete)return {ok:false,code:'MUNICIPAL_UNIVERSE_INCOMPLETE',message:'Municipal optimization is blocked because material intervention-universe coverage is unresolved.',details:coverage};}return originalEvaluate(d,fn);};
-    P.UNIVERSE_CONTRACT={version:'2.2.1',rule:'DISCOVER → VERIFY → OPTIMIZE',unknownIsNotExcluded:true,noFalseCompleteness:true,outsideAuthorityExcludedFromMunicipalOptimization:true,verificationRegistry:true,decisionScopedVerification:true,requiredVerification:['evidenceIds','cost','capacity','expectedValue','uncertainty','legal','implementation','capacityConstraints']};w.VIDIK_MUNICIPAL_UNIVERSE_GOVERNANCE={ready:true,version:'2.2.1'};
+    P.UNIVERSE_CONTRACT={version:'2.2.1',rule:'DISCOVER → VERIFY → OPTIMIZE',unknownIsNotExcluded:true,noFalseCompleteness:true,outsideAuthorityExcludedFromMunicipalOptimization:true,verificationRegistry:true,decisionScopedVerification:true,requiredVerification:['evidenceIds','cost','capacity','expectedValue','uncertainty','legal','implementation','capacityConstraints']};
+    w.VIDIK_MUNICIPAL_UNIVERSE_GOVERNANCE={ready:true,version:'2.2.1'};
   }
   wait();
 })(window);
