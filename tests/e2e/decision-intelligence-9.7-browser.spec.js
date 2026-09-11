@@ -18,7 +18,9 @@ test.describe('VIDIK 9.7 browser decision intelligence', () => {
     const di97Uncertainty = page.locator('[data-vidik-di97][aria-label="VIDIK 9.7.1 decision intelligence"]');
     const di97Voi = page.locator('[data-vidik-di97][aria-label="VIDIK 9.7.1 value of information"]');
     await expect(uncertainty).toContainText('Sensitivity');
-    await expect(voi).toContainText('Value of information');
+    // The canonical panel title is the sibling heading; the #voi container itself
+    // is intentionally reserved for the canonical VOI output and DI 9.7 companion.
+    await expect(voi.locator('..')).toContainText('Value of information');
     await expect(di97Uncertainty).toContainText('9.7.1');
     await expect(di97Voi).toContainText('9.7.1');
     await expect(di97Uncertainty).toContainText('Recommendation flips');
