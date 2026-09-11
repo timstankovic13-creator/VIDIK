@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const VERSION = '16.0.0';
+const VERSION = '16.1.0';
 const CHECKPOINTS = Object.freeze(['6-month', '1-year', '2-year', '5-year']);
 const stable = x => Array.isArray(x) ? '[' + x.map(stable).join(',') + ']' : (x && typeof x === 'object' ? '{' + Object.keys(x).sort().map(k => JSON.stringify(k) + ':' + stable(x[k])).join(',') + '}' : JSON.stringify(x));
 const hash = x => crypto.createHash('sha256').update(stable(x)).digest('hex');
@@ -42,7 +42,8 @@ function readiness({ decision, artifact, artifactVerification, universe, governa
   if (!decision?.identityBrief?.immutableSnapshot) failures.push('decision-snapshot-not-immutable');
   if (!artifact) failures.push('complete-artifact-missing');
   if (artifactVerification?.ok !== true) failures.push('artifact-integrity-unverified');
-  if (!universe || !Array.isArray(universe.interventions)) failures.push('intervention-universe-missing');
+  if (!universe || !Array.isArray(universe.interventions) || universe.interventions.length===0) failures.push('intervention-universe-missing');
+  if (universe && universe.complete !== true) failures.push('intervention-universe-incomplete');
   if (governanceResult?.recommendationAllowed !== true) failures.push('governance-blocked');
   if (!learning || !Array.isArray(learning.checkpoints) || !CHECKPOINTS.every(x => learning.checkpoints.includes(x))) failures.push('learning-checkpoints-incomplete');
   const status = failures.length ? 'NOT_READY' : 'READY';
