@@ -1,5 +1,6 @@
 'use strict';
-const { requiredDataManifest, retrieve, parsePayload, normalizeRecord, validateRecord, buildAcquisitionResult, sha256 } = require('./data-acquisition');
+const { requiredDataManifest, retrieve, parsePayload, normalizeRecord, validateRecord, buildAcquisitionResult, sha256, buildAcquisitionPlan } = require('./data-acquisition');
+const { sourceRegistry } = require('./source-registry');
 const { discoverInterventions, evidenceCoverage, hashCandidateUniverse } = require('./intervention-discovery');
 const { extractInterventionCandidates, mergeInterventionCandidates } = require('./intervention-evidence-extractor');
 
@@ -13,6 +14,12 @@ function buildEvidenceAcquisitionTasks({ problem, geography, candidates = [] } =
     tasks.push({id:`ACQ-${candidate.id}-${evidenceType}`,candidateId:candidate.id,evidenceType,domain,geography,problem,status:'OPEN',priority:evidenceType==='causal'?'critical':'required',query:`${candidate.id} ${problem} ${geography} ${evidenceType} evidence`});
   }
   return tasks;
+}
+
+function buildGovernedDiscoveryPlan({ objective, problem, geography }) {
+  const discoverySources = sourceRegistry({ domains: CORE_REQUIRED_DOMAINS, tags: String(problem).toLowerCase().split(/\s+/) });
+  const manifest = requiredDataManifest({ objective, problem, geography, domains: CORE_REQUIRED_DOMAINS });
+  return buildAcquisitionPlan({ manifest, candidates: discoverySources });
 }
 
 async function acquireDecisionEvidence({objective,problem,geography,localSource,causalSources=[],interventionUniverseSources=[],candidateRegistry,localProgramIndex=[],evidenceIndex={},fetchImpl,now=new Date()}={}) {
@@ -29,6 +36,6 @@ async function acquireDecisionEvidence({objective,problem,geography,localSource,
   const candidates=discoverInterventions({problem,candidates:mergedRegistry,localProgramIndex,evidenceIndex});
   const acquisitionTasks=buildEvidenceAcquisitionTasks({problem,geography,candidates});
   const result=buildAcquisitionResult({manifest,candidates:sources,records,gaps:acquisitionTasks.map(task=>`${task.id}:${task.domain}`),failures,snapshots,interventionUniverse:candidates});
-  return {...result,acquiredInterventionCandidates:acquiredCandidates,candidateCoverage:evidenceCoverage(candidates),candidateUniverseHash:hashCandidateUniverse(candidates),acquisitionTasks,acquisitionPlanHash:sha256({manifest:result.manifest,tasks:acquisitionTasks,candidates:candidates.map(x=>x.id)})};
+  return {...result,governedDiscoveryPlan:buildGovernedDiscoveryPlan({objective,problem,geography}),acquiredInterventionCandidates:acquiredCandidates,candidateCoverage:evidenceCoverage(candidates),candidateUniverseHash:hashCandidateUniverse(candidates),acquisitionTasks,acquisitionPlanHash:sha256({manifest:result.manifest,tasks:acquisitionTasks,candidates:candidates.map(x=>x.id)})};
 }
-module.exports={CORE_REQUIRED_DOMAINS,buildEvidenceAcquisitionTasks,acquireDecisionEvidence};
+module.exports={CORE_REQUIRED_DOMAINS,buildEvidenceAcquisitionTasks,buildGovernedDiscoveryPlan,acquireDecisionEvidence};
