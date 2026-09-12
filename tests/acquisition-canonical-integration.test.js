@@ -9,6 +9,9 @@ const { runRealEvidenceCity } = require('../scripts/real-three-city-evidence-run
   assert.ok(decision.governanceOverridesAudit.audit.acquisitionHash);
   assert.ok(decision.reoptimizationExecutionReadiness.evidenceAcquisition);
   assert.ok(decision.interventionUniverse.interventions.some(x => x.status === 'ADMISSIBLE'));
-  assert.ok(decision.interventionUniverse.interventions.some(x => x.evidenceGap.length >= 0));
+  assert.ok(Array.isArray(decision.interventionUniverse.discovered));
+  assert.ok(decision.interventionUniverse.discovered.length >= 4, 'candidate discovery must produce a universe, not one hardcoded candidate');
+  assert.ok(decision.interventionUniverse.discovered.some(x => x.id === 'housing-first-supportive-housing'));
+  assert.ok(decision.interventionUniverse.discovered.some(x => x.evidenceState === 'evidence-gap'));
   console.log('acquisition canonical integration passed');
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
