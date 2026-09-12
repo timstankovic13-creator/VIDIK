@@ -22,10 +22,22 @@ function buildGovernedDiscoveryPlan({ objective, problem, geography }) {
   return buildAcquisitionPlan({ manifest, candidates: discoverySources });
 }
 
+function buildInterventionUniverseSources({ problem, geography, providedSources = [] } = {}) {
+  const explicit = Array.isArray(providedSources) ? providedSources : [];
+  if (explicit.length) return explicit;
+  const terms = [problem, geography].map(value => String(value || '').trim()).filter(Boolean).join(' ');
+  return sourceRegistry({ domains: ['intervention-universe'], tags: String(problem).toLowerCase().split(/\s+/) }).map(source => {
+    const url = new URL(source.url);
+    if (url.searchParams.has('q')) url.searchParams.set('q', terms);
+    return { ...source, url: url.toString(), extractionMethod: 'governed-catalog-discovery' };
+  });
+}
+
 async function acquireDecisionEvidence({objective,problem,geography,localSource,causalSources=[],interventionUniverseSources=[],candidateRegistry,localProgramIndex=[],evidenceIndex={},fetchImpl,now=new Date()}={}) {
   if(!objective||!problem||!geography||!localSource) throw new Error('decision-evidence-acquisition-context-required');
   const manifest=requiredDataManifest({objective,problem,geography,domains:CORE_REQUIRED_DOMAINS});
-  const sources=[localSource,...causalSources,...interventionUniverseSources],records=[],snapshots=[],failures=[],acquiredCandidates=[];
+  const governedInterventionSources = buildInterventionUniverseSources({ problem, geography, providedSources: interventionUniverseSources });
+  const sources=[localSource,...causalSources,...governedInterventionSources],records=[],snapshots=[],failures=[],acquiredCandidates=[];
   for(const source of sources) try {
     const snapshot=await retrieve(source,{fetchImpl,now}); snapshots.push(snapshot.retrieval);
     if(source.domain==='intervention-universe'){const payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);acquiredCandidates.push(...extractInterventionCandidates(payload.value,source));continue;}
@@ -36,6 +48,6 @@ async function acquireDecisionEvidence({objective,problem,geography,localSource,
   const candidates=discoverInterventions({problem,candidates:mergedRegistry,localProgramIndex,evidenceIndex});
   const acquisitionTasks=buildEvidenceAcquisitionTasks({problem,geography,candidates});
   const result=buildAcquisitionResult({manifest,candidates:sources,records,gaps:acquisitionTasks.map(task=>`${task.id}:${task.domain}`),failures,snapshots,interventionUniverse:candidates});
-  return {...result,governedDiscoveryPlan:buildGovernedDiscoveryPlan({objective,problem,geography}),acquiredInterventionCandidates:acquiredCandidates,candidateCoverage:evidenceCoverage(candidates),candidateUniverseHash:hashCandidateUniverse(candidates),acquisitionTasks,acquisitionPlanHash:sha256({manifest:result.manifest,tasks:acquisitionTasks,candidates:candidates.map(x=>x.id)})};
+  return {...result,governedDiscoveryPlan:buildGovernedDiscoveryPlan({objective,problem,geography}),governedInterventionSources:governedInterventionSources.map(source=>({sourceId:source.sourceId,url:source.url,provider:source.provider})),acquiredInterventionCandidates:acquiredCandidates,candidateCoverage:evidenceCoverage(candidates),candidateUniverseHash:hashCandidateUniverse(candidates),acquisitionTasks,acquisitionPlanHash:sha256({manifest:result.manifest,tasks:acquisitionTasks,candidates:candidates.map(x=>x.id)})};
 }
-module.exports={CORE_REQUIRED_DOMAINS,buildEvidenceAcquisitionTasks,buildGovernedDiscoveryPlan,acquireDecisionEvidence};
+module.exports={CORE_REQUIRED_DOMAINS,buildEvidenceAcquisitionTasks,buildGovernedDiscoveryPlan,buildInterventionUniverseSources,acquireDecisionEvidence};
