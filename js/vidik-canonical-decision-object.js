@@ -13,15 +13,16 @@ function buildDecisionIntelligence(run, interventions) {
   return DI97.analyze({ baseline, parameters, correlations: Array.isArray(run?.correlations) ? run.correlations : [], scoreFn, candidates: voiCandidates, decisionValue: 1, sensitivitySteps: 21, uncertaintySamples: 2000 });
 }
 function buildCanonicalDecisionObject(run) {
-  const city = run?.city || null, interventions = run?.interventionComparison || [], selected = interventions.find(x => x.id === run?.recommendation) || null, causal = selected?.gate?.causalEvidence || null, suppliedResource = run?.resourceEnvelope?.marginalUnit || null, optimization = run?.optimization || null, decisionIntelligence = run?.decisionIntelligence || buildDecisionIntelligence(run, interventions);
+  const city = run?.city || null, interventions = run?.interventionComparison || [], selected = interventions.find(x => x.id === run?.recommendation) || null, causal = selected?.gate?.causalEvidence || null, suppliedResource = run?.resourceEnvelope?.marginalUnit || null, optimization = run?.optimization || null, decisionIntelligence = run?.decisionIntelligence || buildDecisionIntelligence(run, interventions), acquisition = run?.acquisition || null;
   const evidenceNodes = [run?.sourceLineage ? { id: `municipal:${city}`, kind: 'observed_context', provenance: run.sourceLineage } : null, causal ? { id: causal.id, kind: 'causal_effect', provenance: causal } : null, ...(optimization?.candidates || []).flatMap(candidate => (candidate.evidenceIds || []).map(id => ({ id, kind: 'resource_chain', provenance: candidate })))] .filter(Boolean);
   const claims = causal ? [{ id: `${causal.id}:claim:0`, type: 'causal_effect', evidenceIds: [causal.id], burden: 'causal' }] : [];
   const parameter = causal ? { id: `${selected.id}:effect`, value: causal.estimate, unit: causal.unit, evidenceIds: [causal.id], uncertainty: causal.uncertainty, transportability: causal.mode || null } : null;
+  const interventionUniverse = interventions.map(x => ({ id: x.id, name: x.name, status: x.status, score: x.score, evidenceGap: x.status !== 'ADMISSIBLE' ? (x.gate?.failures || []) : [] }));
   const object = {
     identityBrief: { decisionId: run?.decisionId || null, city, objective: run?.objective || null, schemaVersion: 'vidik.canonical-decision-object.v1', immutableSnapshot: true },
     resourceEnvelope: { marginalUnit: suppliedResource || { amount: null, unit: 'CAD', status: 'not-specified-in-three-city-acceptance-run' }, optimizationStatus: optimization?.status || (suppliedResource ? 'NOT_ACTIVATED' : 'NOT_SPECIFIED'), feedback: optimization?.feedback || null },
     objectives: { primary: run?.objective || null }, constraints: { admissibility: true, failureClosed: Boolean(run?.audit?.failureClosed) },
-    interventionUniverse: { interventions: interventions.map(x => ({ id: x.id, name: x.name, status: x.status, score: x.score })) },
+    interventionUniverse: { interventions: interventionUniverse, acquisition: acquisition ? { schemaVersion: acquisition.schemaVersion, coverage: acquisition.coverage, gaps: acquisition.gaps, acquisitionHash: acquisition.acquisitionHash, candidateDiscovery: acquisition.records?.length ? 'active' : 'not-active' } : null },
     evidenceGraph: { nodes: evidenceNodes, lineage: run?.lineage || [] },
     claimScaledEvidence: { claims, minimumSufficientEvidence: { status: claims.length ? 'candidate-set-present' : 'not-satisfied', requiredClaimType: 'causal_effect' } },
     parameters: { selected: parameter, all: interventions.filter(x => x.gate?.causalEvidence).map(x => ({ id: `${x.id}:effect`, value: x.gate.causalEvidence.estimate, unit: x.gate.causalEvidence.unit, evidenceIds: [x.gate.causalEvidence.id], uncertainty: x.gate.causalEvidence.uncertainty || null })) },
@@ -34,7 +35,7 @@ function buildCanonicalDecisionObject(run) {
     governanceOverridesAudit: { humanOverride: null, overrideRequired: false, audit: run?.audit || null },
     outcomeLearningCheckpoints: { checkpoints: [...LEARNING_CHECKPOINTS], current: run?.learning || null, syntheticDefaultLearning: false, recalibrationMutatesParametersAutomatically: false },
     driftFailureRegistry: { drift: run?.learning?.drift || null, failureClosed: Boolean(run?.audit?.failureClosed), failureReasons: run?.audit?.blockedAlternatives || [] },
-    reoptimizationExecutionReadiness: { reoptimization: optimization?.status === 'OPTIMIZED' ? 'resource-allocation-computed' : 'available-after-observed-outcome-or-new-evidence', executionReadiness: 'separate-assessment-required', evidenceAcquisition: city ? { targetCity: city, status: run?.recommendation ? 'not-required-for-selected-claim' : 'required' } : null }
+    reoptimizationExecutionReadiness: { reoptimization: optimization?.status === 'OPTIMIZED' ? 'resource-allocation-computed' : 'available-after-observed-outcome-or-new-evidence', executionReadiness: 'separate-assessment-required', evidenceAcquisition: acquisition ? { targetCity: city, status: acquisition.coverage.complete ? 'complete' : 'gaps-present', missingDomains: acquisition.coverage.missingDomains, gaps: acquisition.gaps } : { targetCity: city, status: 'not-invoked' } }
   };
   const validation = validateDecisionObject(object); if (!validation.valid) throw new Error(`canonical-decision-object-invalid:${validation.failures.map(x => x.code).join(',')}`); return object;
 }
