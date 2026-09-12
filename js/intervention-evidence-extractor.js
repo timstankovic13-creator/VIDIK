@@ -5,14 +5,33 @@ function normalizeTags(value) {
   return String(value || '').split(/[,;|]/).map(x => x.trim().toLowerCase()).filter(Boolean);
 }
 
-function interventionRecordToCandidate(record, source) {
+function candidateRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  const direct = ['records','interventions','programs','services','items','results','data','features'];
+  for (const key of direct) if (Array.isArray(payload[key])) return payload[key];
+  if (Array.isArray(payload.result?.results)) return payload.result.results;
+  if (Array.isArray(payload.result?.records)) return payload.result.records;
+  if (Array.isArray(payload.data?.results)) return payload.data.results;
+  return [];
+}
+
+function unwrapRecord(record) {
   if (!record || typeof record !== 'object') return null;
-  const id = String(record.id || record.interventionId || record.slug || '').trim();
-  const name = String(record.name || record.intervention || record.title || '').trim();
+  if (record.attributes && typeof record.attributes === 'object') return { ...record, ...record.attributes };
+  if (record.fields && typeof record.fields === 'object') return { ...record, ...record.fields };
+  return record;
+}
+
+function interventionRecordToCandidate(record, source) {
+  const row = unwrapRecord(record);
+  if (!row) return null;
+  const id = String(row.id || row.interventionId || row.programId || row.serviceId || row.slug || row.identifier || '').trim();
+  const name = String(row.name || row.intervention || row.program || row.service || row.title || row.label || '').trim();
   if (!id || !name) return null;
-  const problemTags = normalizeTags(record.problemTags || record.problems || record.outcomes || record.targetProblems);
-  const domains = normalizeTags(record.domains || record.domain || record.sectors);
-  const requiredEvidence = normalizeTags(record.requiredEvidence || record.evidenceTypes || ['causal','implementation','cost','equity']);
+  const problemTags = normalizeTags(row.problemTags || row.problems || row.outcomes || row.targetProblems || row.tags || row.keywords);
+  const domains = normalizeTags(row.domains || row.domain || row.sectors || row.categories || row.category);
+  const requiredEvidence = normalizeTags(row.requiredEvidence || row.evidenceTypes || ['causal','implementation','cost','equity']);
   return {
     id,
     name,
@@ -22,13 +41,14 @@ function interventionRecordToCandidate(record, source) {
     discovery: {
       source: 'acquired-intervention-universe',
       sourceUrl: source?.url || null,
-      datasetId: source?.datasetId || null
+      datasetId: source?.datasetId || source?.sourceId || null,
+      extractionMethod: source?.extractionMethod || 'generic-intervention-record'
     }
   };
 }
 
 function extractInterventionCandidates(payload, source = {}) {
-  const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.records) ? payload.records : Array.isArray(payload?.interventions) ? payload.interventions : [];
+  const rows = candidateRows(payload);
   const seen = new Set();
   const candidates = [];
   for (const row of rows) {
@@ -57,4 +77,4 @@ function mergeInterventionCandidates(...sets) {
   return [...merged.values()].sort((a,b) => a.id.localeCompare(b.id));
 }
 
-module.exports = { normalizeTags, interventionRecordToCandidate, extractInterventionCandidates, mergeInterventionCandidates };
+module.exports = { normalizeTags, candidateRows, interventionRecordToCandidate, extractInterventionCandidates, mergeInterventionCandidates };
