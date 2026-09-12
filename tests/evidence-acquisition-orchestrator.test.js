@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert');
-const { acquireDecisionEvidence, buildEvidenceAcquisitionTasks, CORE_REQUIRED_DOMAINS } = require('../js/evidence-acquisition-orchestrator');
+const { acquireDecisionEvidence, buildEvidenceAcquisitionTasks, buildGovernedDiscoveryPlan, CORE_REQUIRED_DOMAINS } = require('../js/evidence-acquisition-orchestrator');
 const { CANDIDATE_REGISTRY } = require('../js/intervention-discovery');
 
 function response(body, contentType='text/html') {
@@ -23,6 +23,11 @@ function response(body, contentType='text/html') {
   assert(tasks.some(x => x.domain === 'causal-evidence'));
   assert(tasks.some(x => x.domain === 'cost-resource'));
   assert(tasks.some(x => x.domain === 'population-equity'));
+
+  const governedPlan = buildGovernedDiscoveryPlan({ objective:'reduce harm', problem:'reduce violent crime', geography:'Ottawa' });
+  assert(governedPlan.steps.some(step => step.domain === 'causal-evidence' && step.status === 'SOURCE_FOUND'), 'violent-crime planning must discover causal evidence sources');
+  assert(governedPlan.sourceDiscovery.ranked.some(source => source.provider === 'OpenAlex'), 'OpenAlex must be available as a governed research discovery source');
+  assert(governedPlan.sourceDiscovery.ranked.some(source => source.provider === 'Campbell Collaboration Crime and Justice'), 'Campbell crime evidence must be available as a governed discovery source');
 
   const localSource = {
     url:'https://city.example/local', provider:'Test City', jurisdiction:'Ottawa', domain:'local-baseline', tier:'official_publication',
