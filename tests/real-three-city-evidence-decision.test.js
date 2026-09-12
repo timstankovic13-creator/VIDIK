@@ -21,7 +21,7 @@ const { PRODUCTION_HOUSING_EVIDENCE } = require('../evidence/production-housing-
     assert.strictEqual(decision.integrity.decisionIntegrity, true);
     assert.strictEqual(decision.integrity.syntheticEvidenceExcluded, true);
     assert.strictEqual(decision.causalProductionModel.observedMunicipalDataIsNotCausal, true);
-    assert.strictEqual(decision.rationale.recommendation, 'housing');
+    assert.strictEqual(decision.rationale.recommendation, 'housing', `${city}: recommendation failed: ${JSON.stringify(decision.rationale || decision.driftFailureRegistry || {})}`);
     const municipalNode = decision.evidenceGraph.nodes.find(node => node.id === `municipal:${city}`);
     assert.ok(municipalNode, `${city}: municipal evidence node missing`);
     assert.ok(municipalNode.provenance?.sourceUrlUsed, `${city}: live municipal source provenance missing`);
