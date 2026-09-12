@@ -1,12 +1,8 @@
 'use strict';
-
 const { buildAcquisitionPlan, retrieve } = require('./data-acquisition');
-
 async function acquireRankedSources({ manifest, candidates = [], fetchImpl = globalThis.fetch, now = new Date(), options = {} } = {}) {
   const plan = buildAcquisitionPlan({ manifest, candidates });
-  const acquired = [];
-  const failures = [];
-
+  const acquired = [], failures = [];
   for (const step of plan.steps) {
     let success = false;
     for (const source of step.sources) {
@@ -23,15 +19,14 @@ async function acquireRankedSources({ manifest, candidates = [], fetchImpl = glo
     }
     if (!success) failures.push({ requirementId: step.requirementId, domain: step.domain, reason: step.sources.length ? 'all-ranked-sources-failed' : 'no-source-candidate' });
   }
-
+  const uncovered = plan.steps.filter(step => !acquired.some(item => item.requirementId === step.requirementId));
   return {
-    schemaVersion: 'vidik.source-acquisition-run.v1',
-    plan,
+    schemaVersion: 'vidik.source-acquisition-run.v1', plan,
     acquired: acquired.map(item => ({ requirementId: item.requirementId, domain: item.domain, source: item.source, retrieval: item.retrieval })),
-    snapshots: acquired.map(item => item.retrieval),
-    failures,
-    complete: plan.steps.every(step => acquired.some(item => item.requirementId === step.requirementId)) && failures.length === 0
+    snapshots: acquired.map(item => item.retrieval), failures,
+    complete: uncovered.length === 0,
+    degraded: failures.length > 0,
+    uncoveredRequirements: uncovered.map(step => ({ requirementId: step.requirementId, domain: step.domain }))
   };
 }
-
 module.exports = { acquireRankedSources };
