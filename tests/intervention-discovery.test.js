@@ -9,6 +9,20 @@ assert.ok(crime.some(candidate => candidate.id === 'focused-deterrence'));
 assert.ok(crime.some(candidate => candidate.id === 'place-based-vacant-lot-intervention'));
 assert.ok(crime.every(candidate => candidate.evidenceState === 'evidence-gap'), 'discovery must not manufacture evidence');
 
+const acquired = Discovery.discoverInterventions({
+  problem: 'Reduce violent crime',
+  acquiredCandidates: [{
+    id: 'acquired-community-violence-prevention',
+    name: 'Community violence prevention',
+    domains: ['public-safety'],
+    problemTags: ['violent-crime'],
+    requiredEvidence: ['causal', 'implementation'],
+    discovery: { source: 'acquired-intervention-universe', sourceUrl: 'https://example.gov/interventions.json' }
+  }]
+});
+assert.ok(acquired.some(candidate => candidate.id === 'acquired-community-violence-prevention'), 'acquired intervention candidates must enter the universe');
+assert.strictEqual(acquired.find(candidate => candidate.id === 'acquired-community-violence-prevention').evidenceState, 'evidence-gap');
+
 const supported = Discovery.discoverInterventions({
   problem: 'homelessness',
   evidenceIndex: {
