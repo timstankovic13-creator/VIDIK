@@ -41,20 +41,21 @@
       voiHost.appendChild(el);
     }
   }
+  function expose(){
+    Object.defineProperty(window,'VIDIK_DECISION_INTELLIGENCE_9_7_BROWSER',{configurable:true,enumerable:true,get:snapshot,set:()=>{}});
+    return snapshot();
+  }
   async function initialize(){
     for(let attempt=0;attempt<120;attempt++){
       const state=STATE();
       if(state){
-        const result=snapshot();
-        window.VIDIK_DECISION_INTELLIGENCE_9_7_BROWSER=result;
+        const result=expose();
         render(result);
         return result;
       }
       await new Promise(resolve=>setTimeout(resolve,250));
     }
-    const result=snapshot();
-    window.VIDIK_DECISION_INTELLIGENCE_9_7_BROWSER=result;
-    return result;
+    return expose();
   }
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
