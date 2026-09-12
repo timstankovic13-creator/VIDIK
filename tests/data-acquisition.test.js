@@ -19,6 +19,13 @@ assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'https://127.0.0
 assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'https://city.example', provider: 'city', jurisdiction: 'CA', domain: 'not-a-domain', tier: 'official_machine_readable' }), /unsupported-data-domain/);
 assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'https://u:p@city.example', provider: 'city', jurisdiction: 'CA', domain: 'local-baseline', tier: 'official_machine_readable' }), /credentials/);
 
+const plan = Acquisition.buildAcquisitionPlan({ manifest, candidates: [sources[1], sources[2]] });
+assert.strictEqual(plan.steps.find(x => x.domain === 'local-baseline').status, 'SOURCE_FOUND');
+assert.strictEqual(plan.steps.find(x => x.domain === 'causal-evidence').status, 'SOURCE_FOUND');
+assert.strictEqual(plan.steps.find(x => x.domain === 'cost-resource').status, 'SOURCE_GAP');
+assert.ok(plan.sourceDiscovery.missingDomains.includes('cost-resource'));
+assert.ok(plan.schemaVersion.endsWith('.v1'));
+
 const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => new TextEncoder().encode('{"value":12}').buffer });
 (async () => {
   const source = { url: 'https://city.example/data.json', provider: 'city', jurisdiction: 'CA-ON', domain: 'local-baseline', tier: 'official_machine_readable', datasetId: 'x' };
