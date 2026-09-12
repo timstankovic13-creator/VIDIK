@@ -1,19 +1,12 @@
 'use strict';
 
 const crypto = require('crypto');
+const net = require('net');
 
 const DATA_DOMAINS = Object.freeze([
-  'problem-outcome',
-  'local-baseline',
-  'population-equity',
-  'intervention-universe',
-  'implementation',
-  'cost-resource',
-  'causal-evidence',
-  'constraints-feasibility',
-  'geospatial-context',
-  'comparator-innovation',
-  'outcome-learning'
+  'problem-outcome', 'local-baseline', 'population-equity', 'intervention-universe',
+  'implementation', 'cost-resource', 'causal-evidence', 'constraints-feasibility',
+  'geospatial-context', 'comparator-innovation', 'outcome-learning'
 ]);
 
 const SOURCE_TIERS = Object.freeze({
@@ -26,23 +19,25 @@ const SOURCE_TIERS = Object.freeze({
 });
 
 const EVIDENCE_STATUS = Object.freeze(['verified', 'supported', 'estimated', 'potential', 'blocked']);
+const MAX_DEFAULT_BYTES = 25 * 1024 * 1024;
+const DEFAULT_MAX_REDIRECTS = 5;
 
 function sha256(value) {
-  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const input = Buffer.isBuffer(value) ? value : Buffer.from(JSON.stringify(value));
+  return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-function finite(value) { return Number.isFinite(Number(value)); }
-
-function requiredDataManifest({ objective, problem, domains = DATA_DOMAINS, horizon = null } = {}) {
+function requiredDataManifest({ objective, problem, domains = DATA_DOMAINS, horizon = null, geography = null } = {}) {
   if (!objective || !problem) throw new Error('acquisition-objective-and-problem-required');
   const selected = [...new Set(domains)].filter(domain => DATA_DOMAINS.includes(domain));
   if (!selected.length) throw new Error('acquisition-domain-required');
   return {
-    schemaVersion: 'vidik.data-requirement-manifest.v1',
-    objective,
-    problem,
-    decisionHorizon: horizon,
-    requirements: selected.map((domain, index) => ({ id: `REQ-${String(index + 1).padStart(2, '0')}-${domain}`, domain, required: true, status: 'unknown' }))
+    schemaVersion: 'vidik.data-requirement-manifest.v2',
+    objective, problem, decisionHorizon: horizon, geography,
+    requirements: selected.map((domain, index) => ({
+      id: `REQ-${String(index + 1).padStart(2, '0')}-${domain}`,
+      domain, required: true, status: 'unknown', minimumEvidence: domain === 'causal-evidence' ? 'causal-or-explicit-gap' : 'usable-local-or-comparator-data'
+    }))
   };
 }
 
@@ -51,46 +46,67 @@ function rankSources(sources = []) {
     .sort((a, b) => a.tierRank - b.tierRank || a.discoveryOrder - b.discoveryOrder);
 }
 
-function validateSourceDescriptor(source) {
+function isPrivateHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0' || host === '::1') return true;
+  if (net.isIP(host) === 4) {
+    const p = host.split('.').map(Number);
+    return p[0] === 10 || p[0] === 127 || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168) || (p[0] === 169 && p[1] === 254);
+  }
+  return false;
+}
+
+function validateSourceDescriptor(source, { allowPrivateHosts = false } = {}) {
   if (!source || !source.url) throw new Error('source-url-required');
   const url = new URL(source.url);
   if (url.protocol !== 'https:') throw new Error('source-url-must-use-https');
+  if (url.username || url.password) throw new Error('source-url-credentials-forbidden');
+  if (!allowPrivateHosts && isPrivateHost(url.hostname)) throw new Error('source-host-private-network-forbidden');
   if (!source.provider || !source.jurisdiction || !source.domain) throw new Error('source-provider-jurisdiction-domain-required');
   if (!DATA_DOMAINS.includes(source.domain)) throw new Error(`unsupported-data-domain:${source.domain}`);
   if (!SOURCE_TIERS[source.tier]) throw new Error(`unsupported-source-tier:${source.tier}`);
   return true;
 }
 
-async function retrieve(source, { fetchImpl = globalThis.fetch, now = new Date() } = {}) {
-  validateSourceDescriptor(source);
+function validateRedirect(source, nextUrl, { allowCrossHostRedirect = false } = {}) {
+  const next = new URL(nextUrl);
+  if (next.protocol !== 'https:') throw new Error('redirect-must-use-https');
+  if (next.username || next.password) throw new Error('redirect-credentials-forbidden');
+  if (isPrivateHost(next.hostname)) throw new Error('redirect-private-network-forbidden');
+  if (!allowCrossHostRedirect && next.hostname !== new URL(source.url).hostname) throw new Error('cross-host-redirect-forbidden');
+  return next.toString();
+}
+
+async function retrieve(source, { fetchImpl = globalThis.fetch, now = new Date(), maxBytes = MAX_DEFAULT_BYTES, maxRedirects = DEFAULT_MAX_REDIRECTS, allowPrivateHosts = false, allowCrossHostRedirect = false } = {}) {
+  validateSourceDescriptor(source, { allowPrivateHosts });
   if (typeof fetchImpl !== 'function') throw new Error('fetch-unavailable');
   let current = source.url;
   const redirects = [];
-  for (let i = 0; i <= 5; i++) {
+  for (let i = 0; i <= maxRedirects; i++) {
     const response = await fetchImpl(current, {
-      headers: { accept: 'application/json,text/csv,application/xml,text/html,application/pdf;q=0.9,*/*;q=0.7', 'user-agent': 'VIDIK-data-acquisition/1.0' },
+      headers: { accept: 'application/json,text/csv,application/xml,text/html,text/plain,application/pdf;q=0.9,*/*;q=0.7', 'user-agent': 'VIDIK-data-acquisition/2.0' },
       redirect: 'manual'
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
+      if (i === maxRedirects) throw new Error('upstream-too-many-redirects');
       const location = response.headers?.get?.('location') || response.headers?.get?.('Location');
       if (!location) throw new Error('upstream-redirect-missing-location');
-      current = new URL(location, current).toString();
+      current = validateRedirect(source, new URL(location, current).toString(), { allowCrossHostRedirect });
       redirects.push(current);
       continue;
     }
     if (!response.ok) throw new Error(`upstream-http:${response.status}`);
+    const contentLength = Number(response.headers?.get?.('content-length') || 0);
+    if (contentLength && contentLength > maxBytes) throw new Error('upstream-content-too-large');
     const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > maxBytes) throw new Error('upstream-content-too-large');
     const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
     return {
       retrieval: {
-        retrievedAt: new Date(now).toISOString(),
-        requestedUrl: source.url,
-        finalUrl: current,
-        redirects,
-        status: response.status,
-        contentType,
-        byteLength: bytes.length,
-        contentHash: sha256(bytes.toString('base64'))
+        schemaVersion: 'vidik.source-retrieval.v2', retrievedAt: new Date(now).toISOString(),
+        requestedUrl: source.url, finalUrl: current, redirects, status: response.status,
+        contentType, byteLength: bytes.length, contentHash: sha256(bytes),
+        sourceVersion: source.version || null
       },
       bytes
     };
@@ -98,41 +114,32 @@ async function retrieve(source, { fetchImpl = globalThis.fetch, now = new Date()
   throw new Error('upstream-too-many-redirects');
 }
 
-function normalizeRecord({ source, retrieval, value, unit, period, geography, population, aggregation, extractionMethod, definition, asOf = null } = {}) {
+function parsePayload(bytes, contentType = '') {
+  const text = Buffer.from(bytes).toString('utf8');
+  const type = String(contentType).toLowerCase();
+  if (type.includes('json') || /^\s*[\[{]/.test(text)) {
+    try { return { format: 'json', value: JSON.parse(text) }; } catch (_) { /* fall through */ }
+  }
+  if (type.includes('csv') || /(?:^|\n)[^\n,]+,[^\n,]+/.test(text)) return { format: 'text/csv', value: text };
+  return { format: type.includes('html') ? 'text/html' : 'text/plain', value: text };
+}
+
+function normalizeRecord({ source, retrieval, value, unit, period, geography, population = null, aggregation, extractionMethod, definition, asOf = null, quality = null } = {}) {
   validateSourceDescriptor(source);
   if (!retrieval?.contentHash) throw new Error('retrieval-snapshot-required');
   if (value === undefined || value === null) throw new Error('normalized-value-required');
   if (!unit || !period || !geography || !aggregation || !extractionMethod) throw new Error('normalized-semantic-metadata-required');
   return {
-    schemaVersion: 'vidik.acquired-data-record.v1',
+    schemaVersion: 'vidik.acquired-data-record.v2',
     id: `DATA-${sha256({ source: source.url, retrieval: retrieval.contentHash, value, unit, period, geography }).slice(0, 16)}`,
-    domain: source.domain,
-    provider: source.provider,
-    source: {
-      url: source.url,
-      finalUrl: retrieval.finalUrl,
-      jurisdiction: source.jurisdiction,
-      tier: source.tier,
-      contentHash: retrieval.contentHash,
-      retrievedAt: retrieval.retrievedAt,
-      datasetId: source.datasetId || null,
-      version: source.version || null,
-      license: source.license || null
-    },
-    value,
-    unit,
-    period,
-    asOf,
-    geography,
-    population: population || null,
-    aggregation,
-    definition: definition || null,
-    extractionMethod,
-    status: 'unknown'
+    domain: source.domain, provider: source.provider,
+    source: { url: source.url, finalUrl: retrieval.finalUrl, jurisdiction: source.jurisdiction, tier: source.tier, contentHash: retrieval.contentHash, retrievedAt: retrieval.retrievedAt, datasetId: source.datasetId || null, version: source.version || null, license: source.license || null },
+    value, unit, period, asOf, geography, population, aggregation, definition: definition || null, extractionMethod,
+    quality: quality || null, status: 'unknown'
   };
 }
 
-function validateRecord(record, { now = new Date(), maxAgeDays = null } = {}) {
+function validateRecord(record, { now = new Date(), maxAgeDays = null, requireAsOf = false } = {}) {
   const failures = [];
   if (!record?.source?.contentHash) failures.push('source-snapshot-missing');
   if (!record?.source?.url) failures.push('source-url-missing');
@@ -140,6 +147,7 @@ function validateRecord(record, { now = new Date(), maxAgeDays = null } = {}) {
   if (!record?.unit || !record?.period || !record?.geography || !record?.aggregation) failures.push('semantic-definition-incomplete');
   if (record.value === null || record.value === undefined) failures.push('value-missing');
   if (typeof record.value === 'number' && !Number.isFinite(record.value)) failures.push('value-not-finite');
+  if (requireAsOf && !record.asOf) failures.push('as-of-missing');
   if (maxAgeDays !== null && record.asOf) {
     const age = (new Date(now).getTime() - new Date(record.asOf).getTime()) / 86400000;
     if (!Number.isFinite(age)) failures.push('invalid-as-of-date');
@@ -148,47 +156,33 @@ function validateRecord(record, { now = new Date(), maxAgeDays = null } = {}) {
   return { valid: failures.length === 0, failures };
 }
 
-function classifyEvidence({ record, independentVerification = false, claimType = 'context', method = null } = {}) {
+function classifyEvidence({ record, independentVerification = false, claimType = 'context', method = null, validation = null } = {}) {
   if (!record) return { status: 'blocked', failures: ['record-missing'] };
+  if (validation && !validation.valid) return { status: 'blocked', failures: validation.failures };
   if (claimType === 'causal' && !record.causalDesign && !method) return { status: 'potential', failures: ['causal-design-metadata-missing'] };
   if (independentVerification) return { status: 'verified', failures: [] };
   if (record.derived) return { status: 'estimated', failures: [] };
-  if (record.primary === false) return { status: 'supported', failures: [] };
   return { status: 'supported', failures: [] };
 }
 
-function buildAcquisitionResult({ manifest, candidates = [], records = [], gaps = [] } = {}) {
+function compareSnapshot(previous, current) {
+  if (!previous) return { changed: true, reason: 'no-prior-snapshot' };
+  if (previous.contentHash === current.contentHash) return { changed: false, reason: 'content-unchanged' };
+  return { changed: true, reason: 'content-hash-changed' };
+}
+
+function buildAcquisitionResult({ manifest, candidates = [], records = [], gaps = [], failures = [], snapshots = [] } = {}) {
   const ranked = rankSources(candidates);
   const byDomain = Object.fromEntries(DATA_DOMAINS.map(domain => [domain, ranked.filter(source => source.domain === domain)]));
   const coveredDomains = [...new Set(records.map(record => record.domain))];
+  const requiredDomains = manifest.requirements.filter(r => r.required).map(r => r.domain);
+  const missingDomains = requiredDomains.filter(domain => !coveredDomains.includes(domain));
   return {
-    schemaVersion: 'vidik.data-acquisition-result.v1',
-    manifest,
-    sourceCandidates: ranked,
-    candidatesByDomain: byDomain,
-    records,
-    gaps: [...new Set(gaps)],
-    coverage: {
-      requiredDomains: manifest.requirements.map(r => r.domain),
-      coveredDomains,
-      missingDomains: manifest.requirements.map(r => r.domain).filter(domain => !coveredDomains.includes(domain)),
-      complete: manifest.requirements.every(r => coveredDomains.includes(r.domain))
-    },
-    acquisitionHash: sha256({ manifest, ranked, records, gaps })
+    schemaVersion: 'vidik.data-acquisition-result.v2', manifest, sourceCandidates: ranked, candidatesByDomain: byDomain,
+    records, gaps: [...new Set(gaps)], failures, snapshots,
+    coverage: { requiredDomains, coveredDomains, missingDomains, complete: missingDomains.length === 0 && failures.length === 0 },
+    acquisitionHash: sha256({ manifest, ranked, records, gaps, failures, snapshots })
   };
 }
 
-module.exports = {
-  DATA_DOMAINS,
-  SOURCE_TIERS,
-  EVIDENCE_STATUS,
-  sha256,
-  requiredDataManifest,
-  rankSources,
-  validateSourceDescriptor,
-  retrieve,
-  normalizeRecord,
-  validateRecord,
-  classifyEvidence,
-  buildAcquisitionResult
-};
+module.exports = { DATA_DOMAINS, SOURCE_TIERS, EVIDENCE_STATUS, MAX_DEFAULT_BYTES, sha256, requiredDataManifest, rankSources, isPrivateHost, validateSourceDescriptor, validateRedirect, retrieve, parsePayload, normalizeRecord, validateRecord, classifyEvidence, compareSnapshot, buildAcquisitionResult };
