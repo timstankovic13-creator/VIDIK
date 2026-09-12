@@ -30,7 +30,7 @@
       const el=document.createElement('pre');
       el.dataset.vidikDi97='';
       el.setAttribute('aria-label','VIDIK 9.7.1 canonical decision intelligence');
-      el.textContent='9.7.1 · canonical Step 5 state\n'+JSON.stringify({status:result.status,revision:result.revision,decision:result.decision,sensitivity:result.sensitivity,counterfactual:result.counterfactual},null,2);
+      el.textContent='9.7.1 · canonical Step 5 state\n'+JSON.stringify({source:result.source,status:result.status,revision:result.revision,decision:result.decision,sensitivity:result.sensitivity,counterfactual:result.counterfactual},null,2);
       uncertaintyHost.appendChild(el);
     }
     if(voiHost){
