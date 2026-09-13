@@ -43,6 +43,19 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
   }).filter(item => item.city && item.matchedSignals.length >= minSignals && item.interventions.length);
 }
 
+function normalizeSourceSearch(source, fallbackType = 'acquisition') {
+  const rawStatus = source.status || 'searched';
+  const failed = ['failed', 'search-failed', 'error', 'blocked'].includes(rawStatus);
+  const count = Number.isFinite(source.candidatesReturned) ? source.candidatesReturned : 0;
+  return {
+    sourceId: source.sourceId || source.id || null,
+    sourceType: source.sourceType || source.type || fallbackType,
+    status: failed ? rawStatus : (count > 0 ? 'candidates-found' : 'searched-empty'),
+    candidatesReturned: count,
+    jurisdiction: source.jurisdiction || null
+  };
+}
+
 function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [], localCandidates = [], acquiredCandidates = [], comparableCities = [], evidenceIndex = {} } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
 
@@ -67,23 +80,16 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
     evidenceIndex
   });
 
-  const sourceSearches = acquisitionSources.map(source => ({
-    sourceId: source.sourceId || source.id || null,
-    sourceType: source.sourceType || source.type || 'acquisition',
-    status: source.status || 'searched',
-    candidatesReturned: Number.isFinite(source.candidatesReturned) ? source.candidatesReturned : 0
-  }));
+  const sourceSearches = acquisitionSources.map(source => normalizeSourceSearch(source));
+  const localSearch = { sourceId: 'local-program-registry', sourceType: 'local-program', status: normalizedLocal.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedLocal.length };
+  const acquiredSearch = { sourceId: 'acquired-intervention-universe', sourceType: 'acquired', status: normalizedAcquired.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedAcquired.length };
+  const researchSearch = { sourceId: 'research-discovery', sourceType: 'research', status: normalizedResearch.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedResearch.length };
+  const comparableSearch = { sourceId: 'comparable-city-learning', sourceType: 'comparable-city', status: comparableCandidates.length ? 'candidates-found' : 'searched-empty', candidatesReturned: comparableCandidates.length };
 
   const audit = Discovery.discoveryAudit({
     problem,
     candidates: allCandidates,
-    sourceSearches: [
-      ...sourceSearches,
-      { sourceId: 'local-program-registry', sourceType: 'local-program', status: normalizedLocal.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedLocal.length },
-      { sourceId: 'acquired-intervention-universe', sourceType: 'acquired', status: normalizedAcquired.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedAcquired.length },
-      { sourceId: 'research-discovery', sourceType: 'research', status: 'candidates-found', candidatesReturned: normalizedResearch.length },
-      { sourceId: 'comparable-city-learning', sourceType: 'comparable-city', status: comparableCandidates.length ? 'candidates-found' : 'searched-empty', candidatesReturned: comparableCandidates.length }
-    ]
+    sourceSearches: [...sourceSearches, localSearch, acquiredSearch, researchSearch, comparableSearch]
   });
 
   const gaps = candidates.map(candidate => ({ candidateId: candidate.id, missingEvidence: candidate.missingEvidence, evidenceState: candidate.evidenceState }));
@@ -105,10 +111,11 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
       sourceSearchFailures: failedSources,
       effectsImportedFromComparableCities: false,
       unknownIsNotZero: true,
-      requiresHumanReviewWhenEvidenceIncomplete: true
+      requiresHumanReviewWhenEvidenceIncomplete: true,
+      discoverySearchComplete: failedSources.length === 0
     },
     runHash: hash({ problem, audit, candidates, gaps, comparable, failedSources })
   };
 }
 
-module.exports = { comparableCityLeads, buildDiscoveryRun, normalizeLead };
+module.exports = { comparableCityLeads, buildDiscoveryRun, normalizeLead, normalizeSourceSearch };
