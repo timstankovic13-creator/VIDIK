@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const CHECKPOINTS = Object.freeze({ '6-month': 6, '1-year': 12, '2-year': 24, '5-year': 60 });
+const LOCK_STALE_MS = 60_000;
 
 function fail(code, detail) {
   const error = new Error(detail ? `${code}: ${detail}` : code);
@@ -45,9 +46,22 @@ function writeState(filePath, state) {
 }
 function acquireLock(lockFile, attempts = 400) {
   for (let i = 0; i < attempts; i += 1) {
-    try { return fs.openSync(lockFile, 'wx'); }
-    catch (error) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx');
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }));
+      return fd;
+    } catch (error) {
       if (error.code !== 'EEXIST') throw error;
+      try {
+        const age = Date.now() - fs.statSync(lockFile).mtimeMs;
+        if (age > LOCK_STALE_MS) {
+          fs.unlinkSync(lockFile);
+          continue;
+        }
+      } catch (statError) {
+        if (statError.code === 'ENOENT') continue;
+        throw statError;
+      }
       const waitMs = Math.min(25, 2 + Math.floor(i / 10));
       const until = Date.now() + waitMs;
       while (Date.now() < until) {}
@@ -155,4 +169,4 @@ function createOutcomeLearningStore(options = {}) {
   };
 }
 
-module.exports = { CHECKPOINTS, createOutcomeLearningStore };
+module.exports = { CHECKPOINTS, LOCK_STALE_MS, createOutcomeLearningStore };

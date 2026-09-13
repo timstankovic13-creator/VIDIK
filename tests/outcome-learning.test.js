@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const test = require('node:test');
-const { createOutcomeLearningStore } = require('../scripts/outcome-learning');
+const { createOutcomeLearningStore, LOCK_STALE_MS } = require('../scripts/outcome-learning');
 
 function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidik-learning-'));
@@ -87,4 +87,17 @@ store.recordOutcome({ decisionId: process.argv[2], parameterName: 'collision_rat
   assert.equal(state.outcomes.length, 2);
   assert.equal(new Set(state.outcomes.map(item => item.id)).size, 2);
   assert.equal(state.audit.filter(event => event.type === 'OUTCOME_RECORDED').length, 2);
+});
+
+test('stale outcome-learning locks are recovered without losing the store', () => {
+  const { filePath } = tempStore();
+  const store = createOutcomeLearningStore({ filePath });
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const lockFile = `${filePath}.lock`;
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 999999, acquiredAt: '2020-01-01T00:00:00.000Z' }));
+  const old = new Date(Date.now() - LOCK_STALE_MS - 1000);
+  fs.utimesSync(lockFile, old, old);
+  const recorded = store.recordOutcome({ ...decision, predicted: 100, observed: 99, checkpoint: '6-month', outcomeAt: '2026-07-01T00:00:00.000Z' });
+  assert.equal(recorded.observed, 99);
+  assert.equal(fs.existsSync(lockFile), false);
 });
