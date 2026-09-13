@@ -8,7 +8,7 @@ const { runCanonicalAll, withResourceEnvelope } = require('../scripts/municipal-
   const options = withResourceEnvelope({}, 5000000);
   const result = await runCanonicalAll(options);
 
-  assert.strictEqual(result.schemaVersion, 'vidik.canonical-three-city-decision.v1');
+  assert.strictEqual(result.schemaVersion, 'vidik.canonical-three-city-decision.v2');
   assert.strictEqual(result.cities.length, 3);
 
   for (const decision of result.cities) {
