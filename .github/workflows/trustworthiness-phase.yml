@@ -94,8 +94,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
-      - name: Arbitrary-problem discovery orchestration
-        run: npm run test:decision-discovery-orchestration
+      - name: Full discovery orchestration and execution
+        run: |
+          npm run test:decision-discovery-orchestration
+          npm run test:decision-discovery-execution
 
   existing-regressions:
     runs-on: ubuntu-latest
