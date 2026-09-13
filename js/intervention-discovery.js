@@ -24,7 +24,7 @@ const CANDIDATE_REGISTRY = Object.freeze([
   { id: 'building-energy-retrofits', domains: ['environment', 'housing'], problemTags: ['energy-use', 'emissions', 'energy-poverty'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'] }
 ]);
 
-const STOP_WORDS = new Set(['a','an','and','are','for','from','in','into','of','on','or','reduce','reducing','the','to','with','improve','improving','increase','increasing','decrease','decreasing','department']);
+const STOP_WORDS = new Set(['a','an','and','are','for','from','in','into','of','on','or','reduce','reducing','the','to','with','improve','improving','increase','increasing','decrease','decreasing','department','municipal','city','program','programs','service','services','public']);
 
 function normalizeProblemTags(problem) {
   const text = String(problem || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ');
