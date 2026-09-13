@@ -76,7 +76,7 @@ function evidenceCoverage(candidates) {
   return { total, complete, withEvidenceGaps: total - complete, coverageRate: total ? complete / total : 0 };
 }
 
-function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [] } = {}) {
+function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [], sourceSearches = [] } = {}) {
   if (!problem) throw new Error('intervention-discovery-problem-required');
   const supplied = [
     ...acquiredCandidates.map(candidate => ({ candidate, sourceType: 'acquired' })),
@@ -87,18 +87,26 @@ function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceInde
   const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
   const results = discoverInterventions({ problem, candidates, evidenceIndex, localProgramIndex, acquiredCandidates });
   const sourceTypes = [...new Set(uniqueSupplied.map(({ sourceType }) => sourceType))];
+  const searches = sourceSearches.map(search => ({
+    sourceId: search?.sourceId || null,
+    sourceType: search?.sourceType || null,
+    status: search?.status || 'unknown',
+    candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0
+  }));
   const provenanceMissing = uniqueSupplied.filter(({ candidate, sourceType }) => sourceType !== 'fallback-registry' && !candidate.discovery?.source).map(({ candidate }) => candidate.id);
+  const candidateUniverseHash = hashCandidateUniverse(uniqueSupplied.map(({ candidate, sourceType }) => ({ candidate, sourceType })));
   return {
     problem,
     problemSignals: normalizeProblemTags(problem),
     sourcesSearched: sourceTypes,
+    sourceSearches: searches,
     candidatesConsidered: uniqueSupplied.length,
     candidatesMatched: results.length,
     candidatesUnmatched: Math.max(0, uniqueSupplied.length - results.length),
     provenanceMissing,
     emptyResult: results.length === 0,
     evidenceCoverage: evidenceCoverage(results),
-    candidateUniverseHash: hashCandidateUniverse(results),
+    candidateUniverseHash,
     status: results.length ? 'candidates-found' : 'no-candidates-found'
   };
 }
