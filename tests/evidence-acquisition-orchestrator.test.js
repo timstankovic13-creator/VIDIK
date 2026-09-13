@@ -33,7 +33,10 @@ function response(body, contentType='text/html') {
   const localSource = { url:'https://city.example/local', provider:'Test City', jurisdiction:'Ottawa', domain:'local-baseline', tier:'official_publication', observation:{value:123,unit:'people',period:'2026-01-01',asOf:'2026-01-01',aggregation:'point-in-time',extractionMethod:'test'} };
   const causalSource = { url:'https://research.example/effect', provider:'Independent Research', jurisdiction:'Canada', domain:'causal-evidence', tier:'independent_causal_research', evidence:{id:'test-effect',estimate:0.25,unit:'absolute risk difference',asOf:'2026-01-01',uncertainty:{low:0.1,high:0.4},provenance:'test causal record'} };
   const fakeFetch = async url => {
-    if (url.includes('package_search')) return response(JSON.stringify({ result: { results: [{ id:'external-violence-program', title:'Community violence prevention', type:'program', tags:['violent-crime'], category:'public-safety' }] } }), 'application/json');
+    if (url.includes('package_search')) return response(JSON.stringify({ result: { results: [
+      { id:'external-violence-program', title:'Community violence prevention', type:'program', tags:['violent-crime'], category:'public-safety' },
+      { id:'external-unmatched-program', title:'Coastal flood barrier initiative', type:'program', tags:['flooding'], category:'environment' }
+    ] } }), 'application/json');
     return response(url.includes('effect') ? 'causal evidence snapshot' : 'local baseline snapshot');
   };
   const result = await acquireDecisionEvidence({ objective:'reduce harm', problem:'reduce violent crime', geography:'Ottawa', localSource, causalSources:[causalSource], candidateRegistry:CANDIDATE_REGISTRY, evidenceIndex:{}, fetchImpl:fakeFetch, now:new Date('2026-09-12T00:00:00Z') });
@@ -42,6 +45,7 @@ function response(body, contentType='text/html') {
   assert(result.interventionUniverse.some(x => x.id === 'external-violence-program'), 'automatic catalog discovery must feed the intervention universe');
   assert(result.governedInterventionSources.length >= 2);
   assert(result.governedInterventionSources.every(source => source.discoveryQuery), 'each governed discovery request must retain its query provenance');
+  assert(result.discoveryDiagnostics.unmatched.some(x => x.id === 'external-unmatched-program'), 'discovered but non-matching interventions must remain auditable rather than disappearing');
   assert(result.acquisitionTasks.some(x => x.candidateId === 'external-violence-program'));
   assert(result.candidateUniverseHash);
   assert(result.acquisitionPlanHash);
