@@ -39,13 +39,16 @@ function normalizeProblemTags(problem) {
 }
 
 function discoveryTokens(text) {
-  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
+  // Treat hyphenated signals as the same lexical components as their spaced form.
+  // This prevents a compound tag such as emergency-department-overcrowding from
+  // becoming an opaque token while preserving the stop-word and alias safeguards.
+  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/-/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
 }
 
 function candidateMatch(candidate, problemTags, problemText) {
   const candidateTags = Array.isArray(candidate.problemTags) ? candidate.problemTags : [];
   const tagMatches = candidateTags.filter(tag => problemTags.includes(tag));
-  const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags);
+  const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags.flatMap(tag => discoveryTokens(tag)));
   const text = `${candidate.name || ''} ${candidate.discoveryText || ''} ${(candidate.domains || []).join(' ')} ${candidateTags.join(' ')}`;
   const textMatches = [...discoveryTokens(text)].filter(token => problemTokens.has(token));
   const aliasMatches = candidateTags.filter(tag => problemTags.includes(tag));
