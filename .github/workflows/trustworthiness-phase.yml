@@ -23,7 +23,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Candidate matching and discovery
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(1|2) '
+        run: node --test --test-name-pattern='^(1|2) ' tests/trustworthiness-phase.test.js
 
   evidence-integrity:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Evidence contradiction and invalidation
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(3|4) '
+        run: node --test --test-name-pattern='^(3|4) ' tests/trustworthiness-phase.test.js
 
   replay-sensitivity:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Historical replay and sensitivity
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(5|6) '
+        run: node --test --test-name-pattern='^(5|6) ' tests/trustworthiness-phase.test.js
 
   transportability-drift:
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Transportability and drift
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(7|8) '
+        run: node --test --test-name-pattern='^(7|8) ' tests/trustworthiness-phase.test.js
 
   arbitrary-problems:
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Arbitrary problem and comparable-city learning
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(9|10) '
+        run: node --test --test-name-pattern='^(9|10) ' tests/trustworthiness-phase.test.js
 
   certification-artifact:
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
       - name: Certification and artifact contract
-        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(production certification|artifact projection)'
+        run: node --test --test-name-pattern='^(production certification|artifact projection)' tests/trustworthiness-phase.test.js
 
   existing-regressions:
     runs-on: ubuntu-latest
