@@ -4,6 +4,7 @@ const { enforceEvidenceAdmissibility, validateEvidenceSet, transportabilitySimil
 const { requestHumanOverride } = require('../js/governed-human-override');
 const { compareMarginalEvidence } = require('../js/marginal-resource-evidence');
 const { runCanonicalAll, runCanonicalCity } = require('../scripts/municipal-canonical-decision-run');
+const { fetchText } = require('../scripts/municipal-production-decision-run');
 
 const validEvidence = {
   id: 'e1', quality: 0.95, asOf: '2026-01-01', unit: 'absolute stable-housing probability difference',
@@ -32,6 +33,12 @@ async function main() {
 
   assert(transportabilitySimilarity({ populationScale: 1, problemDefinition: 'a' }, { populationScale: 1, problemDefinition: 'a' }) > 0.99);
   assert(transportabilitySimilarity({ populationScale: 1, problemDefinition: 'a' }, { populationScale: 10, problemDefinition: 'b' }) < 0.6);
+
+  let networkAttempts = 0;
+  const retryFetch = async () => { networkAttempts += 1; if (networkAttempts < 3) throw new TypeError('fetch failed'); return { ok: true, status: 200, headers: { get() { return 'text/plain'; } }, async text() { return 'Ottawa municipal source'; } }; };
+  const retried = await fetchText('https://www.ottawa.ca/en/family-and-social-services/housing-and-homelessness/plans-facts-and-data/point-time-count/enumeration-overview-and-results', retryFetch);
+  assert.strictEqual(retried.text, 'Ottawa municipal source');
+  assert.strictEqual(networkAttempts, 3, 'transient municipal network failures must be retried before failing closed');
 
   const marginal = compareMarginalEvidence([
     { intervention: 'housing', resourceUnit: 'CAD', resourceAmount: 1000, incrementalCapacity: 1, incrementalActivity: 1, incrementalOutcome: 0.2, unit: 'outcome', evidenceId: 'm1', provenance: 'source', uncertainty: { low: 0.1, high: 0.3 }, transportability: { admissible: true } },
