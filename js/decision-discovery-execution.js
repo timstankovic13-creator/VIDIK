@@ -154,8 +154,7 @@ async function executeDecisionDiscovery({
   run.governance.learningEnvelope = intelligence.governance.learning;
   run.governance.whyNotAvailable = true;
 
-  if (!run.governance.recommendationAllowed || !intelligence.discovery.coverage.complete) {
-    run.governance.recommendationAllowed = false;
+  if (!run.governance.recommendationAllowed) {
     run.governance.decisionStatus = 'recommendation-blocked';
     run.decision.status = 'recommendation-blocked';
     run.decision.recommendation = null;
