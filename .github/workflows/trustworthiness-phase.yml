@@ -134,6 +134,7 @@ jobs:
           npm run test:evidence-acquisition-orchestrator
           npm run test:source-registry
           npm run test:research-discovery
+          npm run test:decision-discovery-internal-battery
       - name: Decision intelligence and production hardening
         run: |
           npm run test:municipal-evidence-pipeline
