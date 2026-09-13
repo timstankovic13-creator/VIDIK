@@ -85,6 +85,18 @@ jobs:
       - name: Certification and artifact contract
         run: node --test --test-name-pattern='^(production certification|artifact projection)' tests/trustworthiness-phase.test.js
 
+  discovery-orchestration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Arbitrary-problem discovery orchestration
+        run: npm run test:decision-discovery-orchestration
+
   existing-regressions:
     runs-on: ubuntu-latest
     timeout-minutes: 20
