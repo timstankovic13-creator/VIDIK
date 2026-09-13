@@ -24,13 +24,12 @@ function normalizeLead(lead, source = {}) {
   if (!id) return null;
   const sourceType = source.sourceType || source.type || lead.discovery?.sourceType || 'discovery';
   const sourceId = source.sourceId || source.source || lead.discovery?.source || 'unknown';
-  const provenance = Array.isArray(lead.discovery?.provenance) ? [...lead.discovery.provenance] : [];
-  provenance.push({
+  const provenance = [{
     sourceId,
     sourceType,
     jurisdiction: source.jurisdiction || lead.jurisdiction || lead.discovery?.jurisdiction || null,
     evidenceStatus: lead.evidenceStatus || lead.discovery?.evidenceStatus || 'potential'
-  });
+  }];
   return {
     id: String(id),
     name: lead.name || lead.title || String(id),
@@ -56,24 +55,42 @@ function candidateKey(candidate) {
   return `${name}::${tags}`;
 }
 
+function trustedProvenance(candidate) {
+  const discovery = candidate.discovery || {};
+  const expectedSource = discovery.source || null;
+  const expectedType = discovery.sourceType || null;
+  const expectedJurisdiction = discovery.jurisdiction ?? null;
+  const records = Array.isArray(discovery.provenance) ? discovery.provenance : [];
+  return records.filter(record =>
+    record &&
+    record.sourceId === expectedSource &&
+    record.sourceType === expectedType &&
+    (expectedJurisdiction === null || record.jurisdiction === expectedJurisdiction)
+  );
+}
+
 function deduplicateCandidates(candidates = []) {
   const byKey = new Map();
   for (const candidate of candidates) {
     if (!candidate?.id) continue;
-    const key = candidateKey(candidate);
+    const canonical = {
+      ...candidate,
+      discovery: {
+        ...(candidate.discovery || {}),
+        provenance: trustedProvenance(candidate)
+      }
+    };
+    const key = candidateKey(canonical);
     const existing = byKey.get(key);
     if (!existing) {
-      byKey.set(key, {
-        ...candidate,
-        discovery: { ...(candidate.discovery || {}), provenance: [...(candidate.discovery?.provenance || [])] }
-      });
+      byKey.set(key, canonical);
       continue;
     }
-    existing.problemTags = [...new Set([...(existing.problemTags || []), ...(candidate.problemTags || [])])];
-    existing.domains = [...new Set([...(existing.domains || []), ...(candidate.domains || [])])];
-    existing.requiredEvidence = [...new Set([...(existing.requiredEvidence || []), ...(candidate.requiredEvidence || [])])];
-    existing.discovery.provenance = [...existing.discovery.provenance, ...(candidate.discovery?.provenance || [])];
-    if (candidate.discovery?.sourceType === 'comparable-city') existing.discovery.leadOnly = true;
+    existing.problemTags = [...new Set([...(existing.problemTags || []), ...(canonical.problemTags || [])])];
+    existing.domains = [...new Set([...(existing.domains || []), ...(canonical.domains || [])])];
+    existing.requiredEvidence = [...new Set([...(existing.requiredEvidence || []), ...(canonical.requiredEvidence || [])])];
+    existing.discovery.provenance = [...existing.discovery.provenance, ...canonical.discovery.provenance];
+    if (canonical.discovery?.sourceType === 'comparable-city') existing.discovery.leadOnly = true;
   }
   return [...byKey.values()].map(candidate => ({
     ...candidate,
@@ -86,7 +103,7 @@ function deduplicateCandidates(candidates = []) {
 
 function normalizeSourceSearch(source = {}, fallbackType = 'acquisition') {
   const rawStatus = source.status || 'searched';
-  const count = Number.isFinite(source.candidatesReturned) ? source.candidatesReturned : 0;
+  const count = Number.isFinite(source.candidatesReturned) ? Math.max(0, source.candidatesReturned) : 0;
   const status = FAILED_STATUSES.has(rawStatus)
     ? rawStatus
     : (SEARCHED_STATUSES.has(rawStatus) ? (count > 0 ? 'candidates-found' : 'searched-empty') : (count > 0 ? 'candidates-found' : rawStatus));
@@ -123,18 +140,8 @@ function buildSearchManifest({ problem, acquisitionSources = [], localCandidates
   for (const type of requiredSourceTypes) {
     if (![...grouped.values()].some(search => search.sourceType === type)) {
       grouped.set(`${type}:not-searched`, {
-        sourceId: null,
-        sourceType: type,
-        jurisdiction: null,
-        query: problem,
-        status: 'not-searched',
-        candidatesReturned: 0,
-        provenance: null,
-        retrievedAt: null,
-        contentHash: null,
-        freshness: null,
-        validation: null,
-        failureReason: null
+        sourceId: null, sourceType: type, jurisdiction: null, query: problem, status: 'not-searched', candidatesReturned: 0,
+        provenance: null, retrievedAt: null, contentHash: null, freshness: null, validation: null, failureReason: null
       });
     }
   }
@@ -147,13 +154,9 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
     const citySignals = Discovery.normalizeProblemTags(`${city.problem || ''} ${Array.isArray(city.interventions) ? city.interventions.join(' ') : city.interventions || ''}`);
     const signals = citySignals.filter(signal => problemSignals.has(signal));
     return {
-      city: city.city || null,
-      jurisdiction: city.jurisdiction || city.city || null,
-      matchedSignals: [...new Set(signals)],
-      interventions: Array.isArray(city.interventions) ? city.interventions : [city.interventions].filter(Boolean),
-      leadOnly: true,
-      effectsImported: false,
-      provenance: city.provenance || null
+      city: city.city || null, jurisdiction: city.jurisdiction || city.city || null, matchedSignals: [...new Set(signals)],
+      interventions: Array.isArray(city.interventions) ? city.interventions : [city.interventions].filter(Boolean), leadOnly: true,
+      effectsImported: false, provenance: city.provenance || null
     };
   }).filter(item => item.city && item.matchedSignals.length >= minSignals && item.interventions.length);
 }
@@ -161,7 +164,6 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
 function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } = {}) {
   const eligible = candidates.filter(candidate => candidate.evidenceState === 'evidence-complete');
   if (!eligible.length) return { status: 'blocked', reason: 'no-evidence-complete-candidates', candidates: [], recommendationFlip: false, voi: { status: 'not-computable' } };
-
   const analyzed = eligible.map(candidate => {
     const input = analysisInputs[candidate.id] || {};
     const estimate = Number(input.estimate);
@@ -169,19 +171,10 @@ function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } =
     const validEstimate = Number.isFinite(estimate);
     const validUncertainty = uncertainty && Number.isFinite(Number(uncertainty.low)) && Number.isFinite(Number(uncertainty.high)) && Number(uncertainty.high) >= Number(uncertainty.low);
     const scenarios = Array.isArray(input.scenarios) ? input.scenarios.filter(s => Number.isFinite(Number(s.value))) : [];
-    return {
-      candidateId: candidate.id,
-      baseline: validEstimate ? estimate : null,
-      uncertainty: validUncertainty ? { low: Number(uncertainty.low), high: Number(uncertainty.high) } : null,
-      scenarios,
-      status: validEstimate && validUncertainty ? 'analyzable' : 'insufficient-quantitative-input'
-    };
+    return { candidateId: candidate.id, baseline: validEstimate ? estimate : null, uncertainty: validUncertainty ? { low: Number(uncertainty.low), high: Number(uncertainty.high) } : null, scenarios, status: validEstimate && validUncertainty ? 'analyzable' : 'insufficient-quantitative-input' };
   });
-
   const analyzable = analyzed.filter(item => item.status === 'analyzable');
-  if (analyzable.length !== eligible.length) {
-    return { status: 'incomplete', candidates: analyzed, recommendationFlip: null, voi: { status: 'not-computable', reason: 'quantitative-uncertainty-input-missing' } };
-  }
+  if (analyzable.length !== eligible.length) return { status: 'incomplete', candidates: analyzed, recommendationFlip: null, voi: { status: 'not-computable', reason: 'quantitative-uncertainty-input-missing' } };
   const baselineWinner = analyzable.slice().sort((a, b) => b.baseline - a.baseline || a.candidateId.localeCompare(b.candidateId))[0].candidateId;
   const lowWinner = analyzable.slice().sort((a, b) => b.uncertainty.low - a.uncertainty.low || a.candidateId.localeCompare(b.candidateId))[0].candidateId;
   const highWinner = analyzable.slice().sort((a, b) => b.uncertainty.high - a.uncertainty.high || a.candidateId.localeCompare(b.candidateId))[0].candidateId;
@@ -192,18 +185,12 @@ function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } =
     if (available.length) scenarioWinners.push({ scenario: i, winner: available.sort((a, b) => b.value - a.value || a.candidateId.localeCompare(b.candidateId))[0].candidateId });
   }
   const flips = [lowWinner, highWinner, ...scenarioWinners.map(item => item.winner)].filter(winner => winner !== baselineWinner);
-  const voiInputs = analyzable.map(item => analysisInputs[item.candidateId]?.voi).filter(value => Number.isFinite(Number(value)));
-  const voi = voiInputs.length === analyzable.length
-    ? { status: 'complete', expectedValueOfInformation: Math.max(...voiInputs.map(Number)), basis: 'caller-supplied candidate-level VOI inputs' }
-    : { status: 'not-computable', reason: 'candidate-level-voi-input-missing' };
-  return {
-    status: 'complete',
-    candidates: analyzed,
-    baselineWinner,
-    sensitivity: { lowWinner, highWinner, scenarioWinners, recommendationFlip: flips.length > 0 },
-    recommendationFlip: flips.length > 0,
-    voi
-  };
+  const rawVoiInputs = analyzable.map(item => analysisInputs[item.candidateId]?.voi);
+  const validVoi = rawVoiInputs.length === analyzable.length && rawVoiInputs.every(value => Number.isFinite(Number(value)) && Number(value) >= 0);
+  const voi = validVoi
+    ? { status: 'complete', expectedValueOfInformation: Math.max(...rawVoiInputs.map(Number)), basis: 'caller-supplied candidate-level VOI inputs' }
+    : { status: 'not-computable', reason: 'candidate-level-voi-input-missing-or-invalid' };
+  return { status: 'complete', candidates: analyzed, baselineWinner, sensitivity: { lowWinner, highWinner, scenarioWinners, recommendationFlip: flips.length > 0 }, recommendationFlip: flips.length > 0, voi };
 }
 
 function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [], localCandidates = [], acquiredCandidates = [], comparableCities = [], evidenceIndex = {}, analysisInputs = {}, requiredSourceTypes = SOURCE_TYPES, statusQuo = null, decisionContext = {} } = {}) {
@@ -211,11 +198,8 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
   const comparable = comparableCityLeads({ problem, cities: comparableCities });
   const comparableCandidates = comparable.flatMap(city => city.interventions.map(intervention => normalizeLead({
     id: `${String(city.city).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${String(intervention).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-    name: intervention,
-    problemTags: city.matchedSignals,
-    evidenceStatus: 'potential'
+    name: intervention, problemTags: city.matchedSignals, evidenceStatus: 'potential'
   }, { sourceId: 'comparable-city-learning', sourceType: 'comparable-city', jurisdiction: city.jurisdiction, comparableCity: city.city })));
-
   const normalizedResearch = researchLeads.map(lead => normalizeLead(lead, { sourceId: 'research-discovery', sourceType: 'research', jurisdiction: lead.jurisdiction })).filter(Boolean);
   const normalizedAcquired = acquiredCandidates.map(lead => normalizeLead(lead, { sourceId: 'acquired-intervention-universe', sourceType: 'intervention-library', jurisdiction: lead.jurisdiction })).filter(Boolean);
   const normalizedLocal = localCandidates.map(lead => normalizeLead(lead, { sourceId: 'local-program-registry', sourceType: 'local-program', jurisdiction: lead.jurisdiction })).filter(Boolean);
@@ -230,68 +214,32 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
   audit.sourceSearchFailures = failedSources;
   audit.unsearchedSourceTypes = unsearchedSources;
   audit.candidateUniverseHash = Discovery.hashCandidateUniverse(allCandidates.map(candidate => ({ id: candidate.id, name: candidate.name, problemTags: candidate.problemTags, domains: candidate.domains, sourceType: candidate.discovery?.sourceType, provenance: candidate.discovery?.provenance })));
-
   const evidenceGaps = candidates.map(candidate => ({ candidateId: candidate.id, missingEvidence: candidate.missingEvidence, evidenceState: candidate.evidenceState, evidence: candidate.evidence }));
   const blockedCandidates = candidates.filter(candidate => candidate.evidenceState === 'evidence-gap').map(candidate => candidate.id);
   const analysis = runUncertaintySensitivityVOI({ candidates, analysisInputs });
   const evidenceComplete = candidates.filter(candidate => candidate.evidenceState === 'evidence-complete');
+  const statusQuoExplicit = Boolean(statusQuo && statusQuo.explicit === true);
   const recommendationAllowed = Boolean(
-    audit.discoverySearchComplete &&
-    evidenceComplete.length &&
-    analysis.status === 'complete' &&
-    !analysis.recommendationFlip &&
-    analysis.voi.status === 'complete'
+    statusQuoExplicit && audit.discoverySearchComplete && evidenceComplete.length && analysis.status === 'complete' && !analysis.recommendationFlip && analysis.voi.status === 'complete'
   );
   const decisionStatus = recommendationAllowed ? 'recommendation-permitted' : 'recommendation-blocked';
   const learning = {
-    historyRewrite: false,
-    automaticParameterMutation: false,
-    outcomeReviewRequired: true,
-    recalibrationIsGoverned: true,
+    historyRewrite: false, automaticParameterMutation: false, outcomeReviewRequired: true, recalibrationIsGoverned: true,
     baselineHash: hash({ problem, candidates, sourceSearches, evidenceGaps })
   };
-  const counterfactual = {
-    statusQuo: statusQuo || { preserved: true, explicit: false },
-    alternatives: candidates.map(candidate => candidate.id),
-    selected: null,
-    recommendationStatus: decisionStatus
-  };
+  const counterfactual = { statusQuo: statusQuo || { preserved: true, explicit: false }, alternatives: candidates.map(candidate => candidate.id), selected: null, recommendationStatus: decisionStatus };
   const decision = {
-    ...decisionContext,
-    problem,
-    status: decisionStatus,
-    recommendation: recommendationAllowed ? analysis.baselineWinner : null,
-    recommendationAllowed,
-    reason: recommendationAllowed ? 'all discovery, evidence, sensitivity and VOI gates passed' : 'one or more pre-recommendation gates remain unresolved'
+    ...decisionContext, problem, status: decisionStatus, recommendation: recommendationAllowed ? analysis.baselineWinner : null, recommendationAllowed,
+    reason: recommendationAllowed ? 'all discovery, status quo, evidence, sensitivity and VOI gates passed' : 'one or more pre-recommendation gates remain unresolved'
   };
   const governance = {
-    recommendationAllowed,
-    decisionStatus,
-    blockedCandidates,
-    noCandidatesFound: candidates.length === 0,
-    sourceSearchFailures: failedSources,
-    unsearchedSourceTypes: unsearchedSources,
-    effectsImportedFromComparableCities: false,
-    unknownIsNotZero: true,
-    requiresHumanReviewWhenEvidenceIncomplete: true,
-    recommendationRequiresStableSensitivity: true,
-    recommendationRequiresVOI: true,
-    historyRewrite: false
+    recommendationAllowed, decisionStatus, blockedCandidates, noCandidatesFound: candidates.length === 0, sourceSearchFailures: failedSources, unsearchedSourceTypes: unsearchedSources,
+    effectsImportedFromComparableCities: false, unknownIsNotZero: true, requiresHumanReviewWhenEvidenceIncomplete: true,
+    recommendationRequiresExplicitStatusQuo: true, statusQuoExplicit, recommendationRequiresStableSensitivity: true, recommendationRequiresVOI: true, historyRewrite: false
   };
   const run = {
-    schemaVersion: 'vidik.decision-discovery.v2',
-    problem,
-    problemSignals: Discovery.normalizeProblemTags(problem),
-    discoveryAudit: audit,
-    sourceSearches,
-    candidates,
-    evidenceGaps,
-    comparableCityLeads: comparable,
-    analysis,
-    counterfactual,
-    decision,
-    governance,
-    learning
+    schemaVersion: 'vidik.decision-discovery.v2', problem, problemSignals: Discovery.normalizeProblemTags(problem), discoveryAudit: audit, sourceSearches, candidates, evidenceGaps,
+    comparableCityLeads: comparable, analysis, counterfactual, decision, governance, learning
   };
   run.runHash = hash(run);
   return run;
@@ -301,14 +249,9 @@ function buildDecisionArtifact(run, overrides = {}) {
   if (!run || typeof run !== 'object') throw new Error('decision-discovery-run-required');
   return ArtifactStore.artifact({
     decisionId: overrides.decisionId || `DISCOVERY-${run.runHash?.slice(0, 16) || hash(run).slice(0, 16)}`,
-    decision: overrides.decision || run.decision,
-    audit: overrides.audit || run.discoveryAudit,
-    counterfactual: overrides.counterfactual || run.counterfactual,
-    evidence: overrides.evidence || { candidates: run.candidates, gaps: run.evidenceGaps, sourceSearches: run.sourceSearches },
-    parameters: overrides.parameters || { analysis: run.analysis },
-    analysis: overrides.analysis || run.analysis,
-    governance: overrides.governance || run.governance,
-    learning: overrides.learning || run.learning,
+    decision: overrides.decision || run.decision, audit: overrides.audit || run.discoveryAudit, counterfactual: overrides.counterfactual || run.counterfactual,
+    evidence: overrides.evidence || { candidates: run.candidates, gaps: run.evidenceGaps, sourceSearches: run.sourceSearches }, parameters: overrides.parameters || { analysis: run.analysis },
+    analysis: overrides.analysis || run.analysis, governance: overrides.governance || run.governance, learning: overrides.learning || run.learning,
     provenance: overrides.provenance || { runHash: run.runHash, candidateUniverseHash: run.discoveryAudit.candidateUniverseHash }
   });
 }
@@ -317,15 +260,4 @@ function persistDecisionArtifact(file, run, overrides = {}) {
   return ArtifactStore.append(file, buildDecisionArtifact(run, overrides));
 }
 
-module.exports = {
-  SOURCE_TYPES,
-  comparableCityLeads,
-  normalizeLead,
-  normalizeSourceSearch,
-  deduplicateCandidates,
-  buildSearchManifest,
-  runUncertaintySensitivityVOI,
-  buildDiscoveryRun,
-  buildDecisionArtifact,
-  persistDecisionArtifact
-};
+module.exports = { SOURCE_TYPES, comparableCityLeads, normalizeLead, normalizeSourceSearch, deduplicateCandidates, buildSearchManifest, runUncertaintySensitivityVOI, buildDiscoveryRun, buildDecisionArtifact, persistDecisionArtifact };
