@@ -39,9 +39,6 @@ function normalizeProblemTags(problem) {
 }
 
 function discoveryTokens(text) {
-  // Treat hyphenated signals as the same lexical components as their spaced form.
-  // This prevents a compound tag such as emergency-department-overcrowding from
-  // becoming an opaque token while preserving the stop-word and alias safeguards.
   return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/-/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
 }
 
@@ -89,13 +86,21 @@ function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceInde
   const uniqueIds = new Set();
   const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
   const results = discoverInterventions({ problem, candidates, evidenceIndex, localProgramIndex, acquiredCandidates });
-  const sourceTypes = [...new Set(uniqueSupplied.map(({ sourceType }) => sourceType))];
   const searches = sourceSearches.map(search => ({
     sourceId: search?.sourceId || null,
     sourceType: search?.sourceType || null,
     status: search?.status || 'unknown',
-    candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0
+    candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0,
+    jurisdiction: search?.jurisdiction || null,
+    query: search?.query || null,
+    provenance: search?.provenance || null,
+    retrievedAt: search?.retrievedAt || null,
+    contentHash: search?.contentHash || null,
+    freshness: search?.freshness || null,
+    validation: search?.validation || null,
+    failureReason: search?.failureReason || null
   }));
+  const sourceTypes = [...new Set([...uniqueSupplied.map(({ sourceType }) => sourceType), ...searches.map(search => search.sourceType).filter(Boolean)])];
   const provenanceMissing = uniqueSupplied.filter(({ candidate, sourceType }) => sourceType !== 'fallback-registry' && !candidate.discovery?.source).map(({ candidate }) => candidate.id);
   const candidateUniverseHash = hashCandidateUniverse(uniqueSupplied.map(({ candidate, sourceType }) => ({ candidate, sourceType })));
   return {
