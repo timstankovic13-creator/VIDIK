@@ -183,7 +183,8 @@ test('stable evidence-complete analysis can permit a recommendation', () => {
     acquisitionSources: SOURCE_TYPES.map(type => ({ sourceId: type, sourceType: type, status: 'searched', candidatesReturned: 1 })),
     localCandidates: [{ id: 'a', name: 'Violence interruption', problemTags: ['violent-crime'], requiredEvidence: ['causal'] }, { id: 'b', name: 'Focused violence response', problemTags: ['violent-crime'], requiredEvidence: ['causal'] }],
     evidenceIndex: { a: { causal: { status: 'verified' } }, b: { causal: { status: 'verified' } } },
-    analysisInputs: { a: { estimate: 10, uncertainty: { low: 9, high: 11 }, voi: 0 }, b: { estimate: 6, uncertainty: { low: 5, high: 7 }, voi: 0 } }
+    analysisInputs: { a: { estimate: 10, uncertainty: { low: 9, high: 11 }, voi: 0 }, b: { estimate: 6, uncertainty: { low: 5, high: 7 }, voi: 0 } },
+    statusQuo: { description: 'continue current allocation', explicit: true, preserved: true }
   });
   assert.equal(run.analysis.status, 'complete');
   assert.equal(run.analysis.recommendationFlip, false);
@@ -199,7 +200,7 @@ test('full decision artifact preserves discovery, evidence, counterfactual and l
     localCandidates: [{ id: 'a', name: 'Violence interruption', problemTags: ['violent-crime'], requiredEvidence: ['causal'] }],
     evidenceIndex: { a: { causal: { status: 'verified' } } },
     analysisInputs: { a: { estimate: 10, uncertainty: { low: 9, high: 11 }, voi: 0 } },
-    statusQuo: { description: 'continue current allocation', preserved: true }
+    statusQuo: { description: 'continue current allocation', explicit: true, preserved: true }
   });
   const artifact = buildDecisionArtifact(run);
   assert.equal(ArtifactStore.verifyArtifact(artifact).ok, true);
