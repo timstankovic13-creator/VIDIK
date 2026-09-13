@@ -1,0 +1,1 @@
+Baseline guardrail: discovery is broadening, but recommendation authority remains with the existing evidence, uncertainty, VOI, status-quo and governance gates.
