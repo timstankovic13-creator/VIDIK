@@ -28,10 +28,10 @@ function normalizeLead(lead, source = {}) {
 }
 
 function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
-  const problemTokens = Discovery.discoveryTokens(problem);
+  const problemSignals = new Set(Discovery.normalizeProblemTags(problem));
   return cities.map(city => {
-    const signals = [...Discovery.discoveryTokens(`${city.problem || ''} ${city.interventions || ''}`)]
-      .filter(token => problemTokens.has(token));
+    const citySignals = Discovery.normalizeProblemTags(`${city.problem || ''} ${Array.isArray(city.interventions) ? city.interventions.join(' ') : city.interventions || ''}`);
+    const signals = citySignals.filter(signal => problemSignals.has(signal));
     return {
       city: city.city || null,
       jurisdiction: city.jurisdiction || city.city || null,
@@ -79,13 +79,16 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
     candidates: allCandidates,
     sourceSearches: [
       ...sourceSearches,
-      { sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: normalizedResearch.length },
-      { sourceId: 'comparable-city-learning', sourceType: 'comparable-city', status: 'searched', candidatesReturned: comparableCandidates.length }
+      { sourceId: 'local-program-registry', sourceType: 'local-program', status: normalizedLocal.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedLocal.length },
+      { sourceId: 'acquired-intervention-universe', sourceType: 'acquired', status: normalizedAcquired.length ? 'candidates-found' : 'searched-empty', candidatesReturned: normalizedAcquired.length },
+      { sourceId: 'research-discovery', sourceType: 'research', status: 'candidates-found', candidatesReturned: normalizedResearch.length },
+      { sourceId: 'comparable-city-learning', sourceType: 'comparable-city', status: comparableCandidates.length ? 'candidates-found' : 'searched-empty', candidatesReturned: comparableCandidates.length }
     ]
   });
 
   const gaps = candidates.map(candidate => ({ candidateId: candidate.id, missingEvidence: candidate.missingEvidence, evidenceState: candidate.evidenceState }));
   const blocked = candidates.filter(candidate => candidate.evidenceState !== 'evidence-complete').map(candidate => candidate.id);
+  const failedSources = sourceSearches.filter(source => ['failed', 'search-failed', 'error', 'blocked'].includes(source.status)).map(source => source.sourceId).filter(Boolean);
 
   return {
     schemaVersion: 'vidik.decision-discovery.v1',
@@ -96,14 +99,15 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
     evidenceGaps: gaps,
     comparableCityLeads: comparable,
     governance: {
-      recommendationAllowed: candidates.some(candidate => candidate.evidenceState === 'evidence-complete'),
+      recommendationAllowed: candidates.some(candidate => candidate.evidenceState === 'evidence-complete') && failedSources.length === 0,
       blockedCandidates: blocked,
       noCandidatesFound: candidates.length === 0,
+      sourceSearchFailures: failedSources,
       effectsImportedFromComparableCities: false,
       unknownIsNotZero: true,
       requiresHumanReviewWhenEvidenceIncomplete: true
     },
-    runHash: hash({ problem, audit, candidates, gaps, comparable })
+    runHash: hash({ problem, audit, candidates, gaps, comparable, failedSources })
   };
 }
 
