@@ -1,0 +1,1 @@
+Functional baseline includes seven-part discovery/transfer/learning validation plus existing municipal, evidence, production, three-city, independent verification and trustworthiness regressions.
