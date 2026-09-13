@@ -79,9 +79,9 @@ function evidenceCoverage(candidates) {
 function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [], sourceSearches = [] } = {}) {
   if (!problem) throw new Error('intervention-discovery-problem-required');
   const supplied = [
-    ...acquiredCandidates.map(candidate => ({ candidate, sourceType: 'acquired' })),
-    ...localProgramIndex.map(candidate => ({ candidate, sourceType: 'local-program' })),
-    ...candidates.map(candidate => ({ candidate, sourceType: 'fallback-registry' }))
+    ...acquiredCandidates.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'acquired' })),
+    ...localProgramIndex.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'local-program' })),
+    ...candidates.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'fallback-registry' }))
   ];
   const uniqueIds = new Set();
   const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
