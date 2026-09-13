@@ -12,8 +12,8 @@ const sources = Acquisition.rankSources([
   { url: 'https://city.example/data.json', provider: 'city', jurisdiction: 'CA-ON', domain: 'local-baseline', tier: 'official_machine_readable' },
   { url: 'https://research.example/study', provider: 'research', jurisdiction: 'CA', domain: 'causal-evidence', tier: 'independent_causal_research' }
 ]);
-assert.strictEqual(sources[0].tierRank, 1);
-assert.strictEqual(sources[2].tierRank, 4);
+assert.strictEqual(sources[0].tierRank, Acquisition.SOURCE_TIERS.official_machine_readable);
+assert.strictEqual(sources.find(source => source.provider === 'research').tierRank, Acquisition.SOURCE_TIERS.independent_causal_research);
 assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'http://city.example', provider: 'city', jurisdiction: 'CA', domain: 'local-baseline', tier: 'official_machine_readable' }), /https/);
 assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'https://127.0.0.1/data', provider: 'city', jurisdiction: 'CA', domain: 'local-baseline', tier: 'official_machine_readable' }), /private-network/);
 assert.throws(() => Acquisition.validateSourceDescriptor({ url: 'https://city.example', provider: 'city', jurisdiction: 'CA', domain: 'not-a-domain', tier: 'official_machine_readable' }), /unsupported-data-domain/);

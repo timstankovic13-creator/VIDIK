@@ -20,7 +20,7 @@ const SOURCE_REGISTRY = Object.freeze([
     sourceId: 'ca-ontario-program-discovery', provider: 'Ontario Data Catalogue', jurisdiction: 'CA',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://data.ontario.ca/api/3/action/package_search?q=',
-    license: 'Open Government Licence - Ontario', updateFrequency: 'varies', discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business']
+    discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business']
   },
   {
     sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
@@ -62,7 +62,7 @@ const SOURCE_REGISTRY = Object.freeze([
     sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international',
     domain: 'causal-evidence', tier: 'independent_causal_research', accessMethod: 'works-api',
     url: 'https://api.openalex.org/works?search=',
-    discoveryTags: ['research','interventions','causal','systematic-review','implementation','crime','public-safety','violence','health','housing','environment','employment','education','business']
+    discoveryTags: ['research','interventions','causal','systematic-review','implementation','crime','violent-crime','justice','policing','violence','public-safety','hot-spots','focused-deterrence','health','housing','environment','employment','education','business']
   },
   {
     sourceId: 'campbell-evidence', provider: 'Campbell Collaboration', jurisdiction: 'international',
@@ -74,7 +74,7 @@ const SOURCE_REGISTRY = Object.freeze([
     sourceId: 'campbell-crime-justice', provider: 'Campbell Collaboration Crime and Justice', jurisdiction: 'international',
     domain: 'causal-evidence', tier: 'independent_causal_research', accessMethod: 'review-index',
     url: 'https://www.campbellcollaboration.org/crime/reviews/',
-    discoveryTags: ['violent-crime','crime','policing','hot-spots','focused-deterrence','violence','public-safety']
+    discoveryTags: ['violent-crime','crime','policing','hot-spots','focused-deterrence','violence','public-safety','justice']
   }
 ]);
 

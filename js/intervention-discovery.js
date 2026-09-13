@@ -24,7 +24,7 @@ const CANDIDATE_REGISTRY = Object.freeze([
   { id: 'building-energy-retrofits', domains: ['environment', 'housing'], problemTags: ['energy-use', 'emissions', 'energy-poverty'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'] }
 ]);
 
-const STOP_WORDS = new Set(['a','an','and','are','for','from','in','into','of','on','or','reduce','reducing','the','to','with','improve','improving','increase','increasing','decrease','decreasing']);
+const STOP_WORDS = new Set(['a','an','and','are','for','from','in','into','of','on','or','reduce','reducing','the','to','with','improve','improving','increase','increasing','decrease','decreasing','department','municipal','city','program','programs','service','services','public']);
 
 function normalizeProblemTags(problem) {
   const text = String(problem || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ');
@@ -39,13 +39,13 @@ function normalizeProblemTags(problem) {
 }
 
 function discoveryTokens(text) {
-  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
+  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/-/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
 }
 
 function candidateMatch(candidate, problemTags, problemText) {
   const candidateTags = Array.isArray(candidate.problemTags) ? candidate.problemTags : [];
   const tagMatches = candidateTags.filter(tag => problemTags.includes(tag));
-  const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags);
+  const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags.flatMap(tag => discoveryTokens(tag)));
   const text = `${candidate.name || ''} ${candidate.discoveryText || ''} ${(candidate.domains || []).join(' ')} ${candidateTags.join(' ')}`;
   const textMatches = [...discoveryTokens(text)].filter(token => problemTokens.has(token));
   const aliasMatches = candidateTags.filter(tag => problemTags.includes(tag));
@@ -76,8 +76,47 @@ function evidenceCoverage(candidates) {
   return { total, complete, withEvidenceGaps: total - complete, coverageRate: total ? complete / total : 0 };
 }
 
+function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [], sourceSearches = [] } = {}) {
+  if (!problem) throw new Error('intervention-discovery-problem-required');
+  const supplied = [
+    ...acquiredCandidates.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'acquired' })),
+    ...localProgramIndex.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'local-program' })),
+    ...candidates.map(candidate => ({ candidate, sourceType: candidate?.discovery?.sourceType || 'fallback-registry' }))
+  ];
+  const uniqueIds = new Set();
+  const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
+  const results = discoverInterventions({ problem, candidates, evidenceIndex, localProgramIndex, acquiredCandidates });
+  const sourceTypes = [...new Set(uniqueSupplied.map(({ sourceType }) => sourceType))];
+  const searches = sourceSearches.map(search => {
+    const normalized = {
+      sourceId: search?.sourceId || null,
+      sourceType: search?.sourceType || null,
+      status: search?.status || 'unknown',
+      candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0
+    };
+    if (search?.failureReason) normalized.failureReason = search.failureReason;
+    return normalized;
+  });
+  const provenanceMissing = uniqueSupplied.filter(({ candidate, sourceType }) => sourceType !== 'fallback-registry' && !candidate.discovery?.source).map(({ candidate }) => candidate.id);
+  const candidateUniverseHash = hashCandidateUniverse(uniqueSupplied.map(({ candidate, sourceType }) => ({ candidate, sourceType })));
+  return {
+    problem,
+    problemSignals: normalizeProblemTags(problem),
+    sourcesSearched: sourceTypes,
+    sourceSearches: searches,
+    candidatesConsidered: uniqueSupplied.length,
+    candidatesMatched: results.length,
+    candidatesUnmatched: Math.max(0, uniqueSupplied.length - results.length),
+    provenanceMissing,
+    emptyResult: results.length === 0,
+    evidenceCoverage: evidenceCoverage(results),
+    candidateUniverseHash,
+    status: results.length ? 'candidates-found' : 'no-candidates-found'
+  };
+}
+
 function hashCandidateUniverse(candidates) {
   return crypto.createHash('sha256').update(JSON.stringify(candidates)).digest('hex');
 }
 
-module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, hashCandidateUniverse };
+module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, discoveryAudit, hashCandidateUniverse };
