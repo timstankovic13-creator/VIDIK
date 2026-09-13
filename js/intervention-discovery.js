@@ -65,17 +65,7 @@ function discoverInterventions({ problem, candidates = CANDIDATE_REGISTRY, evide
     seen.add(candidate.id);
     const evidence = evidenceIndex[candidate.id] || {};
     const missingEvidence = (candidate.requiredEvidence || []).filter(type => !evidence[type] || evidence[type].status === 'blocked');
-    results.push({
-      id: candidate.id,
-      name: candidate.name || candidate.id,
-      domains: candidate.domains || [],
-      problemTags: match.candidateTags,
-      discovery: { ...(candidate.discovery || { source: 'VIDIK-candidate-registry' }), matchScore: match.matchScore, matchedProblemSignals: match.matchedProblemSignals },
-      requiredEvidence: candidate.requiredEvidence || [],
-      evidence,
-      evidenceState: missingEvidence.length ? 'evidence-gap' : 'evidence-complete',
-      missingEvidence
-    });
+    results.push({ id: candidate.id, name: candidate.name || candidate.id, domains: candidate.domains || [], problemTags: match.candidateTags, discovery: { ...(candidate.discovery || { source: 'VIDIK-candidate-registry' }), matchScore: match.matchScore, matchedProblemSignals: match.matchedProblemSignals }, requiredEvidence: candidate.requiredEvidence || [], evidence, evidenceState: missingEvidence.length ? 'evidence-gap' : 'evidence-complete', missingEvidence });
   }
   return results.sort((a, b) => b.discovery.matchScore - a.discovery.matchScore || (a.discovery.source === 'acquired-intervention-universe' ? -1 : b.discovery.source === 'acquired-intervention-universe' ? 1 : a.id.localeCompare(b.id)));
 }
