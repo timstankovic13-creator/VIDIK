@@ -77,9 +77,11 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   assert.equal(audit.candidateUniverseHash.length, 64);
   assert.deepEqual(audit.evidenceCoverage, coverage);
 
+  // A candidate from a searched source that is genuinely unrelated must remain unmatched.
+  // Do not use a generic "library" name here: that would be a legitimate lexical signal.
   const searchedButUnmatched = Discovery.discoveryAudit({
     problem,
-    candidates: [{ id: 'library-redesign', name: 'Library redesign', domains: ['libraries'], problemTags: ['catalogue-access'], requiredEvidence: ['causal'] }],
+    candidates: [{ id: 'fleet-replacement', name: 'Municipal fleet replacement', domains: ['public-works'], problemTags: ['fleet'], requiredEvidence: ['causal'] }],
     sourceSearches: [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 1 }]
   });
   assert.equal(searchedButUnmatched.candidatesConsidered, 1);
