@@ -9,31 +9,91 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 20
+
 jobs:
-  trustworthiness:
+  candidate-matching:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Candidate matching and discovery
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(1|2) '
+
+  evidence-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Evidence contradiction and invalidation
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(3|4) '
+
+  replay-sensitivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Historical replay and sensitivity
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(5|6) '
+
+  transportability-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Transportability and drift
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(7|8) '
+
+  arbitrary-problems:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Arbitrary problem and comparable-city learning
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(9|10) '
+
+  certification-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Certification and artifact contract
         run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(production certification|artifact projection)'
+
+  existing-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
       - name: Existing discovery regression
         run: npm run test:intervention-discovery
       - name: Existing learning regression
