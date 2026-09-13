@@ -26,7 +26,7 @@ jobs:
         run: node --test tests/decision-discovery-deeper-usage.test.js
       - name: Existing discovery and artifact regressions
         run: |
-          npm run test:decision-discovery-orchestrator
+          npm run test:decision-discovery-orchestration
           npm run test:decision-discovery-execution
           npm run test:decision-discovery-internal-battery
           npm run test:source-acquisition-runner
