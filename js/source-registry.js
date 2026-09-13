@@ -17,10 +17,28 @@ const SOURCE_REGISTRY = Object.freeze([
     license: 'Open Government Licence - Canada', updateFrequency: 'varies', discoveryTags: ['municipal','provincial','federal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
   {
+    sourceId: 'ca-ontario-program-discovery', provider: 'Ontario Data Catalogue', jurisdiction: 'CA',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://data.ontario.ca/api/3/action/package_search?q=',
+    license: 'Open Government Licence - Ontario', updateFrequency: 'varies', discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business']
+  },
+  {
     sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-api',
     url: 'https://catalog.data.gov/api/3/action/package_search?q=',
     discoveryTags: ['municipal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
+  },
+  {
+    sourceId: 'uk-open-data-program-discovery', provider: 'UK Government Data Service', jurisdiction: 'UK',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://ckan.publishing.service.gov.uk/api/3/action/package_search?q=',
+    discoveryTags: ['municipal','local-government','programs','services','health','safety','transport','housing','environment','crime','employment','education','business']
+  },
+  {
+    sourceId: 'au-open-data-program-discovery', provider: 'Australian Government Data Catalogue', jurisdiction: 'AU',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://data.gov.au/data/api/3/action/package_search?q=',
+    discoveryTags: ['municipal','state','programs','services','health','safety','transport','housing','environment','crime','employment','education','business']
   },
   {
     sourceId: 'ca-procurement-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
