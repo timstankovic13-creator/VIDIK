@@ -24,6 +24,7 @@ async function runHealthy(problem, items, options = {}) {
     searchers: options.searchers || allSuccessfulSearchers(items),
     comparableCities: options.comparableCities || [],
     analysisInputs: options.analysisInputs || {},
+    statusQuo: options.statusQuo || { description: 'continue current allocation', explicit: true, preserved: true },
     evidenceSearcher: options.evidenceSearcher || (async ({ candidate }) => ({ status: 'searched', evidence: evidenceFor(candidate), sourceIds: [`evidence-${candidate.id}`] }))
   });
 }
