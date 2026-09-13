@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const Discovery = require('./intervention-discovery');
 const Orchestrator = require('./decision-discovery-orchestrator');
+const TransferIntelligence = require('./discovery-transfer-intelligence');
 
 const FAILED = new Set(['failed', 'search-failed', 'error', 'blocked']);
 
@@ -65,7 +66,8 @@ async function executeDecisionDiscovery({
   requiredSourceTypes = Orchestrator.SOURCE_TYPES,
   analysisInputs = {},
   statusQuo = null,
-  decisionContext = {}
+  decisionContext = {},
+  intelligenceContext = {}
 } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
 
@@ -135,7 +137,25 @@ async function executeDecisionDiscovery({
   run.evidenceSearches = evidenceSearches;
   run.governance.evidenceSearchComplete = evidenceSearches.every(search => search.status !== 'search-failed');
   run.governance.recommendationAllowed = Boolean(run.governance.recommendationAllowed && run.governance.evidenceSearchComplete);
-  if (!run.governance.recommendationAllowed) {
+
+  const intelligence = TransferIntelligence.buildDecisionIntelligence({
+    problem,
+    context: { ...decisionContext, ...intelligenceContext },
+    sourceResults: sourceSearches,
+    comparableCities,
+    candidates: run.candidates,
+    evidenceIndex,
+    analysis: Object.fromEntries(run.candidates.map(candidate => [candidate.id, analysisInputs[candidate.id] || {}])),
+    statusQuo
+  });
+  run.intelligence = intelligence;
+  run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash;
+  run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
+  run.governance.learningEnvelope = intelligence.governance.learning;
+  run.governance.whyNotAvailable = true;
+
+  if (!run.governance.recommendationAllowed || !intelligence.discovery.coverage.complete) {
+    run.governance.recommendationAllowed = false;
     run.governance.decisionStatus = 'recommendation-blocked';
     run.decision.status = 'recommendation-blocked';
     run.decision.recommendation = null;
