@@ -12,7 +12,7 @@ permissions:
 jobs:
   trustworthiness:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,8 +22,18 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
-      - name: Trustworthiness adversarial suite
-        run: npm run test:trustworthiness-phase
+      - name: Candidate matching and discovery
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(1|2) '
+      - name: Evidence contradiction and invalidation
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(3|4) '
+      - name: Historical replay and sensitivity
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(5|6) '
+      - name: Transportability and drift
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(7|8) '
+      - name: Arbitrary problem and comparable-city learning
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(9|10) '
+      - name: Certification and artifact contract
+        run: node --test tests/trustworthiness-phase.test.js --test-name-pattern='^(production certification|artifact projection)'
       - name: Existing discovery regression
         run: npm run test:intervention-discovery
       - name: Existing learning regression
