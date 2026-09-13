@@ -45,7 +45,7 @@ function interventionSignals(row, source = {}) {
   return { signals: [...new Set(signals)], explicitTypes: [...new Set(explicitTypes)], sourceDeclared };
 }
 
-function interventionRecordToCandidate(record, source) {
+function buildInterventionRecordCandidate(record, source) {
   const row = unwrapRecord(record);
   if (!row) return { candidate: null, rejection: { reason: 'invalid-record' } };
   const id = String(row.id || row.interventionId || row.programId || row.serviceId || row.slug || row.identifier || '').trim();
@@ -80,13 +80,17 @@ function interventionRecordToCandidate(record, source) {
   }, rejection: null };
 }
 
+function interventionRecordToCandidate(record, source) {
+  return buildInterventionRecordCandidate(record, source).candidate;
+}
+
 function extractInterventionCandidatesDetailed(payload, source = {}) {
   const rows = candidateRows(payload);
   const seen = new Set();
   const candidates = [];
   const rejections = [];
   for (const row of rows) {
-    const result = interventionRecordToCandidate(row, source);
+    const result = buildInterventionRecordCandidate(row, source);
     if (result.rejection) {
       rejections.push(result.rejection);
       continue;
