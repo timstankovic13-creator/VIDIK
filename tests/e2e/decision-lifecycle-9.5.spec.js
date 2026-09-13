@@ -3,6 +3,8 @@ const { test, expect } = require('@playwright/test');
 test.describe('VIDIK 9.5 decision lifecycle', () => {
   async function ready(page) {
     await page.goto('/');
+    await page.locator('#seeAnalysis').click();
+    await page.locator('details.advanced').filter({hasText:'Decision lifecycle & governance'}).locator('summary').click();
     await page.evaluate(() => {
       window.VIDIK_MUNICIPAL_RECONCILIATIONS = { Ottawa:{status:'verified',schemaVersion:'geography-reconciliation.v1',identity:{geonameid:'100',name:'Ottawa',latitude:45.42,longitude:-75.69},enrichment:{provider:'WorldPop',geonameid:'100',population:100000},provenance:{identity:{provider:'GeoNames',asset:'cities500',record_id:'100'},enrichment:{provider:'WorldPop',record_id:'100'}},match:{method:'exact-or-normalized-name',score:1}} };
       return window.VIDIK_92_INTEGRATION.recompute();

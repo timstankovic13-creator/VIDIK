@@ -76,3 +76,4 @@
   window.render=function(){const r=originalRender();recompute().catch(e=>{state.status='BLOCKED';state.error=e.message});return r};
   window.addEventListener('DOMContentLoaded',()=>setTimeout(()=>recompute().catch(e=>{state.status='BLOCKED';state.error=e.message}),0));
 })();
+(function(){const src='js/decision-intelligence-9.7-browser.js';function load(){if(document.querySelector('script[data-vidik-di97-loader]')||document.querySelector('script[src*="decision-intelligence-9.7-browser.js"]'))return;const s=document.createElement('script');s.dataset.vidikDi97Loader='';s.src=src;s.async=false;document.head.appendChild(s)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load()})();
