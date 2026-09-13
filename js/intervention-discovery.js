@@ -76,8 +76,35 @@ function evidenceCoverage(candidates) {
   return { total, complete, withEvidenceGaps: total - complete, coverageRate: total ? complete / total : 0 };
 }
 
+function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [] } = {}) {
+  if (!problem) throw new Error('intervention-discovery-problem-required');
+  const supplied = [
+    ...acquiredCandidates.map(candidate => ({ candidate, sourceType: 'acquired' })),
+    ...localProgramIndex.map(candidate => ({ candidate, sourceType: 'local-program' })),
+    ...candidates.map(candidate => ({ candidate, sourceType: 'fallback-registry' }))
+  ];
+  const uniqueIds = new Set();
+  const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
+  const results = discoverInterventions({ problem, candidates, evidenceIndex, localProgramIndex, acquiredCandidates });
+  const sourceTypes = [...new Set(uniqueSupplied.map(({ sourceType }) => sourceType))];
+  const provenanceMissing = uniqueSupplied.filter(({ candidate, sourceType }) => sourceType !== 'fallback-registry' && !candidate.discovery?.source).map(({ candidate }) => candidate.id);
+  return {
+    problem,
+    problemSignals: normalizeProblemTags(problem),
+    sourcesSearched: sourceTypes,
+    candidatesConsidered: uniqueSupplied.length,
+    candidatesMatched: results.length,
+    candidatesUnmatched: Math.max(0, uniqueSupplied.length - results.length),
+    provenanceMissing,
+    emptyResult: results.length === 0,
+    evidenceCoverage: evidenceCoverage(results),
+    candidateUniverseHash: hashCandidateUniverse(results),
+    status: results.length ? 'candidates-found' : 'no-candidates-found'
+  };
+}
+
 function hashCandidateUniverse(candidates) {
   return crypto.createHash('sha256').update(JSON.stringify(candidates)).digest('hex');
 }
 
-module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, hashCandidateUniverse };
+module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, discoveryAudit, hashCandidateUniverse };
