@@ -19,6 +19,9 @@ test('arbitrary problem records the complete discovery path without fabrication'
   assert.equal(run.discoveryAudit.problem, 'reduce violent crime');
   assert.ok(run.discoveryAudit.candidatesConsidered >= 2);
   assert.ok(run.discoveryAudit.candidatesMatched >= 1);
+  assert.ok(run.discoveryAudit.sourcesSearched.includes('local-program'));
+  assert.ok(run.discoveryAudit.sourcesSearched.includes('research'));
+  assert.ok(run.discoveryAudit.sourcesSearched.includes('comparable-city'));
   assert.equal(run.governance.unknownIsNotZero, true);
   assert.equal(run.governance.effectsImportedFromComparableCities, false);
   assert.equal(typeof run.runHash, 'string');
@@ -40,6 +43,22 @@ test('unseen problem produces an explicit searched no-candidate state', () => {
   assert.equal(run.discoveryAudit.candidatesConsidered, 0);
   assert.equal(run.governance.noCandidatesFound, true);
   assert.equal(run.governance.recommendationAllowed, false);
+});
+
+test('source search failure is not treated as an empty successful search', () => {
+  const run = buildDiscoveryRun({
+    problem: 'reduce violent crime',
+    acquisitionSources: [
+      { sourceId: 'research-discovery', sourceType: 'research', status: 'search-failed', candidatesReturned: 0 },
+      { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 1 }
+    ],
+    localCandidates: [{ id: 'local-violence', name: 'Violence interruption', problemTags: ['violent-crime'], domains: ['public-safety'], requiredEvidence: ['causal'] }]
+  });
+
+  assert.deepEqual(run.governance.sourceSearchFailures, ['research-discovery']);
+  assert.equal(run.governance.recommendationAllowed, false);
+  const researchSearch = run.discoveryAudit.sourceSearches.find(search => search.sourceId === 'research-discovery');
+  assert.equal(researchSearch.status, 'search-failed');
 });
 
 test('comparable cities are leads, never effect imports', () => {
