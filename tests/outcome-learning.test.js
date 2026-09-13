@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const test = require('node:test');
 const { createOutcomeLearningStore } = require('../scripts/outcome-learning');
 
@@ -67,4 +68,23 @@ test('recalibration requires an outcome for the exact decision and parameter', (
   const { filePath } = tempStore();
   const store = createOutcomeLearningStore({ filePath });
   assert.throws(() => store.recalibrationSignal({ decisionId: decision.decisionId, parameterName: decision.parameterName, currentValue: 1 }), /no-outcomes-for-recalibration/);
+});
+
+test('concurrent outcome writers do not lose updates', async () => {
+  const { filePath } = tempStore();
+  const script = `const { createOutcomeLearningStore } = require(${JSON.stringify(path.resolve(__dirname, '../scripts/outcome-learning'))});
+const store = createOutcomeLearningStore({ filePath: process.argv[1] });
+store.recordOutcome({ decisionId: process.argv[2], parameterName: 'collision_rate_proxy', city: 'Ottawa', predicted: 100, observed: Number(process.argv[3]), checkpoint: '6-month', decisionAt: '2026-01-01T00:00:00.000Z', outcomeAt: '2026-07-01T00:00:00.000Z' });`;
+  const run = (id, observed) => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['-e', script, filePath, id, String(observed)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', code => code === 0 ? resolve() : reject(new Error(`child-exit-${code}: ${stderr}`)));
+  });
+  await Promise.all([run('VIDIK-CONCURRENT-1', 91), run('VIDIK-CONCURRENT-2', 92)]);
+  const state = createOutcomeLearningStore({ filePath }).snapshot();
+  assert.equal(state.outcomes.length, 2);
+  assert.equal(new Set(state.outcomes.map(item => item.id)).size, 2);
+  assert.equal(state.audit.filter(event => event.type === 'OUTCOME_RECORDED').length, 2);
 });
