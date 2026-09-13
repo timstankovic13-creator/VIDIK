@@ -55,8 +55,19 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   const result = Discovery.discoverInterventions({ problem, candidates: [] });
   const coverage = Discovery.evidenceCoverage(result);
   assert.deepEqual(coverage, { total: 0, complete: 0, withEvidenceGaps: 0, coverageRate: 0 });
-  const audit = Discovery.discoveryAudit({ problem, candidates: [] });
+  const audit = Discovery.discoveryAudit({
+    problem,
+    candidates: [],
+    sourceSearches: [
+      { sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 },
+      { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }
+    ]
+  });
   assert.deepEqual(audit.sourcesSearched, []);
+  assert.deepEqual(audit.sourceSearches, [
+    { sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 },
+    { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }
+  ]);
   assert.equal(audit.candidatesConsidered, 0);
   assert.equal(audit.candidatesMatched, 0);
   assert.equal(audit.candidatesUnmatched, 0);
@@ -65,6 +76,16 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   assert.equal(typeof audit.candidateUniverseHash, 'string');
   assert.equal(audit.candidateUniverseHash.length, 64);
   assert.deepEqual(audit.evidenceCoverage, coverage);
+
+  const searchedButUnmatched = Discovery.discoveryAudit({
+    problem,
+    candidates: [{ id: 'library-redesign', name: 'Library redesign', domains: ['libraries'], problemTags: ['catalogue-access'], requiredEvidence: ['causal'] }],
+    sourceSearches: [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 1 }]
+  });
+  assert.equal(searchedButUnmatched.candidatesConsidered, 1);
+  assert.equal(searchedButUnmatched.candidatesMatched, 0);
+  assert.equal(searchedButUnmatched.candidatesUnmatched, 1);
+  assert.notEqual(searchedButUnmatched.candidateUniverseHash, audit.candidateUniverseHash);
 });
 
 // 3. Contradiction/incompleteness: missing or blocked evidence is never silently treated as zero effect.
