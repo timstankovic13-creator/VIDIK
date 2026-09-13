@@ -68,8 +68,9 @@ test('internal battery: administrative vocabulary cannot create a false interven
   });
 
   assert.equal(run.candidates.length, 0);
-  assert.equal(run.discoveryDiagnostics.unmatched.length, 1);
-  assert.equal(run.discoveryDiagnostics.unmatched[0].id, 'wrong');
+  assert.equal(run.discoveryAudit.status, 'no-candidates-found');
+  assert.equal(run.discoveryAudit.discoverySearchComplete, true);
+  assert.deepEqual(run.discoveryAudit.unsearchedSourceTypes, []);
 });
 
 test('internal battery: evidence failure remains a blocker and never becomes zero effect', async () => {
