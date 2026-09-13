@@ -24,15 +24,32 @@ const CANDIDATE_REGISTRY = Object.freeze([
   { id: 'building-energy-retrofits', domains: ['environment', 'housing'], problemTags: ['energy-use', 'emissions', 'energy-poverty'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'] }
 ]);
 
+const STOP_WORDS = new Set(['a','an','and','are','for','from','in','into','of','on','or','reduce','reducing','the','to','with','improve','improving','increase','increasing','decrease','decreasing']);
+
 function normalizeProblemTags(problem) {
   const text = String(problem || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ');
   const aliases = new Map([
-    ['crime', 'violent-crime'], ['violence', 'violent-crime'], ['shooting', 'shootings'], ['shootings', 'shootings'],
+    ['crime', 'violent-crime'], ['violence', 'violent-crime'], ['violent', 'violent-crime'], ['shooting', 'shootings'], ['shootings', 'shootings'],
     ['homeless', 'homelessness'], ['homelessness', 'homelessness'], ['housing', 'housing-instability'],
     ['speed', 'speeding'], ['traffic', 'traffic-injury'], ['ems', 'ems-demand'], ['paramedic', 'ems-demand'],
-    ['heat', 'extreme-heat'], ['emissions', 'emissions']
+    ['heat', 'extreme-heat'], ['emissions', 'emissions'], ['emergency-department', 'emergency-department'],
+    ['overcrowded', 'overcrowding'], ['overcrowding', 'overcrowding']
   ]);
   return [...new Set(text.split(/\s+/).filter(Boolean).map(token => aliases.get(token) || token))];
+}
+
+function discoveryTokens(text) {
+  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(token => token && !STOP_WORDS.has(token)));
+}
+
+function candidateMatch(candidate, problemTags, problemText) {
+  const candidateTags = Array.isArray(candidate.problemTags) ? candidate.problemTags : [];
+  const tagMatches = candidateTags.filter(tag => problemTags.includes(tag));
+  const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags);
+  const text = `${candidate.name || ''} ${candidate.discoveryText || ''} ${(candidate.domains || []).join(' ')} ${candidateTags.join(' ')}`;
+  const textMatches = [...discoveryTokens(text)].filter(token => problemTokens.has(token));
+  const aliasMatches = candidateTags.filter(tag => problemTags.includes(tag));
+  return { matchScore: tagMatches.length * 3 + textMatches.length, matchedProblemSignals: [...new Set([...aliasMatches, ...textMatches])], candidateTags };
 }
 
 function discoverInterventions({ problem, candidates = CANDIDATE_REGISTRY, evidenceIndex = {}, localProgramIndex = [], acquiredCandidates = [] } = {}) {
@@ -43,13 +60,22 @@ function discoverInterventions({ problem, candidates = CANDIDATE_REGISTRY, evide
   const results = [];
   for (const candidate of registry) {
     if (!candidate?.id || seen.has(candidate.id)) continue;
-    const candidateTags = Array.isArray(candidate.problemTags) ? candidate.problemTags : [];
-    const matchScore = candidateTags.reduce((score, tag) => score + (tags.includes(tag) ? 1 : 0), 0);
-    if (!matchScore) continue;
+    const match = candidateMatch(candidate, tags, problem);
+    if (!match.matchScore) continue;
     seen.add(candidate.id);
     const evidence = evidenceIndex[candidate.id] || {};
     const missingEvidence = (candidate.requiredEvidence || []).filter(type => !evidence[type] || evidence[type].status === 'blocked');
-    results.push({ id: candidate.id, name: candidate.name || candidate.id, domains: candidate.domains || [], problemTags: candidateTags, discovery: { ...(candidate.discovery || { source: 'VIDIK-candidate-registry' }), matchScore }, requiredEvidence: candidate.requiredEvidence || [], evidence, evidenceState: missingEvidence.length ? 'evidence-gap' : 'evidence-complete', missingEvidence });
+    results.push({
+      id: candidate.id,
+      name: candidate.name || candidate.id,
+      domains: candidate.domains || [],
+      problemTags: match.candidateTags,
+      discovery: { ...(candidate.discovery || { source: 'VIDIK-candidate-registry' }), matchScore: match.matchScore, matchedProblemSignals: match.matchedProblemSignals },
+      requiredEvidence: candidate.requiredEvidence || [],
+      evidence,
+      evidenceState: missingEvidence.length ? 'evidence-gap' : 'evidence-complete',
+      missingEvidence
+    });
   }
   return results.sort((a, b) => b.discovery.matchScore - a.discovery.matchScore || (a.discovery.source === 'acquired-intervention-universe' ? -1 : b.discovery.source === 'acquired-intervention-universe' ? 1 : a.id.localeCompare(b.id)));
 }
@@ -64,4 +90,4 @@ function hashCandidateUniverse(candidates) {
   return crypto.createHash('sha256').update(JSON.stringify(candidates)).digest('hex');
 }
 
-module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoverInterventions, evidenceCoverage, hashCandidateUniverse };
+module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, hashCandidateUniverse };

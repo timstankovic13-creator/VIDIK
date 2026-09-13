@@ -39,15 +39,43 @@ assert.strictEqual(Discovery.evidenceCoverage(supported).total, supported.length
 assert.ok(Discovery.hashCandidateUniverse(supported).length === 64);
 
 const ckan = Extractor.extractInterventionCandidates({
-  result: { results: [{ id: 'program-1', title: 'Youth employment program', tags: ['violent-crime', 'employment'], category: 'employment' }] }
-}, { sourceId: 'ca-program-discovery', url: 'https://example.gov/catalog' });
+  result: { results: [{ id: 'program-1', title: 'Youth employment program', tags: ['violent-crime', 'employment'], category: 'employment', type: 'program' }] }
+}, { sourceId: 'ca-program-discovery', url: 'https://example.gov/catalog', domain: 'intervention-universe' });
 assert.strictEqual(ckan.length, 1, 'CKAN-style catalog results must be discoverable');
 assert.strictEqual(ckan[0].id, 'program-1');
 assert.ok(ckan[0].problemTags.includes('violent-crime'));
+assert.ok(ckan[0].discovery.discoverySignals.includes('source-declared-intervention-universe'));
 
 const arcgis = Extractor.extractInterventionCandidates({
-  features: [{ attributes: { OBJECTID: 7, id: 'service-7', name: 'Mobile crisis response', problemTags: 'mental-health-crisis,ems-demand', domains: 'health,public-safety' } }]
-}, { sourceId: 'arcgis-service-inventory' });
+  features: [{ attributes: { OBJECTID: 7, id: 'service-7', name: 'Mobile crisis response', problemTags: 'mental-health-crisis,ems-demand', domains: 'health,public-safety', type: 'service' } }]
+}, { sourceId: 'arcgis-service-inventory', domain: 'intervention-universe' });
 assert.strictEqual(arcgis[0].id, 'service-7');
 assert.ok(arcgis[0].domains.includes('public-safety'));
+
+const generic = Extractor.extractInterventionCandidatesDetailed({
+  records: [{ id: 'row-1', name: 'Population count', value: 1200 }]
+}, { sourceId: 'generic-statistical-dataset', domain: 'local-baseline' });
+assert.strictEqual(generic.candidates.length, 0, 'generic records must not become interventions from id + name alone');
+assert.strictEqual(generic.rejections[0].reason, 'missing-intervention-semantic');
+
+const described = Extractor.extractInterventionCandidates({
+  records: [{ id: 'program-2', name: 'Community cooling centre', description: 'A municipal service providing cooling space during extreme heat.' }]
+}, { sourceId: 'municipal-programs', domain: 'program-discovery' });
+assert.strictEqual(described.length, 1, 'described programs should be admitted even without an explicit type');
+assert.ok(described[0].discovery.discoverySignals.includes('intervention-description'));
+
+const portable = Discovery.discoverInterventions({
+  problem: 'reduce emergency department overcrowding',
+  acquiredCandidates: [{
+    id: 'acquired-community-paramedicine',
+    name: 'Community paramedicine service',
+    discoveryText: 'A service reducing emergency department use and overcrowding',
+    problemTags: [],
+    domains: ['health'],
+    requiredEvidence: ['causal']
+  }]
+});
+assert.ok(portable.some(candidate => candidate.id === 'acquired-community-paramedicine'), 'discovery must use acquired text when structured problem tags are absent');
+assert.ok(portable[0].discovery.matchedProblemSignals.includes('overcrowding'));
+
 console.log('intervention discovery tests passed');
