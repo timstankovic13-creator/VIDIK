@@ -36,8 +36,38 @@ function readState(filePath) {
 function writeState(filePath, state) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temp = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
-  fs.renameSync(temp, filePath);
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(temp, filePath);
+  } finally {
+    try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
+  }
+}
+function acquireLock(lockFile, attempts = 400) {
+  for (let i = 0; i < attempts; i += 1) {
+    try { return fs.openSync(lockFile, 'wx'); }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const waitMs = Math.min(25, 2 + Math.floor(i / 10));
+      const until = Date.now() + waitMs;
+      while (Date.now() < until) {}
+    }
+  }
+  fail('learning-store-lock-timeout');
+}
+function transactionWithLock(filePath, mutator) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const lockFile = `${filePath}.lock`;
+  const lockFd = acquireLock(lockFile);
+  try {
+    const state = readState(filePath);
+    const result = mutator(state);
+    writeState(filePath, state);
+    return result;
+  } finally {
+    try { fs.closeSync(lockFd); } catch {}
+    try { fs.unlinkSync(lockFile); } catch {}
+  }
 }
 function addAudit(state, type, payload, at) { state.audit.push({ id: crypto.randomUUID(), type, at, ...payload }); }
 function driftForOutcome(outcome, threshold) {
@@ -52,13 +82,6 @@ function createOutcomeLearningStore(options = {}) {
   finiteNumber(threshold.absolute, 'drift-threshold-absolute');
   finiteNumber(threshold.relative, 'drift-threshold-relative');
   if (threshold.absolute < 0 || threshold.relative < 0) fail('invalid-drift-threshold');
-
-  function transaction(mutator) {
-    const state = readState(filePath);
-    const result = mutator(state);
-    writeState(filePath, state);
-    return result;
-  }
 
   return {
     filePath,
@@ -76,7 +99,7 @@ function createOutcomeLearningStore(options = {}) {
       if (new Date(outcomeAt) < new Date(decisionAt)) fail('outcome-before-decision');
       const outcome = { id: input.id || crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, city: input.city || null, predicted, observed, error: observed - predicted, checkpoint, checkpointMonths: CHECKPOINTS[checkpoint], decisionAt, outcomeAt };
       outcome.drift = driftForOutcome(outcome, threshold);
-      return transaction(state => {
+      return transactionWithLock(filePath, state => {
         if (state.outcomes.some(item => item.id === outcome.id)) fail('duplicate-outcome-id');
         state.outcomes.push(outcome);
         addAudit(state, 'OUTCOME_RECORDED', { outcomeId: outcome.id, decisionId: outcome.decisionId, checkpoint }, outcomeAt);
@@ -109,12 +132,15 @@ function createOutcomeLearningStore(options = {}) {
       const currentValue = finiteNumber(input.currentValue, 'current-value');
       const learningRate = input.learningRate === undefined ? 0.5 : finiteNumber(input.learningRate, 'learning-rate');
       if (learningRate < 0 || learningRate > 1) fail('invalid-learning-rate');
-      const state = readState(filePath);
-      const outcomes = state.outcomes.filter(item => item.decisionId === input.decisionId && item.parameterName === input.parameterName);
-      if (!outcomes.length) fail('no-outcomes-for-recalibration');
-      const meanError = outcomes.reduce((sum, item) => sum + item.error, 0) / outcomes.length;
-      const signal = { id: crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, currentValue, observations: outcomes.length, meanError, suggestedDelta: meanError * learningRate, suggestedValue: currentValue + meanError * learningRate, learningRate, automaticApply: false, generatedAt: new Date().toISOString() };
-      return transaction(next => { next.recalibrations.push(signal); addAudit(next, 'RECALIBRATION_SIGNAL', { signalId: signal.id, decisionId: signal.decisionId, parameterName: signal.parameterName, automaticApply: false }, signal.generatedAt); return signal; });
+      return transactionWithLock(filePath, state => {
+        const outcomes = state.outcomes.filter(item => item.decisionId === input.decisionId && item.parameterName === input.parameterName);
+        if (!outcomes.length) fail('no-outcomes-for-recalibration');
+        const meanError = outcomes.reduce((sum, item) => sum + item.error, 0) / outcomes.length;
+        const signal = { id: crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, currentValue, observations: outcomes.length, meanError, suggestedDelta: meanError * learningRate, suggestedValue: currentValue + meanError * learningRate, learningRate, automaticApply: false, generatedAt: new Date().toISOString() };
+        state.recalibrations.push(signal);
+        addAudit(state, 'RECALIBRATION_SIGNAL', { signalId: signal.id, decisionId: signal.decisionId, parameterName: signal.parameterName, automaticApply: false }, signal.generatedAt);
+        return signal;
+      });
     },
 
     driftReport(decisionId) {
