@@ -61,6 +61,16 @@ function buildInterventionRecordCandidate(record, source) {
   const problemTags = normalizeTags(row.problemTags || row.problems || row.outcomes || row.targetProblems || row.tags || row.keywords);
   const domains = normalizeTags(row.domains || row.domain || row.sectors || row.categories || row.category);
   const requiredEvidence = normalizeTags(row.requiredEvidence || row.evidenceTypes || ['causal','implementation','cost','equity']);
+  const discoverySource = {
+    source: 'acquired-intervention-universe',
+    sourceUrl: source?.url || null,
+    datasetId: source?.datasetId || source?.sourceId || null,
+    discoveryQuery: source?.discoveryQuery || null,
+    extractionMethod: source?.extractionMethod || 'generic-intervention-record',
+    admission: signals.sourceDeclared ? 'source-declared-intervention-universe' : 'record-semantic',
+    discoverySignals: signals.signals,
+    explicitTypes: signals.explicitTypes
+  };
   return { candidate: {
     id,
     name,
@@ -68,15 +78,7 @@ function buildInterventionRecordCandidate(record, source) {
     problemTags,
     discoveryText: semanticText(row),
     requiredEvidence,
-    discovery: {
-      source: 'acquired-intervention-universe',
-      sourceUrl: source?.url || null,
-      datasetId: source?.datasetId || source?.sourceId || null,
-      extractionMethod: source?.extractionMethod || 'generic-intervention-record',
-      admission: signals.sourceDeclared ? 'source-declared-intervention-universe' : 'record-semantic',
-      discoverySignals: signals.signals,
-      explicitTypes: signals.explicitTypes
-    }
+    discovery: { ...discoverySource, sources: [discoverySource] }
   }, rejection: null };
 }
 
@@ -112,15 +114,24 @@ function mergeInterventionCandidates(...sets) {
   for (const set of sets) for (const candidate of set || []) {
     if (!candidate?.id) continue;
     const prior = merged.get(candidate.id);
-    merged.set(candidate.id, prior ? {
+    if (!prior) {
+      merged.set(candidate.id, candidate);
+      continue;
+    }
+    const priorSources = prior.discovery?.sources || (prior.discovery ? [prior.discovery] : []);
+    const candidateSources = candidate.discovery?.sources || (candidate.discovery ? [candidate.discovery] : []);
+    const sourceKey = source => JSON.stringify([source.sourceUrl || null, source.datasetId || null, source.discoveryQuery || null]);
+    const sources = [...new Map([...priorSources, ...candidateSources].map(source => [sourceKey(source), source])).values()];
+    const primary = candidate.discovery || prior.discovery || {};
+    merged.set(candidate.id, {
       ...prior,
       ...candidate,
       domains: [...new Set([...(prior.domains || []), ...(candidate.domains || [])])],
       problemTags: [...new Set([...(prior.problemTags || []), ...(candidate.problemTags || [])])],
       requiredEvidence: [...new Set([...(prior.requiredEvidence || []), ...(candidate.requiredEvidence || [])])],
       discoveryText: [...new Set([prior.discoveryText, candidate.discoveryText].filter(Boolean))].join(' '),
-      discovery: { ...(prior.discovery || {}), ...(candidate.discovery || {}) }
-    } : candidate);
+      discovery: { ...primary, sources }
+    });
   }
   return [...merged.values()].sort((a,b) => a.id.localeCompare(b.id));
 }
