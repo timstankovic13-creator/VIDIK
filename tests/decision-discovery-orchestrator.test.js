@@ -39,11 +39,12 @@ test('arbitrary problem records the complete discovery path without fabrication'
   assert.equal(run.discoveryAudit.problem, 'reduce violent crime');
   assert.ok(run.discoveryAudit.candidatesConsidered >= 2);
   assert.ok(run.discoveryAudit.candidatesMatched >= 1);
-  assert.ok(run.discoveryAudit.sourcesSearched.includes('local-program'));
-  assert.ok(run.discoveryAudit.sourcesSearched.includes('research'));
-  assert.ok(run.discoveryAudit.sourcesSearched.includes('official-data'));
-  assert.ok(run.discoveryAudit.sourcesSearched.includes('intervention-library'));
-  assert.ok(run.discoveryAudit.sourcesSearched.includes('comparable-city'));
+  const searchedTypes = run.discoveryAudit.sourceSearches.map(search => search.sourceType);
+  assert.ok(searchedTypes.includes('local-program'));
+  assert.ok(searchedTypes.includes('research'));
+  assert.ok(searchedTypes.includes('official-data'));
+  assert.ok(searchedTypes.includes('intervention-library'));
+  assert.ok(searchedTypes.includes('comparable-city'));
   assert.equal(run.governance.unknownIsNotZero, true);
   assert.equal(run.governance.effectsImportedFromComparableCities, false);
   assert.equal(run.candidates.find(item => item.id === 'violence-interruption').evidenceState, 'evidence-complete');
