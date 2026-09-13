@@ -55,8 +55,16 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   const result = Discovery.discoverInterventions({ problem, candidates: [] });
   const coverage = Discovery.evidenceCoverage(result);
   assert.deepEqual(coverage, { total: 0, complete: 0, withEvidenceGaps: 0, coverageRate: 0 });
-  assert.equal(typeof Discovery.hashCandidateUniverse(result), 'string');
-  assert.equal(Discovery.hashCandidateUniverse(result).length, 64);
+  const audit = Discovery.discoveryAudit({ problem, candidates: [] });
+  assert.deepEqual(audit.sourcesSearched, []);
+  assert.equal(audit.candidatesConsidered, 0);
+  assert.equal(audit.candidatesMatched, 0);
+  assert.equal(audit.candidatesUnmatched, 0);
+  assert.equal(audit.emptyResult, true);
+  assert.equal(audit.status, 'no-candidates-found');
+  assert.equal(typeof audit.candidateUniverseHash, 'string');
+  assert.equal(audit.candidateUniverseHash.length, 64);
+  assert.deepEqual(audit.evidenceCoverage, coverage);
 });
 
 // 3. Contradiction/incompleteness: missing or blocked evidence is never silently treated as zero effect.
@@ -130,6 +138,9 @@ test('9 arbitrary problems never become a fabricated recommendation', () => {
   for (const problem of unseen) {
     const result = Discovery.discoverInterventions({ problem, candidates: [] });
     assert.equal(result.length, 0);
+    const audit = Discovery.discoveryAudit({ problem, candidates: [] });
+    assert.equal(audit.emptyResult, true);
+    assert.equal(audit.status, 'no-candidates-found');
     assertFailClosed(result.some(item => item.evidenceState === 'evidence-complete'), `unseen problem ${problem} must not fabricate evidence`);
   }
 });
