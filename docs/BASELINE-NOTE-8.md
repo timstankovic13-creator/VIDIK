@@ -1,1 +1,0 @@
-Candidate provenance is derived from trusted source context and preserved through deduplication.
