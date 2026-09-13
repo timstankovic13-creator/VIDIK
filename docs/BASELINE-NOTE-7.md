@@ -1,0 +1,1 @@
+Outcome learning is review-governed and cannot rewrite historical decisions or automatically mutate production parameters.
