@@ -86,21 +86,17 @@ function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceInde
   const uniqueIds = new Set();
   const uniqueSupplied = supplied.filter(({ candidate }) => candidate?.id && !uniqueIds.has(candidate.id) && uniqueIds.add(candidate.id));
   const results = discoverInterventions({ problem, candidates, evidenceIndex, localProgramIndex, acquiredCandidates });
-  const searches = sourceSearches.map(search => ({
-    sourceId: search?.sourceId || null,
-    sourceType: search?.sourceType || null,
-    status: search?.status || 'unknown',
-    candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0,
-    jurisdiction: search?.jurisdiction || null,
-    query: search?.query || null,
-    provenance: search?.provenance || null,
-    retrievedAt: search?.retrievedAt || null,
-    contentHash: search?.contentHash || null,
-    freshness: search?.freshness || null,
-    validation: search?.validation || null,
-    failureReason: search?.failureReason || null
-  }));
-  const sourceTypes = [...new Set([...uniqueSupplied.map(({ sourceType }) => sourceType), ...searches.map(search => search.sourceType).filter(Boolean)])];
+  const sourceTypes = [...new Set(uniqueSupplied.map(({ sourceType }) => sourceType))];
+  const searches = sourceSearches.map(search => {
+    const normalized = {
+      sourceId: search?.sourceId || null,
+      sourceType: search?.sourceType || null,
+      status: search?.status || 'unknown',
+      candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0
+    };
+    if (search?.failureReason) normalized.failureReason = search.failureReason;
+    return normalized;
+  });
   const provenanceMissing = uniqueSupplied.filter(({ candidate, sourceType }) => sourceType !== 'fallback-registry' && !candidate.discovery?.source).map(({ candidate }) => candidate.id);
   const candidateUniverseHash = hashCandidateUniverse(uniqueSupplied.map(({ candidate, sourceType }) => ({ candidate, sourceType })));
   return {
