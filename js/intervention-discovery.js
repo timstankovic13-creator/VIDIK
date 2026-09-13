@@ -33,7 +33,7 @@ function normalizeProblemTags(problem) {
     ['homeless', 'homelessness'], ['homelessness', 'homelessness'], ['housing', 'housing-instability'],
     ['speed', 'speeding'], ['traffic', 'traffic-injury'], ['ems', 'ems-demand'], ['paramedic', 'ems-demand'],
     ['heat', 'extreme-heat'], ['emissions', 'emissions'], ['emergency-department', 'emergency-department'],
-    ['overcrowded', 'overcrowding'], ['overcrowding', 'overcrowding']
+    ['overcrowded', 'overcrowding'], ['overcrowding', 'overcrowding'], ['evictions', 'eviction']
   ]);
   return [...new Set(text.split(/\s+/).filter(Boolean).map(token => aliases.get(token) || token))];
 }
