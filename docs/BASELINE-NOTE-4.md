@@ -1,1 +1,0 @@
-This branch is intended to become the functional VIDIK baseline after all required CI gates are green.
