@@ -7,7 +7,7 @@ async function acquireRankedSources({ manifest, candidates = [], fetchImpl = glo
     let success = false;
     for (const source of step.sources) {
       try {
-        const descriptor = candidates.find(candidate => candidate.url === source.url && candidate.domain === source.domain);
+        const descriptor = candidates.find(candidate => candidate.url === source.url && candidate.domain === step.domain && (!source.provider || candidate.provider === source.provider));
         if (!descriptor) throw new Error('source-descriptor-not-found');
         const snapshot = await retrieve(descriptor, { fetchImpl, now, ...options });
         acquired.push({ requirementId: step.requirementId, domain: step.domain, source: descriptor, retrieval: snapshot.retrieval, bytes: snapshot.bytes });
@@ -26,7 +26,7 @@ async function acquireRankedSources({ manifest, candidates = [], fetchImpl = glo
     snapshots: acquired.map(item => item.retrieval), failures,
     complete: uncovered.length === 0,
     degraded: failures.length > 0,
-    uncoveredRequirements: uncovered.map(step => ({ requirementId: step.requirementId, domain: step.domain }))
+    uncoveredRequirements: uncovered.map(step => ({ requirementId: step.id, domain: step.domain }))
   };
 }
 module.exports = { acquireRankedSources };
