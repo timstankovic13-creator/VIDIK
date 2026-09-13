@@ -1,1 +1,0 @@
-VIDIK functional baseline: discovery strategy, candidate universe, provenance, evidence gates, comparable-city transfer boundaries, why-not/robustness, and governed outcome learning are implemented and regression-gated.
