@@ -102,3 +102,33 @@ jobs:
         run: |
           npm run test:municipal-decision-integrity
           npm run test:canonical-production-integration
+
+  extended-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Acquisition and discovery stack
+        run: |
+          npm run test:data-acquisition
+          npm run test:acquisition-canonical-integration
+          npm run test:source-acquisition-runner
+          npm run test:evidence-acquisition-orchestrator
+          npm run test:source-registry
+          npm run test:research-discovery
+      - name: Decision intelligence and production hardening
+        run: |
+          npm run test:municipal-evidence-pipeline
+          npm run test:municipal-semantic-gates
+          npm run test:resource-optimization
+          npm run test:production-hardening-a-d
+          npm run test:architecture-completeness
+      - name: Multi-city evidence and independent verification
+        run: |
+          npm run test:three-city-architecture
+          npm run test:real-three-city-evidence
+          npm run test:independent-evidence-verification
