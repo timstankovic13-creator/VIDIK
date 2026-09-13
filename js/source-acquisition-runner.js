@@ -26,7 +26,7 @@ async function acquireRankedSources({ manifest, candidates = [], fetchImpl = glo
     snapshots: acquired.map(item => item.retrieval), failures,
     complete: uncovered.length === 0,
     degraded: failures.length > 0,
-    uncoveredRequirements: uncovered.map(step => ({ requirementId: step.id, domain: step.domain }))
+    uncoveredRequirements: uncovered.map(step => ({ requirementId: step.requirementId, domain: step.domain }))
   };
 }
 module.exports = { acquireRankedSources };
