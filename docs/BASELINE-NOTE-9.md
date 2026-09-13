@@ -1,0 +1,1 @@
+Not-searched, searched-empty, candidates-found, and search-failed remain distinct discovery states.
