@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const Discovery = require('./intervention-discovery');
 const Orchestrator = require('./decision-discovery-orchestrator');
 
@@ -79,14 +80,16 @@ async function executeDecisionDiscovery({
     }
   }
 
-  const comparable = Orchestrator.comparableCityLeads({ problem, cities: comparableCities });
+  // Normalize comparable-city input exactly once. buildDiscoveryRun owns the
+  // matching/projection step; passing its already-normalized output back into
+  // that function would discard the city's original problem signal.
   const initial = Orchestrator.buildDiscoveryRun({
     problem,
     acquisitionSources: sourceSearches,
     localCandidates: candidates.filter(candidate => candidate.discovery.sourceType === 'local-program'),
     acquiredCandidates: candidates.filter(candidate => candidate.discovery.sourceType === 'intervention-library'),
     researchLeads: candidates.filter(candidate => candidate.discovery.sourceType === 'research'),
-    comparableCities: comparable,
+    comparableCities,
     evidenceIndex: {},
     analysisInputs: {},
     requiredSourceTypes,
@@ -117,7 +120,7 @@ async function executeDecisionDiscovery({
     localCandidates: candidates.filter(candidate => candidate.discovery.sourceType === 'local-program'),
     acquiredCandidates: candidates.filter(candidate => candidate.discovery.sourceType === 'intervention-library'),
     researchLeads: candidates.filter(candidate => candidate.discovery.sourceType === 'research'),
-    comparableCities: comparable,
+    comparableCities,
     evidenceIndex,
     analysisInputs,
     requiredSourceTypes,
@@ -134,7 +137,7 @@ async function executeDecisionDiscovery({
     run.decision.recommendation = null;
     run.decision.recommendationAllowed = false;
   }
-  run.runHash = require('node:crypto').createHash('sha256').update(JSON.stringify(run)).digest('hex');
+  run.runHash = crypto.createHash('sha256').update(JSON.stringify(run)).digest('hex');
   return run;
 }
 
