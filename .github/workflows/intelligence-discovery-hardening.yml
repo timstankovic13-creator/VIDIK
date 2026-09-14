@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   discovery-probe:
     strategy:
@@ -21,8 +25,27 @@ jobs:
       - name: Adversarial probe ${{ matrix.case }}
         run: node tests/intelligence-discovery-probes.test.js ${{ matrix.case }}
 
-  certification:
+  diagnostics:
+    if: always()
     needs: discovery-probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Capture diagnostic state
+        run: node tests/intelligence-diagnostic.js > /tmp/vidik-intelligence-diagnostic.txt
+      - name: Open diagnostic issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="$(cat /tmp/vidik-intelligence-diagnostic.txt)"
+          gh issue create --title "CI diagnostic: intelligence discovery hardening ${{ github.run_id }}" --body "Temporary diagnostic for run ${{ github.run_id }}.\n\n\`\`\`json\n$body\n\`\`\`"
+
+  certification:
+    needs: [discovery-probe, diagnostics]
+    if: needs.discovery-probe.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
