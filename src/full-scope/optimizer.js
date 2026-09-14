@@ -19,7 +19,9 @@ function normalize(input={}){
 function admissible(raw,context={}){const c=normalize(raw);const reasons=[...c.consistencyConflicts];if(!c.id)reasons.push('candidate-id-missing');if(!finite(c.effect)||c.effect<=0)reasons.push('positive-effect-required');if(!positive(c.resource))reasons.push('positive-resource-required');if(!c.effectUnit||!c.resourceUnit)reasons.push('units-required');if(!c.verified)reasons.push('verified-parameter-required');if(!c.evidenceIndependent)reasons.push('independent-evidence-required');if(c.discoveryOnly||c.leadOnly)reasons.push('discovery-lead-not-eligible');if(c.effectsImported)reasons.push('imported-effect-blocked');if(context.effectUnit&&c.effectUnit!==unit(context.effectUnit))reasons.push('effect-unit-mismatch');if(context.resourceUnit&&c.resourceUnit!==unit(context.resourceUnit))reasons.push('resource-unit-mismatch');return {candidate:c,allowed:reasons.length===0,reasons:[...new Set(reasons)]};}
 function dominates(a,b){return a.effect>=b.effect&&a.resource<=b.resource&&(a.effect>b.effect||a.resource<b.resource);}
 function optimize(problem,candidates=[],context={}){
-  const rows=(Array.isArray(candidates)?candidates:[]).map(c=>admissible(c,context));const eligible=rows.filter(r=>r.allowed).map(r=>({...r.candidate,efficiency:r.candidate.effect/r.candidate.resource});
+  const rows=(Array.isArray(candidates)?candidates:[]).map(c=>admissible(c,context));
+  const eligible=rows.filter(r=>r.allowed).map(r=>({...r.candidate,efficiency:r.candidate.effect/r.candidate.resource}));
+  if(!text(problem))return {problem:'',comparable:true,selected:null,frontier:[],blocked:rows,reason:'problem-required'};
   if(!eligible.length)return {problem:text(problem),comparable:true,selected:null,frontier:[],blocked:rows,reason:'no-admissible-candidate'};
   const effects=new Set(eligible.map(c=>c.effectUnit)),resources=new Set(eligible.map(c=>c.resourceUnit));
   if(effects.size!==1||resources.size!==1)return {problem:text(problem),comparable:false,selected:null,frontier:[],blocked:rows,reason:'incomparable-effect-or-resource-units'};
