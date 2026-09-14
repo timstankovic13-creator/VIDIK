@@ -15,6 +15,7 @@ assert.equal(pipeline.recommendation.allowed,true);
 assert.equal(pipeline.recommendation.candidateId,'speed-management');
 assert.equal(pipeline.readyForArtifact,true);
 assert.equal(pipeline.statusQuo.explicit,true);
+assert.equal(pipeline.optimizer.blocked.find(row => row.candidate.id === 'alt')?.reasons.includes('effect-parameter-conflict'),true);
 
 const blocked = runDecisionPipeline('reduce injuries',[{...candidate,id:'lead',discoveryOnly:true,leadOnly:true}],{statusQuo:{explicit:true}});
 assert.equal(blocked.recommendation.allowed,false);
