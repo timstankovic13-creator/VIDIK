@@ -7,6 +7,7 @@ const TransferIntelligence = require('./discovery-transfer-intelligence');
 const NextPhase = require('./vidik-next-phase');
 const SourceDriven = require('./source-driven-intervention-discovery');
 const EvidenceDriven = require('./source-driven-evidence-discovery');
+const Governance = require('./vidik-arbitrary-decision-governance');
 
 const FAILED = new Set(['failed', 'search-failed', 'error', 'blocked']);
 function canonicalFailureStatus(status) { return FAILED.has(status) ? 'search-failed' : status; }
@@ -91,8 +92,22 @@ async function executeDecisionDiscovery({
   const nextPhaseWhyWhyNot = NextPhase.buildWhyWhyNot({ ranked: intelligence.ranking || [], evidenceIndex, analysis: Object.fromEntries(run.candidates.map(candidate => [candidate.id, analysisInputs[candidate.id] || {}])), statusQuo, robustness: intelligence.robustness || null });
   const sourceNetwork = NextPhase.buildExternalSourceNetwork(problem, { ...decisionContext, ...intelligenceContext });
   run.nextPhase = { sourceNetwork, knowledgeGraph: nextPhaseGraph, whyWhyNot: nextPhaseWhyWhyNot, blindBenchmarkSize: NextPhase.buildBlindBenchmark().length, learningPolicy: NextPhase.outcomeLearningReview([], run.runHash || null) };
-  run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash; run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
-  run.governance.learningEnvelope = intelligence.governance.learning; run.governance.whyNotAvailable = true; run.governance.knowledgeGraphPresent = true; run.governance.externalSourceNetworkPresent = sourceNetwork.sourceCount > 0;
+
+  run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash;
+  run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
+  run.governance.learningEnvelope = intelligence.governance.learning;
+  run.governance.whyNotAvailable = true;
+  run.governance.knowledgeGraphPresent = true;
+  run.governance.externalSourceNetworkPresent = sourceNetwork.sourceCount > 0;
+
+  const universeIntelligence = Governance.buildCandidateUniverseIntelligence({ candidates: run.candidates, sourceSearches, statusQuo });
+  const learningDiscovery = Governance.buildLearningDiscoveryLeads({ problem, learning: intelligence.governance.learning || {}, comparableCities });
+  run.governance.candidateUniverseIntelligence = universeIntelligence;
+  run.learningDiscovery = learningDiscovery;
+  run.governance.learningDiscoveryLeadOnly = true;
+  run.governance.learningEffectsImported = false;
+  run.governance.arbitraryDecisionGovernanceVersion = 'v1';
+
   if (!run.governance.recommendationAllowed) { run.governance.decisionStatus = 'recommendation-blocked'; run.decision.status = 'recommendation-blocked'; run.decision.recommendation = null; run.decision.recommendationAllowed = false; }
   run.runHash = crypto.createHash('sha256').update(JSON.stringify(run)).digest('hex');
   return run;
