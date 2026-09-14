@@ -2,9 +2,8 @@
 
 const assert = require('assert');
 const { buildInterventionUniverse, planEvidenceAcquisition, buildCausalEvidenceGraph, scoreTransferability, optimizeResourceAllocation } = require('../src/full-scope/intelligence-foundation');
-const { recommendationGate } = require('../src/full-scope/decision-engine');
+const { recommendationGate, buildStatusQuo } = require('../src/full-scope/decision-engine');
 const { optimize } = require('../src/full-scope/optimizer');
-const { buildStatusQuo } = require('../src/full-scope/decision-engine');
 
 const scenarios = [
   ['violent crime',['public-safety','health']], ['opioid mortality',['health','housing']], ['homelessness',['housing','health']],
@@ -50,7 +49,6 @@ for (const [problem, domains] of scenarios) {
   assert.ok(allocation.totalEffect > 0, `${problem}: resource machinery must work`);
 }
 
-// Hostile inputs: every one must fail closed rather than manufacture a decision.
 const hostileInputs = [
   {effect:NaN, resource:10, effectUnit:'outcomes', resourceUnit:'dollars', verified:true},
   {effect:Infinity, resource:10, effectUnit:'outcomes', resourceUnit:'dollars', verified:true},
@@ -66,23 +64,27 @@ for (const hostile of hostileInputs) {
   assert.strictEqual(result.selected, null, 'hostile candidate must never be selected');
 }
 
-// Status quo omission, imported learning, and incomparable units must all remain closed.
-const statusQuo = buildStatusQuo({});
-assert.strictEqual(statusQuo.explicit, false);
-const gate = recommendationGate({id:'learned',effect:10,resource:10,effectUnit:'outcomes',resourceUnit:'dollars',verified:true,evidence:[{sourceId:'a',verified:true},{sourceId:'b',verified:true}],statusQuo:false,effectsImported:true}, {problem:'test',statusQuo});
+// Explicitly malformed status quo must remain a hard gate; the normal constructor creates an explicit status quo.
+const statusQuo = { explicit:false, id:'status-quo', description:'unknown' };
+const gate = recommendationGate({
+  id:'learned', effect:10, resource:10, effectUnit:'outcomes', resourceUnit:'dollars', verified:true,
+  evidence:[{sourceId:'a',design:'randomized',verified:true},{sourceId:'b',design:'randomized',verified:true}],
+  parameters:[{id:'p',effect:10,effectUnit:'outcomes',resource:10,resourceUnit:'dollars',verified:true,sourceIds:['a','b']}],
+  effectsImported:true
+}, {problem:'test',statusQuo});
 assert.strictEqual(gate.allowed, false);
-assert.ok(gate.reasons.some(r=>String(r).includes('status')) || gate.reasons.some(r=>String(r).includes('import')));
+assert.ok(gate.blockedReasons.some(r=>String(r).includes('status-quo')));
+assert.ok(gate.blockedReasons.some(r=>String(r).includes('imported-effect')));
+assert.strictEqual(buildStatusQuo({}).explicit, true);
 
 const transfer = scoreTransferability({legalEnvironment:'CA'}, {legalEnvironment:'AU'});
 assert.strictEqual(transfer.effectTransferAllowed, false);
 assert.strictEqual(transfer.parameterMutationAllowed, false);
 
-// Tampered graph/evidence cannot silently become causal.
 const forged = buildCausalEvidenceGraph({id:'forged',problem:'test'}, [{sourceId:'forged-source',causalMethod:'correlation',effect:999,effectUnit:'x',verified:true}]);
 assert.strictEqual(forged.causalReady, false);
 assert.strictEqual(forged.edges.length, 0);
 
-// Missing sources, contradictory contexts, and malformed candidates are visible rather than silently normalized into truth.
 const sparse = buildInterventionUniverse('unknown black swan problem', {candidates:[{id:'bad',name:'',sourceId:''},{id:'good',name:'Unknown intervention',sourceId:'source'}]});
 assert.strictEqual(sparse.candidateCount, 1);
 assert.ok(sparse.searchRequired);
