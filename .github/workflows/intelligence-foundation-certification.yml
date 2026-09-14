@@ -16,6 +16,8 @@ jobs:
           node-version: 20
       - name: Foundation certification
         run: node tests/intelligence-foundation.test.js
+      - name: Orchestrator integration certification
+        run: node tests/intelligence-foundation-integration.test.js
       - name: Black-swan decision tournament
         run: node tests/black-swan-decision-tourney.test.js
       - name: Existing full-scope machinery
