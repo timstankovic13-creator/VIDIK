@@ -1,0 +1,16 @@
+name: full-scope-orchestrator
+on:
+  pull_request:
+    paths:
+      - 'src/full-scope/**'
+      - 'tests/full-scope-orchestrator.test.js'
+      - '.github/workflows/full-scope-orchestrator.yml'
+jobs:
+  orchestrator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/full-scope-orchestrator.test.js
