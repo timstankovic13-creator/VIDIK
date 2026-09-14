@@ -1,0 +1,30 @@
+name: VIDIK Intelligence Generalization
+
+on:
+  push:
+    branches: [main, intelligence-generalization-v1]
+  pull_request:
+    branches: [main]
+
+jobs:
+  intelligence-generalization:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Novel problem generalization
+        run: node tests/intelligence-generalization.test.js
+      - name: Existing A-E validation
+        run: node tests/intelligence-validation-a-e.test.js
+      - name: Existing discovery gauntlet
+        run: node tests/intelligence-discovery-gauntlet.test.js
+      - name: Existing discovery probes
+        run: node tests/intelligence-discovery-probes-v2.test.js
+      - name: Existing machinery gauntlets
+        run: |
+          node tests/machinery-gauntlet.test.js
+          node tests/machinery-deep-adversarial.test.js
+          node tests/machinery-pipeline-integrity.test.js
+          node tests/machinery-learning-ledger.test.js
