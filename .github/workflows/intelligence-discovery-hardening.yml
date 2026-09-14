@@ -2,7 +2,7 @@ name: VIDIK Intelligence Discovery Hardening
 
 on:
   push:
-    branches: [main, intelligence-discovery-hardening-v1, intelligence-discovery-gauntlet-v1]
+    branches: [main, intelligence-discovery-hardening-v1, intelligence-discovery-gauntlet-v1, intelligence-validation-a-e-v1]
   pull_request:
     branches: [main]
 
@@ -42,6 +42,8 @@ jobs:
           node-version: 20
       - name: Discovery/evidence hardening
         run: node tests/intelligence-discovery-hardening.test.js
+      - name: A-E intelligence validation
+        run: node tests/intelligence-validation-a-e.test.js
       - name: Existing intelligence certification
         run: node tests/intelligence-foundation.test.js
       - name: Existing intelligence integration
