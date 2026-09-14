@@ -1,0 +1,35 @@
+name: VIDIK Next Eight Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [hardening/vidik-next-eight]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  next-eight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Eight-part certification battery
+        run: npm run test:vidik-next-eight
+      - name: Existing discovery and source regressions
+        run: |
+          npm run test:intervention-discovery
+          npm run test:source-registry
+          npm run test:source-acquisition-runner
+          npm run test:decision-discovery-orchestration
+          npm run test:decision-discovery-execution
+          npm run test:discovery-transfer-intelligence
+          npm run test:outcome-learning
