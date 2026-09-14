@@ -50,9 +50,10 @@
     "test:arbitrary-decision-governance": "node --test tests/vidik-arbitrary-decision-governance.test.js",
     "test:arbitrary-decision-execution": "node --test tests/vidik-arbitrary-decision-execution.integration.test.js",
     "test:full-scope-functional": "node --test tests/vidik-full-scope-functional.test.js",
+    "test:hostile-full-scope": "node --test tests/hostile-full-scope-functional.test.js",
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
-    "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
+    "test:trustworthiness-phase": "node tests/trustworthiness-phase.test.js"
   },
   "devDependencies": { "@playwright/test": "^1.55.0" },
   "dependencies": { "pdf-parse": "^1.1.1" }
