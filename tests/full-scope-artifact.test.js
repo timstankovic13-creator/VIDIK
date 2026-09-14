@@ -23,11 +23,11 @@ const base = {
   assert(artifact.baselineHash);
   assert.equal(validateDecisionArtifact(artifact).valid,true);
   assert.equal(Object.isFrozen(artifact),true);
-  assert.equal(detectTamper(artifact,artifact.baselineHash),false);
+  assert.equal(await detectTamper(artifact,artifact.baselineHash),false);
 
   const tampered = JSON.parse(JSON.stringify(artifact));
   tampered.recommendation.candidateId = 'forged';
-  assert.equal(detectTamper(tampered,artifact.baselineHash),true);
+  assert.equal(await detectTamper(tampered,artifact.baselineHash),true);
 
   await assert.rejects(()=>createDecisionArtifact({...base,reviewSchedule:[{at:'6m',purpose:'x'},{at:'6m',purpose:'duplicate'}]}),'artifact-review-schedule-invalid');
   await assert.rejects(()=>createDecisionArtifact({...base,counterfactual:{...base.counterfactual,resource:0}}),'artifact-counterfactual-invalid');
