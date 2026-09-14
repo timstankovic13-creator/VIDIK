@@ -3,6 +3,7 @@
 const text = x => String(x ?? '').trim();
 const finite = x => Number.isFinite(Number(x));
 const nonEmptyArray = x => Array.isArray(x) && x.length > 0;
+const canonicalUnit = x => text(x).toLowerCase() || null;
 
 function comparableCityTransfer(raw = {}) {
   const reasons = [];
@@ -11,14 +12,15 @@ function comparableCityTransfer(raw = {}) {
 
   if (raw.evidenceVerified !== true) reasons.push('evidence-not-verified');
   if (raw.contextComparable !== true) reasons.push('context-not-comparable');
-  if (!text(raw.evidenceSetId) && !nonEmptyArray(raw.evidenceSourceIds)) reasons.push('transfer-provenance-missing');
+  const sourceIds = Array.isArray(raw.evidenceSourceIds)
+    ? [...new Set(raw.evidenceSourceIds.map(text).filter(Boolean))]
+    : [];
+  if (!text(raw.evidenceSetId) && sourceIds.length === 0) reasons.push('transfer-provenance-missing');
   if (raw.effectsImported === true || raw.causalEffectImported === true || raw.localEffectApplied === true) {
     reasons.push(raw.localEffectApplied === true ? 'local-effect-not-transferable' : 'causal-effect-import-forbidden');
   }
 
-  // Comparable-city records may identify what to investigate, but they can never
-  // carry a numeric local effect/parameter into the decision engine.
-  for (const key of ['effect', 'expectedEffect', 'observedEffect', 'parameter', 'causalEffect']) {
+  for (const key of ['effect', 'expectedEffect', 'observedEffect', 'parameter', 'causalEffect', 'effectEstimate', 'effectSize']) {
     if (raw[key] !== undefined && raw[key] !== null) reasons.push('numeric-effect-transfer-forbidden');
   }
 
@@ -29,7 +31,8 @@ function comparableCityTransfer(raw = {}) {
     problem: text(raw.problem),
     interventionId: text(raw.interventionId),
     evidenceSetId: text(raw.evidenceSetId) || null,
-    evidenceSourceIds: Array.isArray(raw.evidenceSourceIds) ? [...new Set(raw.evidenceSourceIds.map(text).filter(Boolean))] : [],
+    evidenceSourceIds: sourceIds,
+    provenanceComplete: Boolean(text(raw.evidenceSetId) || sourceIds.length),
     reasons: [...new Set(reasons)],
     role: eligible ? 'comparability-support' : 'learning-lead',
     mayInformDiscovery: true,
@@ -59,12 +62,12 @@ function outcomeReview(expected = {}, observed = {}) {
   const expectedEffect = Number(expected.effect);
   const observedEffect = Number(observed.effect);
   if (!finite(expectedEffect) || !finite(observedEffect)) return { valid: false, reason: 'finite-expected-and-observed-effect-required', parameterMutationAllowed: false };
-  const expectedUnit = text(expected.unit);
-  const observedUnit = text(observed.unit);
+  const expectedUnit = canonicalUnit(expected.unit);
+  const observedUnit = canonicalUnit(observed.unit);
   if (!expectedUnit || !observedUnit || expectedUnit !== observedUnit) return { valid: false, reason: 'effect-unit-mismatch-or-missing', parameterMutationAllowed: false };
+  if (expectedEffect === 0) return { valid: false, reason: 'zero-expected-effect-cannot-define-relative-error', parameterMutationAllowed: false };
   const delta = observedEffect - expectedEffect;
-  const denominator = Math.max(Math.abs(expectedEffect), 1e-12);
-  const relativeError = Math.abs(delta) / denominator;
+  const relativeError = Math.abs(delta) / Math.abs(expectedEffect);
   return {
     valid: true,
     expectedEffect,
@@ -80,11 +83,11 @@ function outcomeReview(expected = {}, observed = {}) {
 
 function detectDrift(history = [], threshold = 0.2) {
   const parsedThreshold = Number(threshold);
-  const t = finite(parsedThreshold) ? Math.max(0, parsedThreshold) : 0.2;
-  const valid = Array.isArray(history) ? history.filter(h => h && finite(h.expectedEffect) && finite(h.observedEffect) && text(h.unit) && text(h.expectedUnit || h.unit) === text(h.unit)) : [];
+  const t = finite(parsedThreshold) && parsedThreshold >= 0 && parsedThreshold <= 1 ? parsedThreshold : 0.2;
+  const valid = Array.isArray(history) ? history.filter(h => h && finite(h.expectedEffect) && finite(h.observedEffect) && Number(h.expectedEffect) !== 0 && text(h.unit) && text(h.expectedUnit || h.unit) === text(h.unit)) : [];
   const deviations = valid.map(h => ({
     reviewId: text(h.reviewId),
-    relativeError: Math.abs(Number(h.observedEffect) - Number(h.expectedEffect)) / Math.max(Math.abs(Number(h.expectedEffect)), 1e-12)
+    relativeError: Math.abs(Number(h.observedEffect) - Number(h.expectedEffect)) / Math.abs(Number(h.expectedEffect))
   }));
   const breached = deviations.filter(d => d.relativeError > t);
   return {
@@ -103,9 +106,11 @@ function registerFailure(input = {}) {
   const severity = ['low', 'medium', 'high', 'critical'].includes(input.severity) ? input.severity : 'medium';
   const evidence = Array.isArray(input.evidence) ? [...input.evidence] : [];
   const remediation = Array.isArray(input.remediation) ? [...input.remediation] : [];
+  const category = text(input.category) || 'unknown';
+  const candidateId = text(input.candidateId) || 'unknown';
   return Object.freeze({
-    id: text(input.id) || `failure:${text(input.category) || 'unknown'}:${text(input.candidateId) || 'unknown'}`,
-    category: text(input.category) || 'unknown',
+    id: text(input.id) || `failure:${category}:${candidateId}`,
+    category,
     candidateId: text(input.candidateId) || null,
     severity,
     description: text(input.description),
@@ -114,7 +119,8 @@ function registerFailure(input = {}) {
     status: 'open',
     recommendationSuppressed: severity === 'critical' || severity === 'high',
     parameterMutationAllowed: false,
-    autoResolutionAllowed: false
+    autoResolutionAllowed: false,
+    requiresHumanReview: severity === 'high' || severity === 'critical'
   });
 }
 
