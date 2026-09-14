@@ -8,9 +8,9 @@ function validateModel(intervention, model, resourceUnit = 'CAD') {
   if (!model) return { admissible: false, failures: ['marginal-resource-model-missing'] };
   const required = ['capacityPerCad', 'activityPerCapacity', 'effectPerActivity', 'objectiveMetric'];
   const failures = required.filter(k => (k === 'objectiveMetric' ? typeof model[k] !== 'string' || !model[k].trim() : !Number.isFinite(Number(model[k])) || Number(model[k]) <= 0)).map(k => `${k}-missing-or-invalid`);
-  const modelResourceUnit = model.resourceUnit || model.resourceCurrency || resourceUnit;
+  const modelResourceUnit = model.resourceUnit || model.resourceCurrency || 'CAD';
   if (!compatibleResourceUnits(resourceUnit, modelResourceUnit)) failures.push('resource-unit-incompatible');
-  if (!model.evidenceIds || !Array.isArray(model.evidenceIds) || model.evidenceIds.length < 3 || new Set(model.evidenceIds).size !== model.evidenceIds.length) failures.push('resource-chain-evidence-lineage-incomplete');
+  if (!model.evidenceIds || !Array.isArray(model.evidenceIds) || model.evidenceIds.length < 3) failures.push('resource-chain-evidence-lineage-incomplete');
   if (model.uncertainty && (!Number.isFinite(Number(model.uncertainty.low)) || !Number.isFinite(Number(model.uncertainty.high)) || Number(model.uncertainty.low) < 0 || Number(model.uncertainty.high) < Number(model.uncertainty.low))) failures.push('resource-chain-uncertainty-invalid');
   return { admissible: failures.length === 0, failures, resourceUnit: modelResourceUnit };
 }
@@ -19,12 +19,16 @@ function evaluateResourceOptimization(resourceEnvelope, interventionComparison, 
   if (resource.status !== 'VALID') return { status: 'NOT_ACTIVATED', resource, candidates: [], allocation: null, opportunityCost: null, feedback: resource.feedback };
   const candidates = interventionComparison.map(intervention => {
     const model = resourceModels[intervention.id]; const validation = validateModel(intervention, model, resource.unit);
+    const lineageInvalid = !model?.evidenceIds || !Array.isArray(model.evidenceIds) || new Set(model.evidenceIds).size !== model.evidenceIds.length;
+    if (lineageInvalid && !validation.failures.includes('resource-chain-evidence-lineage-incomplete')) validation.failures.push('resource-chain-evidence-lineage-incomplete');
     if (!validation.admissible || intervention.status !== 'ADMISSIBLE') return { id: intervention.id, name: intervention.name, status: 'BLOCKED', failures: validation.failures.length ? validation.failures : ['intervention-not-admissible'], effectPerCad: null };
     const capacity = resource.amount * Number(model.capacityPerCad), activity = capacity * Number(model.activityPerCapacity), expectedEffect = activity * Number(model.effectPerActivity);
     return { id: intervention.id, name: intervention.name, status: 'OPTIMIZABLE', failures: [], objectiveMetric: model.objectiveMetric, effectPerCad: Number(model.capacityPerCad) * Number(model.activityPerCapacity) * Number(model.effectPerActivity), translation: { marginalResource: { amount: resource.amount, unit: resource.unit }, capacity: { value: capacity, unit: model.capacityUnit || 'capacity_units' }, activity: { value: activity, unit: model.activityUnit || 'activity_units' }, outcome: { expectedIncrement: expectedEffect, unit: model.effectUnit || model.objectiveMetric || 'outcome_units' } }, evidenceIds: model.evidenceIds, uncertainty: model.uncertainty || null };
   });
   const incompatible = candidates.filter(x => x.status === 'BLOCKED' && x.failures.includes('resource-unit-incompatible'));
   if (incompatible.length) return { status: 'BLOCKED', resource, candidates, allocation: null, opportunityCost: null, feedback: `Resource optimization is blocked because candidate resource units are incompatible with the decision resource unit ${resource.unit}: ${incompatible.map(x => x.id).join(', ')}. Convert with an explicit governed rate or remove the candidate before optimization.` };
+  const lineageBlocked = candidates.filter(x => x.status === 'BLOCKED' && x.failures.includes('resource-chain-evidence-lineage-incomplete'));
+  if (lineageBlocked.length) return { status: 'BLOCKED', resource, candidates, allocation: null, opportunityCost: null, feedback: `Resource optimization is blocked because candidate evidence lineage is incomplete or contains duplicate evidence identifiers: ${lineageBlocked.map(x => x.id).join(', ')}.` };
   const viable = candidates.filter(x => x.status === 'OPTIMIZABLE');
   if (!viable.length) return { status: 'BLOCKED', resource, candidates, allocation: null, opportunityCost: null, feedback: 'Resource amount is valid, but no admissible intervention has a complete evidenced marginal resource-to-outcome chain.' };
   const objectiveMetrics = [...new Set(viable.map(x => x.objectiveMetric))];
