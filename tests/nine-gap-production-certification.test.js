@@ -21,7 +21,9 @@ test('5 resource optimization rejects incompatible currencies and duplicate line
   const base={capacityPerCad:.001,activityPerCapacity:1,effectPerActivity:1,objectiveMetric:'outcome',evidenceIds:['1','2','3']};
   const x=R.evaluateResourceOptimization({marginalUnit:{amount:1000,unit:'CAD'}},[{id:'a',name:'A',status:'ADMISSIBLE'},{id:'b',name:'B',status:'ADMISSIBLE'}],{a:{...base,resourceUnit:'CAD'},b:{...base,resourceUnit:'USD'}});
   assert.equal(x.status,'BLOCKED');
-  assert.equal(R.validateModel({id:'a'},{...base,evidenceIds:['x','x','x']},'CAD').admissible,false);
+  const duplicate=R.evaluateResourceOptimization({marginalUnit:{amount:1000,unit:'CAD'}},[{id:'a',name:'A',status:'ADMISSIBLE'}],{a:{...base,evidenceIds:['x','x','x']}});
+  assert.equal(duplicate.status,'BLOCKED');
+  assert.ok(duplicate.candidates[0].failures.includes('resource-chain-evidence-lineage-incomplete'));
 });
 
 test('6 human override is explicit, authorized and auditable', () => {
