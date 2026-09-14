@@ -22,7 +22,7 @@ test('missing causal/resource quantification remains explicitly unknown', () => 
 
 test('decision artifact is tamper-evident and enforces readiness consistency', () => {
   const run = { runHash: 'execution-1', decision: { recommendation: 'x', recommendationAllowed: true }, governance: { candidateUniverseIntelligence: { candidatesConsidered: 2 } }, learningDiscovery: { learningHash: 'learn-1' } };
-  const gate = { recommendationEligible: true, gates: { E_decisionReadiness: true } };
+  const gate = { recommendationEligible: true, gates: { A_evidenceQuality: true, B_candidateParameter: true, C_marginalResourceEffect: true, D_uncertaintyVOIOptimization: true, E_decisionReadiness: true } };
   const cf = Closure.buildCounterfactual({ statusQuo: { explicit: true }, candidate: { id: 'x', name: 'X' }, analysis: { estimate: 1, effectUnit: 'outcomes', resource: 10, resourceUnit: 'CAD' }, gate });
   const artifact = Closure.buildDecisionArtifact({ problem: 'reduce harm', run, candidate: { id: 'x', name: 'X', discovery: { leadOnly: false } }, gate, analysis: { estimate: 1 }, statusQuo: { explicit: true }, counterfactual: cf, evidence: { causal: { sourceId: 'independent-1' } } });
   assert.equal(Closure.validateDecisionArtifact(artifact).valid, true);
