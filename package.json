@@ -48,6 +48,7 @@
     "test:source-driven-discovery": "node --test tests/source-driven-intervention-discovery.test.js",
     "test:source-driven-evidence": "node --test tests/source-driven-evidence-discovery.test.js",
     "test:arbitrary-decision-governance": "node --test tests/vidik-arbitrary-decision-governance.test.js",
+    "test:arbitrary-decision-execution": "node --test tests/vidik-arbitrary-decision-execution.integration.test.js",
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
