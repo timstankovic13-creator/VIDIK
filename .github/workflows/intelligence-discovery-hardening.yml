@@ -7,14 +7,29 @@ on:
     branches: [main]
 
 jobs:
-  discovery-hardening:
+  discovery-probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Discovery/evidence hardening adversarial suite
+      - name: Adversarial probe ${{ matrix.case }}
+        run: node tests/intelligence-discovery-probes.test.js ${{ matrix.case }}
+
+  certification:
+    needs: discovery-probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Full discovery/evidence hardening suite
         run: node tests/intelligence-discovery-hardening.test.js
       - name: Existing intelligence certification
         run: node tests/intelligence-foundation.test.js
