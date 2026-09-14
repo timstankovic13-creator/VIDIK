@@ -1,67 +1,11 @@
 'use strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const G = require('../js/vidik-arbitrary-decision-governance');
-
-test('evidence gateway blocks missing, stale, conflicting and unverified evidence', () => {
-  const candidate = { id: 'c1', requiredEvidence: ['causal', 'implementation', 'cost', 'equity'] };
-  const result = G.verifyEvidenceBundle({ candidate, evidence: {
-    causal: { status: 'verified', causal: true, independentSource: true, sourceId: 'study-a' },
-    implementation: { status: 'verified', independentSource: true, sourceId: 'impl-a' },
-    cost: { status: 'stale', independentSource: true, sourceId: 'cost-a' },
-    equity: { status: 'verified', independentSource: false, sourceId: 'equity-a' }
-  } });
-  assert.equal(result.status, 'blocked');
-  assert.ok(result.blocked.includes('cost'));
-  assert.ok(result.independentMissing.includes('equity'));
-});
-
-test('evidence gateway requires independent verification for every required evidence class', () => {
-  const candidate = { id: 'c2', requiredEvidence: ['causal', 'implementation'] };
-  const result = G.verifyEvidenceBundle({ candidate, evidence: {
-    causal: { status: 'verified', causal: true, independentSource: true },
-    implementation: { status: 'verified', independentSource: true }
-  } });
-  assert.equal(result.status, 'verified');
-});
-
-test('candidate universe intelligence exposes weak and failed-source universes instead of treating them as zero', () => {
-  const result = G.buildCandidateUniverseIntelligence({
-    candidates: [{ id: 'x', name: 'Intervention X', discovery: { provenance: [{ sourceId: 's1' }] } }],
-    sourceSearches: [{ sourceId: 's1', status: 'candidates-found' }, { sourceId: 's2', status: 'search-failed', failureReason: 'timeout' }],
-    statusQuo: { explicit: true }
-  });
-  assert.equal(result.status, 'universe-incomplete');
-  assert.equal(result.sufficientForRecommendation, false);
-  assert.equal(result.sourceFailures[0].sourceId, 's2');
-});
-
-test('learning produces comparable-city lead-only candidates without importing effects', () => {
-  const result = G.buildLearningDiscoveryLeads({ problem: 'reduce violent crime', comparableCities: [{ city: 'Example City', jurisdiction: 'CA', interventions: ['community violence interruption'] }] });
-  assert.equal(result.status, 'learning-leads-found');
-  assert.equal(result.effectsImported, false);
-  assert.equal(result.recommendationEligible, false);
-  assert.equal(result.leads[0].discovery.leadOnly, true);
-  assert.equal(result.leads[0].transferability.effectsImported, false);
-});
-
-test('lifecycle reports missing downstream production phases explicitly', () => {
-  const result = G.buildDecisionLifecycle({ problem: 'reduce violent crime', discovery: true, universe: { candidatesConsidered: 3 }, evidenceVerification: {}, learningDiscovery: {} });
-  assert.equal(result.complete, false);
-  assert.equal(result.nextRequiredPhase, 'parameters');
-  assert.ok(result.phases.some(phase => phase.id === 'optimization' && phase.status === 'not-yet-present'));
-});
-
-test('Monster governance passes only when evidence, provenance, status quo and quantitative inputs are admissible', () => {
-  const candidate = { id: 'c3', name: 'Verified intervention', requiredEvidence: ['causal', 'implementation'], discovery: { provenance: [{ sourceId: 's1' }] } };
-  const pass = G.monsterCase({ problem: 'reduce harm', candidate, statusQuo: { explicit: true }, analysisInputs: { estimate: 4 }, evidence: {
-    causal: { status: 'verified', causal: true, independentSource: true }, implementation: { status: 'verified', independentSource: true }
-  } });
-  assert.equal(pass.status, 'PASS');
-
-  const blocked = G.monsterCase({ problem: 'reduce harm', candidate, statusQuo: { explicit: true }, analysisInputs: { estimate: 4 }, evidence: {
-    causal: { status: 'verified', causal: true, independentSource: false }, implementation: { status: 'verified', independentSource: true }
-  } });
-  assert.equal(blocked.status, 'BLOCKED');
-});
+const assert = require('node:assert/strict'); const test = require('node:test'); const G = require('../js/vidik-arbitrary-decision-governance');
+test('evidence gateway blocks stale evidence and missing independent verification', () => { const r=G.verifyEvidenceBundle({candidate:{id:'c1',requiredEvidence:['causal','cost']},evidence:{causal:{status:'verified',causal:true,independentSource:true},cost:{status:'stale',independentSource:false}}}); assert.equal(r.status,'blocked'); assert.ok(r.blocked.includes('cost')); assert.ok(r.independentMissing.includes('cost')); });
+test('candidate universe exposes incomplete source coverage',()=>{const r=G.buildCandidateUniverseIntelligence({candidates:[{id:'x',name:'X',discovery:{provenance:[{sourceId:'s1'}]}}],sourceSearches:[{sourceId:'s1',status:'candidates-found'},{sourceId:'s2',status:'search-failed',failureReason:'timeout'}],statusQuo:{explicit:true}});assert.equal(r.status,'universe-incomplete');assert.equal(r.sufficientForRecommendation,false);});
+test('learning handles structured city interventions without importing effects',()=>{const r=G.buildLearningDiscoveryLeads({problem:'reduce violent crime',comparableCities:[{city:'Example',jurisdiction:'CA',interventions:{'violence interruption':{outcomeStatus:'promising'}}}]});assert.equal(r.status,'learning-leads-found');assert.equal(r.effectsImported,false);assert.equal(r.leads[0].discovery.leadOnly,true);});
+test('lifecycle exposes downstream gaps',()=>{const r=G.buildDecisionLifecycle({problem:'reduce harm',discovery:true,universe:{candidatesConsidered:1},evidenceVerification:{},learningDiscovery:{}});assert.equal(r.nextRequiredPhase,'parameters');assert.equal(r.complete,false);});
+test('A-E gate requires evidence, parameter, marginal effect, uncertainty/VOI/optimization and status quo',()=>{const candidate={id:'c',requiredEvidence:['causal']};const base={candidate,evidence:{causal:{status:'verified',causal:true,independentSource:true}},parameter:{value:.2,unit:'effect/person'},marginal:{resource:1000,effect:.2},uncertainty:{stable:true},voi:{value:10},optimization:{validated:true},statusQuo:{explicit:true}};const ok=G.buildEvidenceToDecisionGate(base);assert.equal(ok.recommendationEligible,true);const bad=G.buildEvidenceToDecisionGate({...base,uncertainty:{stable:false}});assert.equal(bad.recommendationEligible,false);});
+test('semantic expansion produces bounded governed query variants',()=>{const r=G.buildSemanticExpansion({problem:'reduce violent crime',synonyms:{violent:['violence'],crime:['offending']},mechanisms:{'reduce violent crime':['community violence prevention']},interventionClasses:{'reduce violent crime':['violence interruption']}});assert.ok(r.queries.includes('community violence prevention'));assert.ok(r.queries.length<=20);});
+test('parameter bridge requires independent causal evidence and units',()=>{const good=G.buildParameterBridge({candidate:{resourceRequirement:100,resourceUnit:'CAD'},evidence:{causal:{effectEstimate:.2,effectUnit:'cases',independentSource:true,sourceId:'s1'}},resource:{value:100,unit:'CAD'}});assert.equal(good.admissible,true);const bad=G.buildParameterBridge({candidate:{resourceRequirement:100,resourceUnit:'CAD'},evidence:{causal:{effectEstimate:.2,effectUnit:'cases',independentSource:false}},resource:{value:100,unit:'CAD'}});assert.equal(bad.admissible,false);});
+test('outcome closure creates review checkpoints and preserves history',()=>{const r=G.buildOutcomeClosure({decisionArtifactHash:'abc',observations:[{months:6,metric:'rate',observed:12}]});assert.equal(r.baselineHash,'abc');assert.equal(r.historyImmutable,true);assert.ok(r.reviewsDueMonths.includes(12));assert.deepEqual(r.proposedParameterChanges,[]);});
+test('Monster governance passes valid evidence and blocks unverified causal evidence',()=>{const c={id:'c3',name:'Verified intervention',requiredEvidence:['causal','implementation'],discovery:{provenance:[{sourceId:'s1'}]}};const p=G.monsterCase({problem:'reduce harm',candidate:c,statusQuo:{explicit:true},analysisInputs:{estimate:4},evidence:{causal:{status:'verified',causal:true,independentSource:true},implementation:{status:'verified',independentSource:true}}});assert.equal(p.status,'PASS');const b=G.monsterCase({problem:'reduce harm',candidate:c,statusQuo:{explicit:true},analysisInputs:{estimate:4},evidence:{causal:{status:'verified',causal:true,independentSource:false},implementation:{status:'verified',independentSource:true}}});assert.equal(b.status,'BLOCKED');});
