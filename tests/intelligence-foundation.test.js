@@ -79,7 +79,8 @@ assert.strictEqual(poorTransfer.effectTransferAllowed, false);
 const allocation = optimizeResourceAllocation([
   {id:'a',effectUnit:'violent-crimes prevented',resourceUnit:'dollars',maxResource:100000,effectAtMax:20,step:10000},
   {id:'b',effectUnit:'violent-crimes prevented',resourceUnit:'dollars',maxResource:100000,effectAtMax:18,step:10000},
-  {id:'c',effectUnit:'violent-crimes prevented',resourceUnit:'dollars',maxResource:50000,effectAtMax:8,step:10000}
+  {id:'c',effectUnit:'violent-crimes prevented',resourceUnit:'dollars',maxResource:50000,effectAtMax:8,step:10000},
+  {id:'d',effectUnit:'violent-crimes prevented',resourceUnit:'dollars',maxResource:50000,effectAtMax:1,step:10000}
 ], 120000);
 assert.strictEqual(allocation.schemaVersion, 'vidik.resource-allocation.v2');
 assert.ok(allocation.selected.length > 0);
