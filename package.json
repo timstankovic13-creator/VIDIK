@@ -24,6 +24,7 @@
     "test:nine-gaps-hardening": "node --test tests/nine-gap-production-hardening.test.js",
     "test:decision-intelligence": "node tests/decision-intelligence-9.7.test.js && node tests/canonical-decision-intelligence.test.js",
     "test:monster": "node scripts/vidik-monster-test-v4.js",
+    "test:monster-v5": "node scripts/vidik-monster-test-v5.js",
     "run:municipal-decision": "node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision": "node scripts/municipal-canonical-decision-run.js",
     "run:real-three-city-evidence": "node scripts/real-three-city-evidence-run.js",
