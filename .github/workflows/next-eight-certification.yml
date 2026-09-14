@@ -24,6 +24,8 @@ jobs:
       - run: npm install
       - name: Eight-part certification battery
         run: npm run test:vidik-next-eight
+      - name: PubMed research adapter
+        run: node --test tests/pubmed-research-discovery.test.js
       - name: Existing discovery and source regressions
         run: |
           npm run test:intervention-discovery
@@ -33,3 +35,4 @@ jobs:
           npm run test:decision-discovery-execution
           npm run test:discovery-transfer-intelligence
           npm run test:outcome-learning
+          node tests/research-discovery.test.js
