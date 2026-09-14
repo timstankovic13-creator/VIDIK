@@ -65,6 +65,18 @@ const SOURCE_REGISTRY = Object.freeze([
     discoveryTags: ['research','interventions','causal','systematic-review','implementation','crime','violent-crime','justice','policing','violence','public-safety','hot-spots','focused-deterrence','health','housing','environment','employment','education','business']
   },
   {
+    sourceId: 'pubmed-eutils', provider: 'U.S. National Library of Medicine / NCBI', jurisdiction: 'US',
+    domain: 'causal-evidence', tier: 'independent_causal_research', accessMethod: 'eutils-api',
+    url: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=',
+    discoveryTags: ['research','causal','clinical','health','mental-health','opioid','public-health','implementation','housing','violence','employment','education']
+  },
+  {
+    sourceId: 'who-gho-odata', provider: 'World Health Organization Global Health Observatory', jurisdiction: 'international',
+    domain: 'population-equity', tier: 'official_structured', accessMethod: 'odata-api',
+    url: 'https://ghoapi.azureedge.net/api/',
+    discoveryTags: ['health','public-health','mortality','disease','environment','mental-health','opioid','population','equity']
+  },
+  {
     sourceId: 'campbell-evidence', provider: 'Campbell Collaboration', jurisdiction: 'international',
     domain: 'causal-evidence', tier: 'independent_causal_research', accessMethod: 'review-index',
     url: 'https://www.campbellcollaboration.org/reviews/',
