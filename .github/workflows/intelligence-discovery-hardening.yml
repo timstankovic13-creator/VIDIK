@@ -1,0 +1,28 @@
+name: VIDIK Intelligence Discovery Hardening
+
+on:
+  push:
+    branches: [main, intelligence-discovery-hardening-v1]
+  pull_request:
+    branches: [main]
+
+jobs:
+  discovery-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Discovery/evidence hardening adversarial suite
+        run: node tests/intelligence-discovery-hardening.test.js
+      - name: Existing intelligence certification
+        run: node tests/intelligence-foundation.test.js
+      - name: Existing intelligence integration
+        run: node tests/intelligence-foundation-integration.test.js
+      - name: Existing machinery gauntlet
+        run: |
+          node tests/machinery-gauntlet.test.js
+          node tests/machinery-deep-adversarial.test.js
+          node tests/machinery-pipeline-integrity.test.js
+          node tests/machinery-learning-ledger.test.js
