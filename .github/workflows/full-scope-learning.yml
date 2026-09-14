@@ -1,0 +1,16 @@
+name: full-scope-learning
+on:
+  pull_request:
+    paths:
+      - 'src/full-scope/learning-engine.js'
+      - 'tests/full-scope-learning.test.js'
+      - '.github/workflows/full-scope-learning.yml'
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/full-scope-learning.test.js
