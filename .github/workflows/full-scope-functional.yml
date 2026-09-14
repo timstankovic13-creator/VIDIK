@@ -1,0 +1,24 @@
+name: VIDIK Full Scope Functional
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  full-scope-functional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npm run test:full-scope-functional
+      - run: npm run test:arbitrary-decision-governance
+      - run: npm run test:arbitrary-decision-execution
+      - run: npm run test:source-driven-discovery
+      - run: npm run test:source-driven-evidence
+      - run: npm run test:unseen-problem-discovery
