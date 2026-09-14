@@ -1,0 +1,22 @@
+name: Full-Scope Decision Engine
+on:
+  pull_request:
+    paths:
+      - 'src/full-scope/**'
+      - 'tests/full-scope-decision-engine.test.js'
+      - '.github/workflows/full-scope-decision-engine.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/full-scope/**'
+      - 'tests/full-scope-decision-engine.test.js'
+      - '.github/workflows/full-scope-decision-engine.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/full-scope-decision-engine.test.js
