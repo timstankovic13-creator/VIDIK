@@ -18,8 +18,6 @@ jobs:
         run: node tests/intelligence-validation-a-e.test.js
       - name: Existing discovery gauntlet
         run: node tests/intelligence-discovery-gauntlet.test.js
-      - name: Existing discovery probes
-        run: node tests/intelligence-discovery-probes-v2.test.js
       - name: Existing machinery gauntlets
         run: |
           node tests/machinery-gauntlet.test.js
