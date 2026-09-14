@@ -45,14 +45,11 @@
     "test:discovery-transfer-intelligence": "node tests/discovery-transfer-intelligence.test.js",
     "test:unseen-problem-discovery": "node --test tests/unseen-problem-discovery-certification.test.js",
     "test:source-driven-discovery": "node --test tests/source-driven-intervention-discovery.test.js",
+    "test:source-driven-evidence": "node --test tests/source-driven-evidence-discovery.test.js",
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
   },
-  "devDependencies": {
-    "@playwright/test": "^1.55.0"
-  },
-  "dependencies": {
-    "pdf-parse": "^1.1.1"
-  }
+  "devDependencies": { "@playwright/test": "^1.55.0" },
+  "dependencies": { "pdf-parse": "^1.1.1" }
 }
