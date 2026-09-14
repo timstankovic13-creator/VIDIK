@@ -23,8 +23,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm install
-      - name: Nine-gap production battery
+      - name: Nine-gap production certification
         run: npm run test:nine-gaps-hardening
+      - name: Nine-gap focused production battery
+        run: node --test tests/nine-gap-production-certification.test.js
       - name: Existing production hardening
         run: npm run test:production-hardening-a-d
       - name: Discovery and transfer regression
