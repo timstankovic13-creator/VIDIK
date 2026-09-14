@@ -1,0 +1,22 @@
+name: Full-Scope Functionality
+on:
+  pull_request:
+    paths:
+      - 'full-scope.html'
+      - 'tests/full-scope-functionality.test.js'
+      - '.github/workflows/full-scope-functionality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'full-scope.html'
+      - 'tests/full-scope-functionality.test.js'
+      - '.github/workflows/full-scope-functionality.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/full-scope-functionality.test.js
