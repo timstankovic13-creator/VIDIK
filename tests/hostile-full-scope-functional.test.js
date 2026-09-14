@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const G = require('../js/vidik-arbitrary-decision-governance');
 const C = require('../js/vidik-decision-artifact-closure');
+const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 test('hostile: non-finite effects and resources can never quantify a counterfactual', () => {
   for (const analysis of [
@@ -110,4 +111,36 @@ test('hostile: empty and malformed candidate universes remain non-recommendable'
     const r = G.buildCandidateUniverseIntelligence({ candidates, sourceSearches: [], statusQuo: { explicit: true } });
     assert.equal(r.sufficientForRecommendation, false);
   }
+});
+
+test('hostile: production execution survives missing sources and closes recommendation fail-closed', async () => {
+  const r = await executeDecisionDiscovery({
+    problem: 'reduce a novel arbitrary harm',
+    requiredSourceTypes: ['intervention-library', 'research'],
+    statusQuo: { explicit: true, id: 'baseline' },
+    searchers: {
+      'intervention-library': async () => ({ sourceId: 'hostile-source', candidates: [{ id: 'lead-1', name: 'Potential intervention', requiredEvidence: ['causal'] }] }),
+      research: async () => { throw new Error('simulated source outage'); }
+    },
+    comparableCities: [{ city: 'Comparable', interventions: { 'learned intervention': { effect: 999 } } }]
+  });
+  assert.equal(r.governance.recommendationAllowed, false);
+  assert.equal(r.decision.recommendation, null);
+  assert.equal(r.governance.learningEffectsImported, false);
+  assert.ok(r.governance.candidateUniverseIntelligence.sourceFailures.length >= 1);
+  assert.ok(r.learningDiscovery.leads.every(x => x.discovery.leadOnly === true));
+});
+
+test('hostile: evidence discovery failure cannot silently become evidence', async () => {
+  const r = await executeDecisionDiscovery({
+    problem: 'reduce another novel harm',
+    requiredSourceTypes: ['intervention-library'],
+    statusQuo: { explicit: true },
+    searchers: { 'intervention-library': async () => ({ sourceId: 's', candidates: [{ id: 'c', name: 'Candidate', requiredEvidence: ['causal'] }] }) },
+    evidenceSearcher: async () => { throw new Error('evidence outage'); }
+  });
+  assert.equal(r.governance.evidenceSearchComplete, false);
+  assert.equal(r.governance.recommendationAllowed, false);
+  assert.equal(r.decision.recommendation, null);
+  assert.equal(r.evidenceSearches[0].status, 'search-failed');
 });
