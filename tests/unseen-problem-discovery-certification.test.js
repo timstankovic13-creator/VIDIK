@@ -29,35 +29,23 @@ function candidate(id, name, tag, sourceType) {
     id,
     name,
     discoveryText: SEARCH_TEXT[tag] || tag.replace(/-/g, ' '),
-    problemTags: [tag],
+    problemTags: [tag, SEARCH_TEXT[tag] || tag.replace(/-/g, ' ')],
     domains: ['test-domain'],
     requiredEvidence: ['causal', 'implementation'],
     discovery: { source: `cert-${sourceType}`, sourceType }
   };
 }
 
-test('unseen-problem discovery constructs source-backed candidate universes', async () => {
-  function searchersFor(problemTag) {
-    return {
-      'local-program': async () => ({
-        sourceId: 'cert-local',
-        candidates: [candidate(`local-${problemTag}`, `Local ${problemTag} program`, problemTag, 'local-program')]
-      }),
-      'official-data': async () => ({
-        sourceId: 'cert-official',
-        candidates: []
-      }),
-      research: async () => ({
-        sourceId: 'cert-research',
-        candidates: [candidate(`research-${problemTag}`, `Research-derived ${problemTag} intervention`, problemTag, 'research')]
-      }),
-      'intervention-library': async () => ({
-        sourceId: 'cert-library',
-        candidates: [candidate(`library-${problemTag}`, `Library ${problemTag} intervention`, problemTag, 'intervention-library')]
-      })
-    };
-  }
+function searchersFor(problemTag) {
+  return {
+    'local-program': async () => ({ sourceId: 'cert-local', candidates: [candidate(`local-${problemTag}`, `Local ${problemTag} program`, problemTag, 'local-program')] }),
+    'official-data': async () => ({ sourceId: 'cert-official', candidates: [] }),
+    research: async () => ({ sourceId: 'cert-research', candidates: [candidate(`research-${problemTag}`, `Research-derived ${problemTag} intervention`, problemTag, 'research')] }),
+    'intervention-library': async () => ({ sourceId: 'cert-library', candidates: [candidate(`library-${problemTag}`, `Library ${problemTag} intervention`, problemTag, 'intervention-library')] })
+  };
+}
 
+test('unseen-problem discovery constructs source-backed candidate universes', async () => {
   for (const [problemTag, problem] of PROBLEMS) {
     const run = await executeDecisionDiscovery({
       problem,
@@ -73,9 +61,6 @@ test('unseen-problem discovery constructs source-backed candidate universes', as
     assert.equal(run.discoveryAudit.candidateUniverseHash.length, 64);
     assert.equal(run.governance.sourceSearchFailures.length, 0);
     assert.equal(run.governance.unsearchedSourceTypes.length, 0);
-
-    // Evidence is intentionally absent: discovery succeeds, but recommendation must
-    // remain blocked. Unknown evidence is not silently converted to zero effect.
     assert.equal(run.candidates.every(candidate => candidate.evidenceState === 'evidence-gap'), true);
     assert.equal(run.governance.recommendationAllowed, false);
     assert.equal(run.decision.status, 'recommendation-blocked');
@@ -83,12 +68,6 @@ test('unseen-problem discovery constructs source-backed candidate universes', as
 });
 
 test('unseen-problem discovery remains failure-closed when one acquisition source fails', async () => {
-  const searchersFor = tag => ({
-    'local-program': async () => ({ candidates: [candidate(`local-${tag}`, `Local ${tag} program`, tag, 'local-program')] }),
-    'official-data': async () => ({ candidates: [] }),
-    research: async () => ({ candidates: [candidate(`research-${tag}`, `Research-derived ${tag} intervention`, tag, 'research')] }),
-    'intervention-library': async () => ({ candidates: [candidate(`library-${tag}`, `Library ${tag} intervention`, tag, 'intervention-library')] })
-  });
   const run = await executeDecisionDiscovery({
     problem: 'food insecurity',
     requiredSourceTypes: ['local-program', 'official-data', 'research', 'intervention-library'],
@@ -112,7 +91,7 @@ test('unseen-problem discovery preserves comparable-city ideas as non-causal lea
     problem: 'urban flooding',
     requiredSourceTypes: ['local-program', 'research', 'comparable-city'],
     searchers: {
-      'local-program': async () => ({ candidates: [candidate('local-flood', 'Local flood retention program', 'flood-risk', 'local-program')] }),
+      'local-program': async () => ({ candidates: [candidate('local-flood', 'Local urban flooding retention program', 'flood-risk', 'local-program')] }),
       research: async () => ({ candidates: [] })
     },
     comparableCities: [
