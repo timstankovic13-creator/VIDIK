@@ -52,7 +52,7 @@ test('8 transferability is scored and causal effects are never imported', () => 
 
 test('9 wrong-jurisdiction evidence is rejected without any live municipal dependency', () => {
   const x=F.enforceEvidenceAdmissibility({id:'wrong',quality:.95,asOf:'2026-09-01',sourceJurisdiction:'US',targetJurisdiction:'US',unit:'outcome',sourceProfile:{problemDefinition:'x'}},{expectedJurisdiction:'CA',expectedUnit:'outcome',targetProfile:{problemDefinition:'x'}});
-  assert.equal(x.admissible,false); assert.ok(x.failures.includes('jurisdiction-transportability-not-established') || x.failures.includes('transportability-similarity-below-threshold'));
+  assert.equal(x.admissible,false); assert.ok(x.failures.includes('cross-country-transportability-not-explicitly-approved') || x.failures.includes('jurisdiction-transportability-not-established') || x.failures.includes('transportability-similarity-below-threshold'));
 });
 
 console.log('PASS nine-gap-production-hardening battery');
