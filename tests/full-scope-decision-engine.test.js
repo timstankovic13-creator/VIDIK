@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { recommendationGate, decisionReadiness, sensitivity, estimateVOI, auditHash, evidenceState } = require('../src/full-scope/decision-engine');
 
 const problem = 'reduce violent crime';
-const statusQuo = { description: 'Current municipal strategy continues.', effect: 10, effectUnit: 'incidents', resource: 100, resourceUnit: 'staff-hours' };
+const statusQuo = { explicit: true, description: 'Current municipal strategy continues.', effect: 10, effectUnit: 'incidents', resource: 100, resourceUnit: 'staff-hours' };
 
 const lead = { id: 'lead-1', name: 'Community intervention', discoveryOnly: true, leadOnly: true, evidence: [], parameters: [] };
 const imported = { id: 'imported-1', name: 'Comparable-city program', discoveryOnly: false, leadOnly: false, effectsImported: true, evidence: [{id:'e1',sourceId:'a',design:'rct',verification:{status:'verified'}},{id:'e2',sourceId:'b',design:'quasi-experimental',verification:{status:'verified'}}], parameters:[{id:'p',effect:5,effectUnit:'incidents avoided',resource:100,resourceUnit:'staff-hours',verified:true,sourceIds:['a','b']}] };
