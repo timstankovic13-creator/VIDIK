@@ -1,70 +1,9 @@
 'use strict';
-
-const { auditHash } = require('./decision-engine');
-
-function clone(x) { return JSON.parse(JSON.stringify(x)); }
-function requiredString(x) { return typeof x === 'string' && x.trim().length > 0; }
-function validSchedule(schedule) {
-  if (!Array.isArray(schedule) || schedule.length === 0) return false;
-  const seen = new Set();
-  for (const r of schedule) {
-    if (!requiredString(r?.at) || !requiredString(r?.purpose)) return false;
-    if (seen.has(r.at)) return false;
-    seen.add(r.at);
-  }
-  return true;
-}
-function validCounterfactual(c = {}) {
-  return c.statusQuoExplicit === true && c.recommendationEligible === true && Number.isFinite(Number(c.effect)) && Number(c.effect) !== 0 && Number(c.resource) > 0 && requiredString(c.effectUnit) && requiredString(c.resourceUnit);
-}
-
-async function createDecisionArtifact(input = {}) {
-  const decision = clone(input);
-  if (!requiredString(decision.problem)) throw new Error('artifact-problem-required');
-  if (!decision.statusQuo?.explicit) throw new Error('artifact-status-quo-required');
-  if (!decision.recommendation?.allowed) throw new Error('artifact-recommendation-must-be-eligible');
-  if (!validCounterfactual(decision.counterfactual)) throw new Error('artifact-counterfactual-invalid');
-  if (!validSchedule(decision.reviewSchedule)) throw new Error('artifact-review-schedule-invalid');
-  if (decision.governance?.effectsImported === true || decision.governance?.comparableCityEffectsImported === true) throw new Error('artifact-imported-effect-forbidden');
-  const immutable = {
-    schemaVersion: 'vidik.decision-artifact.v1',
-    problem: decision.problem,
-    statusQuo: clone(decision.statusQuo),
-    recommendation: clone(decision.recommendation),
-    counterfactual: clone(decision.counterfactual),
-    evidence: clone(decision.evidence || []),
-    parameters: clone(decision.parameters || []),
-    uncertainty: clone(decision.uncertainty || {}),
-    opportunityCost: clone(decision.opportunityCost || {}),
-    equity: clone(decision.equity || {}),
-    implementation: clone(decision.implementation || {}),
-    reviewSchedule: clone(decision.reviewSchedule),
-    governance: clone(decision.governance || {}),
-    createdAt: decision.createdAt || new Date().toISOString()
-  };
-  immutable.baselineHash = await auditHash(immutable);
-  return Object.freeze(immutable);
-}
-
-function validateDecisionArtifact(artifact) {
-  const failures = [];
-  if (artifact?.schemaVersion !== 'vidik.decision-artifact.v1') failures.push('schema-invalid');
-  if (!requiredString(artifact?.problem)) failures.push('problem-missing');
-  if (!artifact?.statusQuo?.explicit) failures.push('status-quo-missing');
-  if (!artifact?.recommendation?.allowed) failures.push('recommendation-ineligible');
-  if (!validCounterfactual(artifact?.counterfactual)) failures.push('counterfactual-invalid');
-  if (!validSchedule(artifact?.reviewSchedule)) failures.push('review-schedule-invalid');
-  if (artifact?.governance?.effectsImported || artifact?.governance?.comparableCityEffectsImported) failures.push('imported-effect');
-  if (!requiredString(artifact?.baselineHash)) failures.push('baseline-hash-missing');
-  return { valid: failures.length === 0, failures };
-}
-
-async function detectTamper(artifact, baselineHash) {
-  if (!artifact || !requiredString(baselineHash) || artifact.baselineHash !== baselineHash) return true;
-  const copy = clone(artifact);
-  delete copy.baselineHash;
-  const recomputed = await auditHash(copy);
-  return recomputed !== baselineHash;
-}
-
-module.exports = { createDecisionArtifact, validateDecisionArtifact, detectTamper, validCounterfactual, validSchedule };
+const { auditHash }=require('./decision-engine');const clone=x=>JSON.parse(JSON.stringify(x));const requiredString=x=>typeof x==='string'&&x.trim().length>0;
+function deepFreeze(v){if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.freeze(v);for(const x of Object.values(v))deepFreeze(x);}return v;}
+function validSchedule(s){if(!Array.isArray(s)||!s.length)return false;const seen=new Set();for(const r of s){if(!requiredString(r?.at)||!requiredString(r?.purpose)||seen.has(r.at))return false;seen.add(r.at);}return true;}
+function validCounterfactual(c={}){return c.statusQuoExplicit===true&&c.recommendationEligible===true&&Number.isFinite(Number(c.effect))&&Number(c.effect)!==0&&Number(c.resource)>0&&requiredString(c.effectUnit)&&requiredString(c.resourceUnit);}
+async function createDecisionArtifact(input={}){const d=clone(input);if(!requiredString(d.problem))throw new Error('artifact-problem-required');if(!d.statusQuo?.explicit)throw new Error('artifact-status-quo-required');if(!d.recommendation?.allowed)throw new Error('artifact-recommendation-must-be-eligible');if(!validCounterfactual(d.counterfactual))throw new Error('artifact-counterfactual-invalid');if(d.counterfactual.candidateId&&d.recommendation.candidateId&&d.counterfactual.candidateId!==d.recommendation.candidateId)throw new Error('artifact-counterfactual-candidate-mismatch');if(!validSchedule(d.reviewSchedule))throw new Error('artifact-review-schedule-invalid');if(d.governance?.effectsImported===true||d.governance?.comparableCityEffectsImported===true)throw new Error('artifact-imported-effect-forbidden');if(d.governance?.parameterMutationAllowed===true||d.governance?.automaticParameterUpdate===true)throw new Error('artifact-parameter-mutation-forbidden');const immutable={schemaVersion:'vidik.decision-artifact.v1',problem:d.problem,statusQuo:clone(d.statusQuo),recommendation:clone(d.recommendation),counterfactual:clone(d.counterfactual),evidence:clone(d.evidence||[]),parameters:clone(d.parameters||[]),uncertainty:clone(d.uncertainty||{}),opportunityCost:clone(d.opportunityCost||{}),equity:clone(d.equity||{}),implementation:clone(d.implementation||{}),reviewSchedule:clone(d.reviewSchedule),governance:clone(d.governance||{}),createdAt:d.createdAt||new Date().toISOString()};immutable.baselineHash=await auditHash(immutable);return deepFreeze(immutable);}
+function validateDecisionArtifact(a){const f=[];if(a?.schemaVersion!=='vidik.decision-artifact.v1')f.push('schema-invalid');if(!requiredString(a?.problem))f.push('problem-missing');if(!a?.statusQuo?.explicit)f.push('status-quo-missing');if(!a?.recommendation?.allowed)f.push('recommendation-ineligible');if(!validCounterfactual(a?.counterfactual))f.push('counterfactual-invalid');if(a?.counterfactual?.candidateId&&a?.recommendation?.candidateId&&a.counterfactual.candidateId!==a.recommendation.candidateId)f.push('counterfactual-candidate-mismatch');if(!validSchedule(a?.reviewSchedule))f.push('review-schedule-invalid');if(a?.governance?.effectsImported||a?.governance?.comparableCityEffectsImported)f.push('imported-effect');if(a?.governance?.parameterMutationAllowed||a?.governance?.automaticParameterUpdate)f.push('automatic-learning-mutation');if(!requiredString(a?.baselineHash)||!/^[0-9a-f]{64}$/i.test(a.baselineHash))f.push('baseline-hash-invalid');return {valid:f.length===0,failures:f};}
+async function detectTamper(a,h){if(!a||!requiredString(h)||a.baselineHash!==h)return true;const copy=clone(a);delete copy.baselineHash;return (await auditHash(copy))!==h;}
+module.exports={createDecisionArtifact,validateDecisionArtifact,detectTamper,validCounterfactual,validSchedule};

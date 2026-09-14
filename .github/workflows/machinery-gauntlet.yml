@@ -1,0 +1,15 @@
+name: VIDIK Machinery Gauntlet
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  machinery-gauntlet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run full machinery gauntlet
+        run: node --test tests/machinery-gauntlet.test.js tests/machinery-deep-adversarial.test.js tests/machinery-pipeline-integrity.test.js tests/machinery-learning-ledger.test.js
