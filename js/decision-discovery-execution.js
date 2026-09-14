@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const Discovery = require('./intervention-discovery');
 const Orchestrator = require('./decision-discovery-orchestrator');
 const TransferIntelligence = require('./discovery-transfer-intelligence');
+const NextPhase = require('./vidik-next-phase');
 
 const FAILED = new Set(['failed', 'search-failed', 'error', 'blocked']);
 
@@ -149,10 +150,38 @@ async function executeDecisionDiscovery({
     statusQuo
   });
   run.intelligence = intelligence;
+
+  // Next-phase capabilities are attached to the real discovery execution result,
+  // not kept as a disconnected test-only layer.
+  const nextPhaseGraph = NextPhase.buildDecisionKnowledgeGraph({
+    problem,
+    candidates: run.candidates,
+    evidenceIndex,
+    context: { ...decisionContext, ...intelligenceContext },
+    statusQuo
+  });
+  const ranked = intelligence.ranking || [];
+  const nextPhaseWhyWhyNot = NextPhase.buildWhyWhyNot({
+    ranked,
+    evidenceIndex,
+    analysis: Object.fromEntries(run.candidates.map(candidate => [candidate.id, analysisInputs[candidate.id] || {}])),
+    statusQuo,
+    robustness: intelligence.robustness || null
+  });
+  const sourceNetwork = NextPhase.buildExternalSourceNetwork(problem, { ...decisionContext, ...intelligenceContext });
+  run.nextPhase = {
+    sourceNetwork,
+    knowledgeGraph: nextPhaseGraph,
+    whyWhyNot: nextPhaseWhyWhyNot,
+    blindBenchmarkSize: NextPhase.buildBlindBenchmark().length,
+    learningPolicy: NextPhase.outcomeLearningReview([], run.runHash || null)
+  };
   run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash;
   run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
   run.governance.learningEnvelope = intelligence.governance.learning;
   run.governance.whyNotAvailable = true;
+  run.governance.knowledgeGraphPresent = true;
+  run.governance.externalSourceNetworkPresent = sourceNetwork.sourceCount > 0;
 
   if (!run.governance.recommendationAllowed) {
     run.governance.decisionStatus = 'recommendation-blocked';
