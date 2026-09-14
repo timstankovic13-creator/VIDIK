@@ -4,7 +4,7 @@ const test = require('node:test');
 const EvidenceDriven = require('../js/source-driven-evidence-discovery');
 const SourceDriven = require('../js/source-driven-intervention-discovery');
 
-function response(value) { return { ok: true, status: 200, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(value) }; }
+function response(value) { const bytes = Buffer.from(JSON.stringify(value)); return { ok: true, status: 200, headers: { get: name => name === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes }; }
 
 test('evidence discovery searches independent sources per candidate and imports no effects', async () => {
   const candidate = { id: 'candidate:1', name: 'community violence interruption', discoveryText: 'violence prevention', requiredEvidence: ['causal'] };
