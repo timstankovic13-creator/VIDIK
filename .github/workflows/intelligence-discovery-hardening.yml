@@ -2,7 +2,7 @@ name: VIDIK Intelligence Discovery Hardening
 
 on:
   push:
-    branches: [main, intelligence-discovery-hardening-v1]
+    branches: [main, intelligence-discovery-hardening-v1, intelligence-discovery-gauntlet-v1]
   pull_request:
     branches: [main]
 
@@ -21,8 +21,19 @@ jobs:
       - name: Adversarial probe ${{ matrix.case }}
         run: node tests/intelligence-discovery-probes-v2.test.js ${{ matrix.case }}
 
-  certification:
+  intelligence-gauntlet:
     needs: discovery-probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Deep arbitrary-problem intelligence gauntlet
+        run: node tests/intelligence-discovery-gauntlet.test.js
+
+  certification:
+    needs: [discovery-probe, intelligence-gauntlet]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
