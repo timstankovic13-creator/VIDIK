@@ -42,6 +42,7 @@
     "test:decision-discovery-execution": "node tests/decision-discovery-execution.test.js",
     "test:decision-discovery-internal-battery": "node tests/decision-discovery-internal-battery.test.js",
     "test:discovery-transfer-intelligence": "node tests/discovery-transfer-intelligence.test.js",
+    "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
   },
