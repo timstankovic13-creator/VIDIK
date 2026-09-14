@@ -50,7 +50,7 @@ test('internal battery: arbitrary problem classes discover candidates without a 
     assert.equal(run.candidates.length, 1, `candidate not discovered for: ${problem}`);
     assert.equal(run.candidates[0].name, name);
     assert.equal(run.candidates[0].evidenceState, 'evidence-complete');
-    assert.equal(run.candidates[0].discovery.provenance[0].sourceId, 'internal-local');
+    assert.equal(run.candidates[0].discovery.provenance[0].sourceId, 'local-program-registry');
     assert.equal(run.discoveryAudit.discoverySearchComplete, true);
   }
 });

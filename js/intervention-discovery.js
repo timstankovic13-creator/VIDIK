@@ -33,7 +33,7 @@ function normalizeProblemTags(problem) {
     ['homeless', 'homelessness'], ['homelessness', 'homelessness'], ['housing', 'housing-instability'],
     ['speed', 'speeding'], ['traffic', 'traffic-injury'], ['ems', 'ems-demand'], ['paramedic', 'ems-demand'],
     ['heat', 'extreme-heat'], ['emissions', 'emissions'], ['emergency-department', 'emergency-department'],
-    ['overcrowded', 'overcrowding'], ['overcrowding', 'overcrowding']
+    ['overcrowded', 'overcrowding'], ['overcrowding', 'overcrowding'], ['evictions', 'eviction']
   ]);
   return [...new Set(text.split(/\s+/).filter(Boolean).map(token => aliases.get(token) || token))];
 }
@@ -92,7 +92,7 @@ function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceInde
       sourceId: search?.sourceId || null,
       sourceType: search?.sourceType || null,
       status: search?.status || 'unknown',
-      candidatesReturned: Number.isFinite(search?.candidatesReturned) ? search.candidatesReturned : 0
+      candidatesReturned: Number.isFinite(search?.candidatesReturned) ? Math.max(0, search.candidatesReturned) : 0
     };
     if (search?.failureReason) normalized.failureReason = search.failureReason;
     return normalized;
@@ -115,8 +115,15 @@ function discoveryAudit({ problem, candidates = CANDIDATE_REGISTRY, evidenceInde
   };
 }
 
-function hashCandidateUniverse(candidates) {
-  return crypto.createHash('sha256').update(JSON.stringify(candidates)).digest('hex');
+function stableHashValue(value) {
+  if (Array.isArray(value)) return value.map(stableHashValue);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableHashValue(value[key])]));
+  return value;
+}
+
+function hashCandidateUniverse(candidates = []) {
+  const canonical = [...candidates].map(stableHashValue).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
 module.exports = { EVIDENCE_CLASSES, CANDIDATE_REGISTRY, normalizeProblemTags, discoveryTokens, candidateMatch, discoverInterventions, evidenceCoverage, discoveryAudit, hashCandidateUniverse };

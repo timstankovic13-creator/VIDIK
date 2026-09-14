@@ -3,8 +3,13 @@
 const crypto = require('node:crypto');
 const Discovery = require('./intervention-discovery');
 const Orchestrator = require('./decision-discovery-orchestrator');
+const TransferIntelligence = require('./discovery-transfer-intelligence');
 
 const FAILED = new Set(['failed', 'search-failed', 'error', 'blocked']);
+
+function canonicalFailureStatus(status) {
+  return FAILED.has(status) ? 'search-failed' : status;
+}
 
 function failureEvidence(candidate) {
   return Object.fromEntries((candidate.requiredEvidence || []).map(type => [type, { status: 'blocked', reason: 'evidence-search-failed' }]));
@@ -17,7 +22,8 @@ async function searchSource(sourceType, problem, searcher) {
   try {
     const result = await searcher({ problem, problemSignals: Discovery.normalizeProblemTags(problem), sourceType });
     const candidates = Array.isArray(result?.candidates) ? result.candidates : [];
-    const status = FAILED.has(result?.status) ? result.status : (candidates.length ? 'candidates-found' : 'searched-empty');
+    const rawStatus = result?.status;
+    const status = FAILED.has(rawStatus) ? 'search-failed' : (candidates.length ? 'candidates-found' : 'searched-empty');
     return {
       sourceId: result?.sourceId || sourceType,
       sourceType,
@@ -31,7 +37,7 @@ async function searchSource(sourceType, problem, searcher) {
       contentHash: result?.contentHash || null,
       freshness: result?.freshness || null,
       validation: result?.validation || null,
-      failureReason: result?.failureReason || (FAILED.has(status) ? 'source-search-failed' : null)
+      failureReason: result?.failureReason || (FAILED.has(rawStatus) ? 'source-search-failed' : null)
     };
   } catch (error) {
     return {
@@ -60,7 +66,8 @@ async function executeDecisionDiscovery({
   requiredSourceTypes = Orchestrator.SOURCE_TYPES,
   analysisInputs = {},
   statusQuo = null,
-  decisionContext = {}
+  decisionContext = {},
+  intelligenceContext = {}
 } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
 
@@ -80,9 +87,6 @@ async function executeDecisionDiscovery({
     }
   }
 
-  // Normalize comparable-city input exactly once. buildDiscoveryRun owns the
-  // matching/projection step; passing its already-normalized output back into
-  // that function would discard the city's original problem signal.
   const initial = Orchestrator.buildDiscoveryRun({
     problem,
     acquisitionSources: sourceSearches,
@@ -106,8 +110,10 @@ async function executeDecisionDiscovery({
     }
     try {
       const result = await evidenceSearcher({ problem, problemSignals: initial.problemSignals, candidate });
-      evidenceIndex[candidate.id] = result?.evidence || result || {};
-      evidenceSearches.push({ candidateId: candidate.id, status: result?.status || 'searched', sourceIds: result?.sourceIds || [], failureReason: null });
+      const status = canonicalFailureStatus(result?.status || 'searched');
+      if (FAILED.has(result?.status)) evidenceIndex[candidate.id] = failureEvidence(candidate);
+      else evidenceIndex[candidate.id] = result?.evidence || result || {};
+      evidenceSearches.push({ candidateId: candidate.id, status, sourceIds: result?.sourceIds || [], failureReason: result?.failureReason || (status === 'search-failed' ? 'evidence-search-failed' : null) });
     } catch (error) {
       evidenceIndex[candidate.id] = failureEvidence(candidate);
       evidenceSearches.push({ candidateId: candidate.id, status: 'search-failed', sourceIds: [], failureReason: error?.message || 'evidence-search-failed' });
@@ -131,6 +137,23 @@ async function executeDecisionDiscovery({
   run.evidenceSearches = evidenceSearches;
   run.governance.evidenceSearchComplete = evidenceSearches.every(search => search.status !== 'search-failed');
   run.governance.recommendationAllowed = Boolean(run.governance.recommendationAllowed && run.governance.evidenceSearchComplete);
+
+  const intelligence = TransferIntelligence.buildDecisionIntelligence({
+    problem,
+    context: { ...decisionContext, ...intelligenceContext },
+    sourceResults: sourceSearches,
+    comparableCities,
+    candidates: run.candidates,
+    evidenceIndex,
+    analysis: Object.fromEntries(run.candidates.map(candidate => [candidate.id, analysisInputs[candidate.id] || {}])),
+    statusQuo
+  });
+  run.intelligence = intelligence;
+  run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash;
+  run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
+  run.governance.learningEnvelope = intelligence.governance.learning;
+  run.governance.whyNotAvailable = true;
+
   if (!run.governance.recommendationAllowed) {
     run.governance.decisionStatus = 'recommendation-blocked';
     run.decision.status = 'recommendation-blocked';
