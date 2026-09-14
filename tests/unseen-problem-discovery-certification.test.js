@@ -22,10 +22,13 @@ const PROBLEMS = [
   ['public-transit-access', 'public transit access']
 ];
 
+const SEARCH_TEXT = Object.fromEntries(PROBLEMS);
+
 function candidate(id, name, tag, sourceType) {
   return {
     id,
     name,
+    discoveryText: SEARCH_TEXT[tag] || tag.replace(/-/g, ' '),
     problemTags: [tag],
     domains: ['test-domain'],
     requiredEvidence: ['causal', 'implementation'],
@@ -33,28 +36,28 @@ function candidate(id, name, tag, sourceType) {
   };
 }
 
-function searchersFor(problemTag) {
-  return {
-    'local-program': async () => ({
-      sourceId: 'cert-local',
-      candidates: [candidate(`local-${problemTag}`, `Local ${problemTag} program`, problemTag, 'local-program')]
-    }),
-    'official-data': async () => ({
-      sourceId: 'cert-official',
-      candidates: []
-    }),
-    research: async () => ({
-      sourceId: 'cert-research',
-      candidates: [candidate(`research-${problemTag}`, `Research-derived ${problemTag} intervention`, problemTag, 'research')]
-    }),
-    'intervention-library': async () => ({
-      sourceId: 'cert-library',
-      candidates: [candidate(`library-${problemTag}`, `Library ${problemTag} intervention`, problemTag, 'intervention-library')]
-    })
-  };
-}
-
 test('unseen-problem discovery constructs source-backed candidate universes', async () => {
+  function searchersFor(problemTag) {
+    return {
+      'local-program': async () => ({
+        sourceId: 'cert-local',
+        candidates: [candidate(`local-${problemTag}`, `Local ${problemTag} program`, problemTag, 'local-program')]
+      }),
+      'official-data': async () => ({
+        sourceId: 'cert-official',
+        candidates: []
+      }),
+      research: async () => ({
+        sourceId: 'cert-research',
+        candidates: [candidate(`research-${problemTag}`, `Research-derived ${problemTag} intervention`, problemTag, 'research')]
+      }),
+      'intervention-library': async () => ({
+        sourceId: 'cert-library',
+        candidates: [candidate(`library-${problemTag}`, `Library ${problemTag} intervention`, problemTag, 'intervention-library')]
+      })
+    };
+  }
+
   for (const [problemTag, problem] of PROBLEMS) {
     const run = await executeDecisionDiscovery({
       problem,
@@ -80,6 +83,12 @@ test('unseen-problem discovery constructs source-backed candidate universes', as
 });
 
 test('unseen-problem discovery remains failure-closed when one acquisition source fails', async () => {
+  const searchersFor = tag => ({
+    'local-program': async () => ({ candidates: [candidate(`local-${tag}`, `Local ${tag} program`, tag, 'local-program')] }),
+    'official-data': async () => ({ candidates: [] }),
+    research: async () => ({ candidates: [candidate(`research-${tag}`, `Research-derived ${tag} intervention`, tag, 'research')] }),
+    'intervention-library': async () => ({ candidates: [candidate(`library-${tag}`, `Library ${tag} intervention`, tag, 'intervention-library')] })
+  });
   const run = await executeDecisionDiscovery({
     problem: 'food insecurity',
     requiredSourceTypes: ['local-program', 'official-data', 'research', 'intervention-library'],
