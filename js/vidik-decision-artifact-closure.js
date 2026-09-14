@@ -12,20 +12,27 @@ function sha256(value) {
   return crypto.createHash('sha256').update(stable(value)).digest('hex');
 }
 
+function finitePositive(value) {
+  return Number.isFinite(Number(value)) && Number(value) > 0;
+}
+
 function buildCounterfactual({ statusQuo = null, candidate = null, analysis = null, gate = null } = {}) {
   const baseline = statusQuo && typeof statusQuo === 'object' ? { ...statusQuo } : { explicit: false };
   const estimate = Number(analysis?.estimate ?? analysis?.effect ?? analysis?.parameter?.value);
-  const hasEstimate = Number.isFinite(estimate);
-  const eligible = Boolean(gate?.recommendationEligible && hasEstimate && baseline.explicit === true);
+  const resource = Number(analysis?.resource ?? analysis?.marginal?.resource);
+  const effectUnit = analysis?.effectUnit || analysis?.parameter?.unit || null;
+  const resourceUnit = analysis?.resourceUnit || analysis?.marginal?.resourceUnit || null;
+  const hasQuantitativeInputs = Number.isFinite(estimate) && finitePositive(resource) && Boolean(effectUnit) && Boolean(resourceUnit);
+  const eligible = Boolean(gate?.recommendationEligible && hasQuantitativeInputs && baseline.explicit === true);
   return {
     status: eligible ? 'quantified' : (baseline.explicit ? 'unquantified' : 'blocked'),
     baseline,
     candidateId: candidate?.id || null,
     candidateName: candidate?.name || null,
     estimatedIncrementalEffect: eligible ? estimate : null,
-    effectUnit: analysis?.effectUnit || analysis?.parameter?.unit || null,
-    resource: eligible ? Number(analysis?.resource ?? analysis?.marginal?.resource) : null,
-    resourceUnit: analysis?.resourceUnit || analysis?.marginal?.resourceUnit || null,
+    effectUnit,
+    resource: eligible ? resource : null,
+    resourceUnit,
     unknownIsNotZero: !eligible,
     recommendationEligible: eligible,
     limitation: eligible ? null : 'causal-and-resource-quantification-required'
@@ -62,22 +69,33 @@ function validateDecisionArtifact(artifact) {
   const { artifactHash, ...body } = artifact;
   const reasons = [];
   if (!artifactHash || artifactHash !== sha256(body)) reasons.push('artifact-hash-mismatch');
-  if (artifact.recommendationAllowed && !artifact.recommendation) reasons.push('recommendation-missing');
-  if (artifact.recommendationAllowed && artifact.gates?.E_decisionReadiness !== true) reasons.push('recommendation-without-readiness');
-  if (!artifact.recommendationAllowed && artifact.recommendation) reasons.push('blocked-artifact-has-recommendation');
-  if (artifact.recommendationAllowed && artifact.statusQuo?.explicit !== true) reasons.push('status-quo-missing');
-  if (artifact.recommendationAllowed && artifact.counterfactual?.status !== 'quantified') reasons.push('counterfactual-unquantified');
+  const allowed = artifact.recommendationAllowed === true;
+  if (allowed && !artifact.recommendation) reasons.push('recommendation-missing');
+  if (allowed) {
+    const gates = artifact.gates || {};
+    for (const gate of ['A_evidenceQuality', 'B_candidateParameter', 'C_marginalResourceEffect', 'D_uncertaintyVOIOptimization', 'E_decisionReadiness']) {
+      if (gates[gate] !== true) reasons.push(`recommendation-without-${gate}`);
+    }
+  }
+  if (!allowed && artifact.recommendation) reasons.push('blocked-artifact-has-recommendation');
+  if (allowed && artifact.statusQuo?.explicit !== true) reasons.push('status-quo-missing');
+  if (allowed && artifact.candidate?.discovery?.leadOnly === true) reasons.push('lead-only-candidate-recommended');
+  if (allowed && artifact.counterfactual?.status !== 'quantified') reasons.push('counterfactual-unquantified');
+  if (allowed && artifact.counterfactual?.recommendationEligible !== true) reasons.push('counterfactual-not-eligible');
   return { valid: reasons.length === 0, reasons, immutableHash: artifactHash || null };
 }
 
 function buildReviewPlan({ artifactHash, checkpoints = [6, 12, 24, 60] } = {}) {
+  const normalized = Array.isArray(checkpoints) ? checkpoints.map(Number) : [];
+  const valid = normalized.length > 0 && normalized.every(finitePositive) && new Set(normalized).size === normalized.length;
+  if (!valid) throw new Error('review-checkpoints-invalid');
   return {
     schemaVersion: 'vidik.outcome-review-plan.v1',
     baselineArtifactHash: artifactHash || null,
-    checkpoints: checkpoints.map(months => ({ months, required: true, attribution: 'required', drift: 'required', parameterMutation: 'human-review-only' })),
+    checkpoints: normalized.map(months => ({ months, required: true, attribution: 'required', drift: 'required', parameterMutation: 'human-review-only' })),
     immutableBaseline: true,
     automaticParameterMutation: false,
-    reviewHash: sha256({ artifactHash, checkpoints })
+    reviewHash: sha256({ artifactHash, checkpoints: normalized })
   };
 }
 
