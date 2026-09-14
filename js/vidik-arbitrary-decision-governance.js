@@ -11,9 +11,7 @@ function stable(value) {
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
   return JSON.stringify(value);
 }
-
 function sha256(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
-
 function evidenceRecordStatus(record) {
   if (!record || typeof record !== 'object') return 'missing';
   if (BLOCKING_STATUSES.has(record.status)) return record.status;
@@ -22,7 +20,6 @@ function evidenceRecordStatus(record) {
   if (record.verified === true || EVIDENCE_STATUSES.has(record.status)) return 'verified';
   return 'unverified';
 }
-
 function verifyEvidenceBundle({ candidate, evidence = {}, now = new Date(), requiredEvidence = null } = {}) {
   const required = Array.isArray(requiredEvidence) && requiredEvidence.length ? requiredEvidence : (candidate?.requiredEvidence || REQUIRED_EVIDENCE);
   const checks = {};
@@ -39,10 +36,8 @@ function verifyEvidenceBundle({ candidate, evidence = {}, now = new Date(), requ
   const verified = !missing.length && !blocked.length && !independentMissing.length;
   return { status: verified ? 'verified' : 'blocked', required, checks, missing, blocked, independentMissing, verifiedAt: now.toISOString() };
 }
-
 function buildCandidateUniverseIntelligence({ candidates = [], sourceSearches = [], statusQuo = null } = {}) {
-  const byKey = new Map();
-  const provenanceGaps = [];
+  const byKey = new Map(); const provenanceGaps = [];
   for (const candidate of candidates) {
     if (!candidate?.id) continue;
     const key = String(candidate.name || candidate.id).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -50,77 +45,33 @@ function buildCandidateUniverseIntelligence({ candidates = [], sourceSearches = 
     if (!provenance.length) provenanceGaps.push(candidate.id);
     const current = byKey.get(key);
     if (!current) byKey.set(key, { id: candidate.id, name: candidate.name || candidate.id, sourceCount: new Set(provenance.map(p => p.sourceId).filter(Boolean)).size, provenanceCount: provenance.length, evidenceState: candidate.evidenceState || 'unknown', leadOnly: Boolean(candidate.discovery?.leadOnly) });
-    else {
-      current.sourceCount += new Set(provenance.map(p => p.sourceId).filter(Boolean)).size;
-      current.provenanceCount += provenance.length;
-      current.leadOnly = current.leadOnly || Boolean(candidate.discovery?.leadOnly);
-    }
+    else { current.sourceCount += new Set(provenance.map(p => p.sourceId).filter(Boolean)).size; current.provenanceCount += provenance.length; current.leadOnly = current.leadOnly || Boolean(candidate.discovery?.leadOnly); }
   }
   const searched = sourceSearches.filter(s => s.status && s.status !== 'not-searched');
   const failed = searched.filter(s => ['failed', 'search-failed', 'error', 'blocked'].includes(s.status));
-  const healthy = searched.filter(s => !failed.includes(s));
   const candidateCount = candidates.length;
-  return {
-    status: candidateCount ? 'universe-found' : (failed.length ? 'universe-incomplete' : 'universe-empty'),
-    candidatesConsidered: candidateCount,
-    uniqueCandidateNames: byKey.size,
-    duplicateCandidateGroups: Math.max(0, candidateCount - byKey.size),
-    provenanceGaps,
-    weakUniverse: candidateCount > 0 && (byKey.size < 2 || healthy.length < 1),
-    sourceFailures: failed.map(s => ({ sourceId: s.sourceId || null, reason: s.failureReason || 'source-search-failed' })),
-    statusQuoPreserved: Boolean(statusQuo),
-    sufficientForRecommendation: candidateCount > 0 && failed.length === 0 && !provenanceGaps.length && Boolean(statusQuo)
-  };
+  return { status: candidateCount ? (failed.length ? 'universe-incomplete' : 'universe-found') : (failed.length ? 'universe-incomplete' : 'universe-empty'), candidatesConsidered: candidateCount, uniqueCandidateNames: byKey.size, duplicateCandidateGroups: Math.max(0, candidateCount - byKey.size), provenanceGaps, weakUniverse: candidateCount > 0 && (byKey.size < 2 || searched.length < 1), sourceFailures: failed.map(s => ({ sourceId: s.sourceId || null, reason: s.failureReason || 'source-search-failed' })), statusQuoPreserved: Boolean(statusQuo), sufficientForRecommendation: candidateCount > 0 && failed.length === 0 && searched.length > 0 && !provenanceGaps.length && Boolean(statusQuo) };
 }
-
 function buildLearningDiscoveryLeads({ problem, learning = {}, comparableCities = [] } = {}) {
-  const raw = [
-    ...(Array.isArray(learning.successfulInterventions) ? learning.successfulInterventions : []),
-    ...(Array.isArray(learning.comparableCityInterventions) ? learning.comparableCityInterventions : []),
-    ...(Array.isArray(comparableCities) ? comparableCities.flatMap(city => (city?.interventions || []).map(name => ({ name, city: city.city, jurisdiction: city.jurisdiction, outcomeStatus: city.outcomeStatus }))) : [])
-  ];
-  const seen = new Set();
-  const leads = [];
+  const raw = [...(Array.isArray(learning.successfulInterventions) ? learning.successfulInterventions : []), ...(Array.isArray(learning.comparableCityInterventions) ? learning.comparableCityInterventions : []), ...(Array.isArray(comparableCities) ? comparableCities.flatMap(city => (city?.interventions || []).map(name => ({ name, city: city.city, jurisdiction: city.jurisdiction, outcomeStatus: city.outcomeStatus }))) : [])];
+  const seen = new Set(); const leads = [];
   for (const item of raw) {
-    const name = String(item?.name || item?.intervention || '').trim();
-    if (!name) continue;
-    const key = `${name.toLowerCase()}::${String(item.city || item.jurisdiction || '').toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const name = String(item?.name || item?.intervention || '').trim(); if (!name) continue;
+    const key = `${name.toLowerCase()}::${String(item.city || item.jurisdiction || '').toLowerCase()}`; if (seen.has(key)) continue; seen.add(key);
     leads.push({ id: `learning-lead:${sha256(key).slice(0, 16)}`, name, problemTags: [], domains: [], evidenceStatus: 'potential', discovery: { source: 'vidik-learning', sourceType: 'comparable-city', comparableCity: item.city || null, jurisdiction: item.jurisdiction || null, leadOnly: true, effectsImported: false, provenance: [{ sourceId: 'vidik-learning', sourceType: 'learning', jurisdiction: item.jurisdiction || null, outcomeStatus: item.outcomeStatus || 'unverified' }] }, transferability: { status: 'lead-only', effectsImported: false } });
   }
   return { status: leads.length ? 'learning-leads-found' : 'no-learning-leads', leads, effectsImported: false, recommendationEligible: false, learningHash: sha256({ problem, leads }) };
 }
-
 function buildDecisionLifecycle({ problem, discovery, evidenceVerification, universe, learningDiscovery, downstream = {} } = {}) {
-  const phases = [
-    ['problem', Boolean(problem)],
-    ['discovery', Boolean(discovery)],
-    ['intervention-universe', Boolean(universe && universe.candidatesConsidered >= 0)],
-    ['evidence-verification', Boolean(evidenceVerification)],
-    ['parameters', Boolean(downstream.parameters)],
-    ['marginal-resource-effect', Boolean(downstream.marginal)],
-    ['uncertainty', Boolean(downstream.uncertainty)],
-    ['voi', Boolean(downstream.voi)],
-    ['optimization', Boolean(downstream.optimization)],
-    ['why-why-not', Boolean(downstream.whyWhyNot)],
-    ['transferability', Boolean(downstream.transferability)],
-    ['decision', Boolean(downstream.decision)],
-    ['override', Boolean(downstream.override)],
-    ['audit', Boolean(downstream.audit)],
-    ['outcome-review', Boolean(downstream.outcomeReview)],
-    ['learning', Boolean(learningDiscovery)]
-  ];
+  const phases = [['problem', Boolean(problem)], ['discovery', Boolean(discovery)], ['intervention-universe', Boolean(universe && universe.candidatesConsidered >= 0)], ['evidence-verification', Boolean(evidenceVerification)], ['parameters', Boolean(downstream.parameters)], ['marginal-resource-effect', Boolean(downstream.marginal)], ['uncertainty', Boolean(downstream.uncertainty)], ['voi', Boolean(downstream.voi)], ['optimization', Boolean(downstream.optimization)], ['why-why-not', Boolean(downstream.whyWhyNot)], ['transferability', Boolean(downstream.transferability)], ['decision', Boolean(downstream.decision)], ['override', Boolean(downstream.override)], ['audit', Boolean(downstream.audit)], ['outcome-review', Boolean(downstream.outcomeReview)], ['learning', Boolean(learningDiscovery)]];
   return { schemaVersion: 'vidik.arbitrary-decision-lifecycle.v1', problem, phases: phases.map(([id, present]) => ({ id, status: present ? 'present' : 'not-yet-present' })), complete: phases.every(([, present]) => present), nextRequiredPhase: phases.find(([, present]) => !present)?.[0] || null, hash: sha256(phases) };
 }
-
-function monsterCase({ problem, candidate, evidence, statusQuo, analysisInputs = {}, learning = {}, comparableCities = [] } = {}) {
+function monsterCase({ problem, candidate, evidence, statusQuo, analysisInputs = {}, learning = {}, comparableCities = [], sourceSearches = null } = {}) {
   const verification = verifyEvidenceBundle({ candidate, evidence });
-  const universe = buildCandidateUniverseIntelligence({ candidates: candidate ? [candidate] : [], sourceSearches: [], statusQuo });
+  const universe = buildCandidateUniverseIntelligence({ candidates: candidate ? [candidate] : [], sourceSearches: sourceSearches || [{ sourceId: 'monster-fixture', status: 'candidates-found', candidatesReturned: 1 }], statusQuo });
   const learningDiscovery = buildLearningDiscoveryLeads({ problem, learning, comparableCities });
   const lifecycle = buildDecisionLifecycle({ problem, discovery: true, evidenceVerification: verification, universe, learningDiscovery, downstream: { decision: false } });
   const recommendationAllowed = verification.verified && universe.sufficientForRecommendation && Boolean(statusQuo) && !candidate?.discovery?.leadOnly && Number.isFinite(Number(analysisInputs.estimate));
   return { status: recommendationAllowed ? 'PASS' : 'BLOCKED', verification, universe, learningDiscovery, lifecycle, recommendationAllowed };
 }
-
 module.exports = { REQUIRED_EVIDENCE, evidenceRecordStatus, verifyEvidenceBundle, buildCandidateUniverseIntelligence, buildLearningDiscoveryLeads, buildDecisionLifecycle, monsterCase, sha256 };
