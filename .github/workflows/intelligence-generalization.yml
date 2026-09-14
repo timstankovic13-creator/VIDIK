@@ -21,7 +21,10 @@ jobs:
       - name: Existing discovery gauntlet
         run: node tests/intelligence-discovery-gauntlet.test.js
       - name: Existing discovery probes
-        run: node tests/intelligence-discovery-probes-v2.test.js
+        run: |
+          for i in $(seq 1 18); do
+            node tests/intelligence-discovery-probes-v2.test.js "$i"
+          done
       - name: Existing machinery gauntlets
         run: |
           node tests/machinery-gauntlet.test.js
