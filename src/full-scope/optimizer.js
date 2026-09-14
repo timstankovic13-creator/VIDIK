@@ -22,7 +22,9 @@ function optimize(problem,candidates=[],context={}) {
   if(effects.size!==1||resources.size!==1) return {problem:text(problem),comparable:false,selected:null,frontier:[],blocked:rows,reason:'incomparable-effect-or-resource-units'};
   const sorted=[...eligible].sort((a,b)=>b.efficiency-a.efficiency||b.effect-a.effect||a.id.localeCompare(b.id));
   const frontier=sorted.filter((c,i)=>!sorted.slice(0,i).some(b=>b.effect>=c.effect&&b.resource<=c.resource&&(b.effect>c.effect||b.resource<c.resource)));
-  const budget=finite(context.budget)?Number(context.budget):null; const feasible=budget===null?sorted[0]:sorted.find(c=>c.resource<=budget)||null; const next=feasible?sorted.find(c=>c.id!==feasible.id)||null;
+  const budget=finite(context.budget)?Number(context.budget):null;
+  const feasible=budget===null ? sorted[0] : sorted.find(c=>c.resource<=budget)||null;
+  const next=feasible ? sorted.find(c=>c.id!==feasible.id)||null : null;
   const opportunityCost=feasible&&next?{againstCandidateId:next.id,foregoneEffect:Math.max(0,next.effect-feasible.effect),foregoneEffectUnit:feasible.effectUnit,resourceDifference:next.resource-feasible.resource,resourceUnit:feasible.resourceUnit}:null;
   return {problem:text(problem),comparable:true,effectUnit:[...effects][0],resourceUnit:[...resources][0],budget,selected:feasible?{candidateId:feasible.id,efficiency:feasible.efficiency,effect:feasible.effect,resource:feasible.resource}:null,frontier:frontier.map(c=>({candidateId:c.id,effect:c.effect,resource:c.resource,efficiency:c.efficiency})),opportunityCost,candidates:sorted.map(c=>({candidateId:c.id,effect:c.effect,resource:c.resource,efficiency:c.efficiency})),blocked:rows.filter(r=>!r.allowed)};
 }
