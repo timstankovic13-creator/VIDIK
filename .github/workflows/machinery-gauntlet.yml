@@ -12,4 +12,4 @@ jobs:
         with:
           node-version: 20
       - name: Run full machinery gauntlet
-        run: node --test tests/machinery-gauntlet.test.js tests/machinery-deep-adversarial.test.js
+        run: node --test tests/machinery-gauntlet.test.js tests/machinery-deep-adversarial.test.js tests/machinery-pipeline-integrity.test.js tests/machinery-learning-ledger.test.js
