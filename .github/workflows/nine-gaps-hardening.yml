@@ -16,7 +16,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm install
-      - run: npm run nine-gaps-hardening
+      - run: npm run test:nine-gaps-hardening
       - run: npm run test:resource-optimization
       - run: npm run test:discovery-transfer-intelligence
       - run: npm run test:vidik-next-eight
