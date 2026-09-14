@@ -44,13 +44,13 @@ function extractResearchLeads(payload) {
   })).filter(lead => lead.id && lead.title);
 }
 
-function buildPubMedSearchUrl({ problem, outcome = null, intervention = null, geography = null, retMax = 25 } = {}) {
-  if (!Number.isInteger(retMax) || retMax < 1 || retMax > 100) throw new Error('pubmed-page-size-invalid');
+function buildPubMedSearchUrl({ problem, outcome = null, intervention = null, geography = null, perPage = 25 } = {}) {
+  if (!Number.isInteger(perPage) || perPage < 1 || perPage > 100) throw new Error('pubmed-page-size-invalid');
   const query = buildResearchQuery({ problem, outcome, intervention, geography });
   const url = new URL(PUBMED_SOURCE.url);
   url.searchParams.set('term', query);
   url.searchParams.set('retmode', 'json');
-  url.searchParams.set('retmax', String(retMax));
+  url.searchParams.set('retmax', String(perPage));
   url.searchParams.set('sort', 'relevance');
   return url.toString();
 }
@@ -99,7 +99,7 @@ async function discoverResearchLeads({ problem, outcome = null, intervention = n
 }
 
 async function discoverPubMedLeads({ problem, outcome = null, intervention = null, geography = null, fetchImpl, now = new Date(), perPage = 25 } = {}) {
-  const searchUrl = buildPubMedSearchUrl({ problem, outcome, intervention, geography, retMax: perPage });
+  const searchUrl = buildPubMedSearchUrl({ problem, outcome, intervention, geography, perPage });
   const searchSnapshot = await retrieve({ ...PUBMED_SOURCE, url: searchUrl }, { fetchImpl, now });
   const searchPayload = parsePayload(searchSnapshot.bytes, searchSnapshot.retrieval.contentType);
   if (searchPayload.format !== 'json') throw new Error('pubmed-search-response-not-json');
