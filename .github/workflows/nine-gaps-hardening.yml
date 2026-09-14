@@ -1,0 +1,37 @@
+name: VIDIK Nine-Gap Hardening
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [hardening/vidik-nine-gaps-v2]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  nine-gaps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install
+      - name: Nine-gap production battery
+        run: npm run test:nine-gaps-hardening
+      - name: Existing production hardening
+        run: npm run test:production-hardening-a-d
+      - name: Discovery and transfer regression
+        run: npm run test:discovery-transfer-intelligence
+      - name: Resource optimization regression
+        run: npm run test:resource-optimization
+      - name: Next-eight regression
+        run: npm run test:vidik-next-eight
+      - name: Monster decision matrix
+        run: npm run test:monster
