@@ -1,0 +1,31 @@
+name: VIDIK Intelligence Foundation Certification
+
+on:
+  push:
+    branches: [main, vidik-complete-intelligence-v1]
+  pull_request:
+    branches: [main]
+
+jobs:
+  intelligence-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Foundation certification
+        run: node tests/intelligence-foundation.test.js
+      - name: Black-swan decision tournament
+        run: node tests/black-swan-decision-tourney.test.js
+      - name: Existing full-scope machinery
+        run: |
+          node tests/full-scope-decision-engine.test.js
+          node tests/full-scope-artifact.test.js
+          node tests/full-scope-optimizer.test.js
+          node tests/full-scope-learning.test.js
+          node tests/full-scope-orchestrator.test.js
+          node tests/machinery-gauntlet.test.js
+          node tests/machinery-deep-adversarial.test.js
+          node tests/machinery-pipeline-integrity.test.js
+          node tests/machinery-learning-ledger.test.js
