@@ -29,9 +29,18 @@ const base = {
   tampered.recommendation.candidateId = 'forged';
   assert.equal(await detectTamper(tampered,artifact.baselineHash),true);
 
-  await assert.rejects(()=>createDecisionArtifact({...base,reviewSchedule:[{at:'6m',purpose:'x'},{at:'6m',purpose:'duplicate'}]}),'artifact-review-schedule-invalid');
-  await assert.rejects(()=>createDecisionArtifact({...base,counterfactual:{...base.counterfactual,resource:0}}),'artifact-counterfactual-invalid');
-  await assert.rejects(()=>createDecisionArtifact({...base,governance:{effectsImported:true}}),'artifact-imported-effect-forbidden');
+  await assert.rejects(
+    () => createDecisionArtifact({...base,reviewSchedule:[{at:'6m',purpose:'x'},{at:'6m',purpose:'duplicate'}]}),
+    error => error?.message === 'artifact-review-schedule-invalid'
+  );
+  await assert.rejects(
+    () => createDecisionArtifact({...base,counterfactual:{...base.counterfactual,resource:0}}),
+    error => error?.message === 'artifact-counterfactual-invalid'
+  );
+  await assert.rejects(
+    () => createDecisionArtifact({...base,governance:{effectsImported:true}}),
+    error => error?.message === 'artifact-imported-effect-forbidden'
+  );
 
   console.log('full-scope artifact engine: PASS (eligibility, counterfactual closure, review integrity, immutable baseline, tamper detection)');
 })();
