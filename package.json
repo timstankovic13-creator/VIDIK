@@ -44,7 +44,8 @@
     "test:discovery-transfer-intelligence": "node tests/discovery-transfer-intelligence.test.js",
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
-    "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
+    "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js",
+    "test:nine-gaps-hardening": "node --test tests/vidik-nine-gaps-hardening.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
