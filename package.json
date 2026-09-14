@@ -24,6 +24,7 @@
     "test:nine-gaps-hardening": "node --test tests/nine-gap-production-hardening.test.js",
     "test:decision-intelligence": "node tests/decision-intelligence-9.7.test.js && node tests/canonical-decision-intelligence.test.js",
     "test:monster": "node scripts/vidik-monster-test-v4.js",
+    "test:monster-v5": "node scripts/vidik-monster-test-v5.js",
     "run:municipal-decision": "node scripts/municipal-production-decision-run.js",
     "run:canonical-municipal-decision": "node scripts/municipal-canonical-decision-run.js",
     "run:real-three-city-evidence": "node scripts/real-three-city-evidence-run.js",
@@ -46,6 +47,8 @@
     "test:unseen-problem-discovery": "node --test tests/unseen-problem-discovery-certification.test.js",
     "test:source-driven-discovery": "node --test tests/source-driven-intervention-discovery.test.js",
     "test:source-driven-evidence": "node --test tests/source-driven-evidence-discovery.test.js",
+    "test:arbitrary-decision-governance": "node --test tests/vidik-arbitrary-decision-governance.test.js",
+    "test:arbitrary-decision-execution": "node --test tests/vidik-arbitrary-decision-execution.integration.test.js",
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node --test tests/trustworthiness-phase.test.js"
