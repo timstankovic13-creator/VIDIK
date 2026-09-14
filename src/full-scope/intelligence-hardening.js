@@ -61,14 +61,15 @@ function buildUniverseAudit(problem, records = [], expectedFamilies = FAMILIES) 
   const familyCoverage = families.map(f => ({family:f,candidateCount:candidates.filter(c=>c.families.includes(f)).length,represented:candidates.some(c=>c.families.includes(f))}));
   const missingFamilies = familyCoverage.filter(x=>!x.represented).map(x=>x.family);
   const unclassified = candidates.filter(c=>c.families.length===0).map(c=>c.id);
+  const provenanceGaps = candidates.filter(c=>c.sourceIds.length===0).map(c=>c.id);
   const sourceIds = unique(candidates.flatMap(c=>c.sourceIds));
   return {
     schemaVersion:'vidik.intervention-universe-hardening.v1', problem:normalizedProblem,
-    candidates, candidateCount:candidates.length, sourceIds, familyCoverage, missingFamilies, unclassified,
-    completeness:{familyCoverageRate:families.length ? (families.length-missingFamilies.length)/families.length : 0, candidateCount:candidates.length},
-    searchRequired:candidates.length===0 || missingFamilies.length>0 || unclassified.length>0,
+    candidates, candidateCount:candidates.length, sourceIds, familyCoverage, missingFamilies, unclassified, provenanceGaps,
+    completeness:{familyCoverageRate:families.length ? (families.length-missingFamilies.length)/families.length : 0, candidateCount:candidates.length, provenanceCoverageRate:candidates.length ? (candidates.length-provenanceGaps.length)/candidates.length : 0},
+    searchRequired:candidates.length===0 || missingFamilies.length>0 || unclassified.length>0 || provenanceGaps.length>0,
     recommendationAllowed:false, effectsImported:false,
-    auditHash:hash({problem:normalizedProblem,candidates,familyCoverage}),
+    auditHash:hash({problem:normalizedProblem,candidates,familyCoverage,provenanceGaps}),
     invariants:{unknownIsNotZero:true, discoveryCannotRecommend:true, effectsCannotImport:true}
   };
 }
@@ -76,6 +77,7 @@ function buildUniverseAudit(problem, records = [], expectedFamilies = FAMILIES) 
 function planEvidence(universe, registry = [], evidenceIndex = {}) {
   if (!universe || universe.schemaVersion !== 'vidik.intervention-universe-hardening.v1') throw new Error('hardened-universe-required');
   const sources = (Array.isArray(registry) ? registry : []).filter(s=>s && text(s.id));
+  const sourceMap = new Map(sources.map(s=>[text(s.id),s]));
   const plans = universe.candidates.map(c=>{
     const existing = evidenceIndex[c.id] && typeof evidenceIndex[c.id] === 'object' ? evidenceIndex[c.id] : {};
     const required = unique(existing.requiredEvidence || REQUIRED);
@@ -85,6 +87,11 @@ function planEvidence(universe, registry = [], evidenceIndex = {}) {
       if (type === 'causal') return item.status !== 'verified';
       return !['verified','supported'].includes(item.status);
     });
+    const provenanceMissing = required.filter(type => {
+      const item = existing[type];
+      if (!item || typeof item !== 'object' || !text(item.sourceId)) return true;
+      return !sourceMap.has(text(item.sourceId));
+    });
     const rankedSources = sources.map(s=>{
       const types = unique(s.evidenceTypes || s.domains);
       const covers = missing.filter(t=>types.includes(t)||types.includes('all'));
@@ -92,30 +99,36 @@ function planEvidence(universe, registry = [], evidenceIndex = {}) {
     }).filter(s=>s.covers.length).sort((a,b)=>b.covers.length-a.covers.length||b.authority-a.authority||a.sourceId.localeCompare(b.sourceId));
     const groups = unique(rankedSources.map(s=>s.independenceGroup));
     const causalSources = rankedSources.filter(s=>s.covers.includes('causal'));
-    return {candidateId:c.id,required,missing,status:missing.length?'acquisition-required':'evidence-ready',sourcePlans:rankedSources,causalSourceGroups:unique(causalSources.map(s=>s.independenceGroup)),independentSourceGroupsAvailable:groups.length,recommendationEligible:false};
+    return {candidateId:c.id,required,missing,provenanceMissing,status:(missing.length||provenanceMissing.length)?'acquisition-required':'evidence-ready',sourcePlans:rankedSources,causalSourceGroups:unique(causalSources.map(s=>s.independenceGroup)),independentSourceGroupsAvailable:groups.length,recommendationEligible:false};
   });
-  return {schemaVersion:'vidik.evidence-acquisition-hardening.v1',candidatePlans:plans,blockedCount:plans.filter(p=>p.missing.length).length,sourceRegistryCount:sources.length,unknownIsNotZero:true,effectsImported:false,recommendationAllowed:false};
+  return {schemaVersion:'vidik.evidence-acquisition-hardening.v1',candidatePlans:plans,blockedCount:plans.filter(p=>p.missing.length||p.provenanceMissing.length).length,sourceRegistryCount:sources.length,unknownIsNotZero:true,effectsImported:false,recommendationAllowed:false};
 }
 
 function causalGraph(candidate, evidence = []) {
   const rows = Array.isArray(evidence) ? evidence : [];
   const accepted=[]; const rejected=[]; const nodes=[{id:`intervention:${text(candidate?.id)}`,type:'intervention'}];
+  const sourceGroups = new Map();
   for (const [index,e] of rows.entries()) {
     const method=text(e.causalMethod||e.method).toLowerCase();
     const sourceId=text(e.sourceId); const group=text(e.independenceGroup);
     const verified=e.verification?.status==='verified'; const effect=e.effect ?? e.effectEstimate; const unit=text(e.effectUnit||e.unit);
     if (!sourceId) { rejected.push({index,reason:'source-missing'}); continue; }
     if (!group) { rejected.push({index,reason:'independence-group-missing'}); continue; }
+    if (sourceGroups.has(sourceId)) {
+      rejected.push({index,reason:sourceGroups.get(sourceId)===group?'duplicate-source':'source-independence-conflict'}); continue;
+    }
     if (!CAUSAL_METHODS.has(method)) { rejected.push({index,reason:'causal-method-not-admissible'}); continue; }
     if (!verified) { rejected.push({index,reason:'independent-verification-missing'}); continue; }
     if (!finite(effect)) { rejected.push({index,reason:'nonfinite-effect'}); continue; }
     if (!unit) { rejected.push({index,reason:'effect-unit-missing'}); continue; }
     const outcome=`outcome:${text(e.outcome||unit)}`;
     if (!nodes.some(n=>n.id===outcome)) nodes.push({id:outcome,type:'outcome',unit});
+    sourceGroups.set(sourceId,group);
     accepted.push({index,sourceId,independenceGroup:group,method,effect,unit,outcome});
   }
   const groups=unique(accepted.map(x=>x.independenceGroup));
-  return {schemaVersion:'vidik.causal-evidence-hardening.v1',nodes,accepted,rejected,independentSourceGroups:groups,causalReady:groups.length>=2,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,auditHash:hash({nodes,accepted,rejected})};
+  const units=unique(accepted.map(x=>x.unit));
+  return {schemaVersion:'vidik.causal-evidence-hardening.v1',nodes,accepted,rejected,independentSourceGroups:groups,sourceIds:unique(accepted.map(x=>x.sourceId)),effectUnits:units,causalReady:groups.length>=2&&units.length===1,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,auditHash:hash({nodes,accepted,rejected})};
 }
 
 function transferability(target={}, source={}, options={}) {
@@ -132,11 +145,12 @@ function transferability(target={}, source={}, options={}) {
   const score=total?matched/total:0;
   const legal=breakdown.find(x=>x.dimension==='legalEnvironment');
   const hardMismatch=legal?.observed && legal.similarity===0;
-  const band=hardMismatch?'insufficient':score>=.8?'high':score>=.6?'moderate':score>=.4?'low':'insufficient';
+  const incomplete=missingCritical.length>0;
+  const band=hardMismatch||invalidDimensions.length>0?'insufficient':incomplete?'low':score>=.8?'high':score>=.6?'moderate':score>=.4?'low':'insufficient';
   return {schemaVersion:'vidik.transferability-hardening.v1',score,band,breakdown,observedWeight:total,missingDimensions:missingCritical,invalidDimensions,comparable:band==='high'||band==='moderate',requiresLocalValidation:band!=='high'||missingCritical.length>0,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,hardMismatch};
 }
 
-function allocate(candidates=[],budget,options={}){
+function allocate(candidates=[],budget,options={}) {
   if(!finite(budget)||budget<0) throw new Error('valid-budget-required');
   const effectUnits=unique((Array.isArray(candidates)?candidates:[]).map(c=>text(c.effectUnit).toLowerCase()));
   const resourceUnits=unique((Array.isArray(candidates)?candidates:[]).map(c=>text(c.resourceUnit).toLowerCase()));
@@ -152,7 +166,7 @@ function allocate(candidates=[],budget,options={}){
     remaining-=r.fixedCost+resource;
   }
   const totalEffect=selected.reduce((s,x)=>s+x.effect,0);
-  return {schemaVersion:'vidik.resource-allocation-hardening.v1',budget,selected,totalEffect,remainingBudget:remaining,recommendationAllowed:false,opportunityCostVisible:true};
+  return {schemaVersion:'vidik.resource-allocation-hardening.v1',budget,selected,totalEffect,remainingBudget:remaining,recommendationAllowed:false,opportunityCostVisible:true,optimality:'heuristic',optimalityGuaranteed:false};
 }
 
 module.exports={FAMILIES,CAUSAL_METHODS,buildUniverseAudit,planEvidence,causalGraph,transferability,allocate};
