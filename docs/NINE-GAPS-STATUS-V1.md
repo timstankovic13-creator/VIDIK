@@ -1,0 +1,1 @@
+Nine-gap hardening is implemented on this branch and must pass its dedicated CI plus adjacent regression gates before merge.
