@@ -67,7 +67,8 @@ function buildUniverseAudit(problem, records = [], expectedFamilies = FAMILIES) 
     candidates, candidateCount:candidates.length, sourceIds, familyCoverage, missingFamilies, unclassified,
     completeness:{familyCoverageRate:families.length ? (families.length-missingFamilies.length)/families.length : 0, candidateCount:candidates.length},
     searchRequired:candidates.length===0 || missingFamilies.length>0 || unclassified.length>0,
-    recommendationAllowed:false, effectsImported:false, auditHash:hash({problem:normalizedProblem,candidates,familyCoverage}),
+    recommendationAllowed:false, effectsImported:false,
+    auditHash:hash({problem:normalizedProblem,candidates,familyCoverage}),
     invariants:{unknownIsNotZero:true, discoveryCannotRecommend:true, effectsCannotImport:true}
   };
 }
@@ -91,9 +92,9 @@ function planEvidence(universe, registry = [], evidenceIndex = {}) {
     }).filter(s=>s.covers.length).sort((a,b)=>b.covers.length-a.covers.length||b.authority-a.authority||a.sourceId.localeCompare(b.sourceId));
     const groups = unique(rankedSources.map(s=>s.independenceGroup));
     const causalSources = rankedSources.filter(s=>s.covers.includes('causal'));
-    return {candidateId:c.id,required,missing,status:missing.length?'acquisition-required':'evidence-ready',sourcePlans:rankedSources,causalSourceGroups:unique(causalSources.map(s=>s.independenceGroup)),independentSourceGroupsAvailable:groups.length, recommendationEligible:false};
+    return {candidateId:c.id,required,missing,status:missing.length?'acquisition-required':'evidence-ready',sourcePlans:rankedSources,causalSourceGroups:unique(causalSources.map(s=>s.independenceGroup)),independentSourceGroupsAvailable:groups.length,recommendationEligible:false};
   });
-  return {schemaVersion:'vidik.evidence-acquisition-hardening.v1',candidatePlans:plans,blockedCount:plans.filter(p=>p.missing.length).length,sourceRegistryCount:sources.length,unknownIsNotZero:true,effectsImported:false};
+  return {schemaVersion:'vidik.evidence-acquisition-hardening.v1',candidatePlans:plans,blockedCount:plans.filter(p=>p.missing.length).length,sourceRegistryCount:sources.length,unknownIsNotZero:true,effectsImported:false,recommendationAllowed:false};
 }
 
 function causalGraph(candidate, evidence = []) {
@@ -114,24 +115,25 @@ function causalGraph(candidate, evidence = []) {
     accepted.push({index,sourceId,independenceGroup:group,method,effect,unit,outcome});
   }
   const groups=unique(accepted.map(x=>x.independenceGroup));
-  return {schemaVersion:'vidik.causal-evidence-hardening.v1',nodes,accepted,rejected,independentSourceGroups:groups,causalReady:groups.length>=2,effectImportAllowed:false,parameterMutationAllowed:false,auditHash:hash({nodes,accepted,rejected})};
+  return {schemaVersion:'vidik.causal-evidence-hardening.v1',nodes,accepted,rejected,independentSourceGroups:groups,causalReady:groups.length>=2,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,auditHash:hash({nodes,accepted,rejected})};
 }
 
 function transferability(target={}, source={}, options={}) {
   const dims=['population','density','baselineRate','serviceCapacity','legalEnvironment','implementationModel','geography','climate','institutionalStructure'];
-  const weights=options.weights||{}; const breakdown=[]; let total=0; let matched=0; let missingCritical=[];
+  const weights=options.weights||{}; const breakdown=[]; let total=0; let matched=0; let missingCritical=[]; let invalidDimensions=[];
   for(const d of dims){
     const w=positive(weights[d])?weights[d]:1; const tv=target[d], sv=source[d];
     if(tv===undefined||tv===null||sv===undefined||sv===null){breakdown.push({dimension:d,weight:w,similarity:null,observed:false}); missingCritical.push(d); continue;}
+    if((typeof tv==='number'&&!finite(tv))||(typeof sv==='number'&&!finite(sv))){breakdown.push({dimension:d,weight:w,similarity:null,observed:false,invalid:true}); missingCritical.push(d); invalidDimensions.push(d); continue;}
     let sim=0;
-    if(typeof tv==='number'&&typeof sv==='number'&&finite(tv)&&finite(sv)){const scale=Math.max(Math.abs(tv),Math.abs(sv),1);sim=Math.max(0,1-Math.abs(tv-sv)/scale);} else sim=text(tv).toLowerCase()===text(sv).toLowerCase()?1:0;
+    if(typeof tv==='number'&&typeof sv==='number'){const scale=Math.max(Math.abs(tv),Math.abs(sv),1);sim=Math.max(0,1-Math.abs(tv-sv)/scale);} else sim=text(tv).toLowerCase()===text(sv).toLowerCase()?1:0;
     total+=w; matched+=w*sim; breakdown.push({dimension:d,weight:w,similarity:sim,observed:true});
   }
   const score=total?matched/total:0;
   const legal=breakdown.find(x=>x.dimension==='legalEnvironment');
   const hardMismatch=legal?.observed && legal.similarity===0;
   const band=hardMismatch?'insufficient':score>=.8?'high':score>=.6?'moderate':score>=.4?'low':'insufficient';
-  return {schemaVersion:'vidik.transferability-hardening.v1',score,band,breakdown,observedWeight:total,missingDimensions:missingCritical,comparable:band==='high'||band==='moderate',requiresLocalValidation:band!=='high'||missingCritical.length>0,effectTransferAllowed:false,parameterMutationAllowed:false,hardMismatch};
+  return {schemaVersion:'vidik.transferability-hardening.v1',score,band,breakdown,observedWeight:total,missingDimensions:missingCritical,invalidDimensions,comparable:band==='high'||band==='moderate',requiresLocalValidation:band!=='high'||missingCritical.length>0,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,hardMismatch};
 }
 
 function allocate(candidates=[],budget,options={}){
