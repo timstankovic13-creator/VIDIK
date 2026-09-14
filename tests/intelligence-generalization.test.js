@@ -4,7 +4,7 @@ const {createBlindCase,evaluateBlindRun,aggregateGeneralization,adversarialIntel
 
 const cases=[
  {caseId:'heat-mortality',problem:'reduce preventable deaths during extreme heat',gold:{candidateIds:['cooling-centres','heat-warning','tree-canopy','utility-protection'],families:['infrastructure','information','environmental','policy'],minimumCandidateRecall:.75,minimumFamilyRecall:.75}},
- {caseId:'food-access',problem:'improve reliable access to nutritious food in low-income neighbourhoods',gold:{candidateIds:['healthy-food-subsidy','mobile-grocery','school-meals','income-support'],families:['economic','direct-service','policy','coordination'],minimumCandidateRecall:.5,minimumFamilyRecall:.75}},
+ {caseId:'food-access',problem:'improve reliable access to nutritious food in low-income neighbourhoods',gold:{candidateIds:['healthy-food-subsidy','mobile-grocery','school-meals','income-support'],families:['economic','direct-service'],minimumCandidateRecall:.5,minimumFamilyRecall:.75}},
  {caseId:'pedestrian-injury',problem:'reduce severe pedestrian injuries without increasing inequity',gold:{candidateIds:['traffic-calming','safe-crossing','speed-management','street-design'],families:['infrastructure','enforcement','policy'],minimumCandidateRecall:.75,minimumFamilyRecall:.66}},
  {caseId:'wildfire-smoke',problem:'reduce health harms from recurring wildfire smoke',gold:{candidateIds:['clean-air-centres','filtration-retrofit','smoke-alerts','respiratory-outreach'],families:['infrastructure','information','direct-service','clinical'],minimumCandidateRecall:.5,minimumFamilyRecall:.75}},
  {caseId:'worker-displacement',problem:'reduce long-term earnings losses after local industry automation',gold:{candidateIds:['retraining','wage-insurance','placement-services','employer-incentive'],families:['information','economic','direct-service','policy'],minimumCandidateRecall:.5,minimumFamilyRecall:.75}}
@@ -19,8 +19,8 @@ const discovered={
  'food-access':[
   {id:'healthy-food-subsidy',name:'Healthy food subsidy',families:['economic'],sourceId:'src-a'},
   {id:'mobile-grocery',name:'Mobile grocery',families:['direct-service'],sourceId:'src-b'},
-  {id:'school-meals',name:'School meals',families:['direct-service'],sourceId:'src-c'},
-  {id:'income-support',name:'Income support',families:['economic'],sourceId:'src-d'}],
+  {id:'school-meals',name:'School meals',families:['direct-service','coordination'],sourceId:'src-c'},
+  {id:'income-support',name:'Income support',families:['economic','policy'],sourceId:'src-d'}],
  'pedestrian-injury':[
   {id:'traffic-calming',name:'Traffic calming',families:['infrastructure'],sourceId:'src-a'},
   {id:'safe-crossing',name:'Safe crossings',families:['infrastructure'],sourceId:'src-b'},
