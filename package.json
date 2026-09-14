@@ -21,6 +21,7 @@
     "test:real-three-city-evidence": "node tests/real-three-city-evidence-decision.test.js",
     "test:independent-evidence-verification": "node tests/independent-evidence-parameter-verification.test.js",
     "test:production-hardening-a-d": "node tests/production-hardening-a-d.test.js",
+    "test:nine-gaps-hardening": "node --test tests/nine-gap-production-hardening.test.js",
     "test:decision-intelligence": "node tests/decision-intelligence-9.7.test.js && node tests/canonical-decision-intelligence.test.js",
     "test:monster": "node scripts/vidik-monster-test-v4.js",
     "run:municipal-decision": "node scripts/municipal-production-decision-run.js",
