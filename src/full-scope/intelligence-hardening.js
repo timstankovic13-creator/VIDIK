@@ -145,11 +145,12 @@ function transferability(target={}, source={}, options={}) {
   const score=total?matched/total:0;
   const legal=breakdown.find(x=>x.dimension==='legalEnvironment');
   const hardMismatch=legal?.observed && legal.similarity===0;
-  const band=hardMismatch?'insufficient':score>=.8?'high':score>=.6?'moderate':score>=.4?'low':'insufficient';
+  const incomplete=missingCritical.length>0;
+  const band=hardMismatch||invalidDimensions.length>0?'insufficient':incomplete?'low':score>=.8?'high':score>=.6?'moderate':score>=.4?'low':'insufficient';
   return {schemaVersion:'vidik.transferability-hardening.v1',score,band,breakdown,observedWeight:total,missingDimensions:missingCritical,invalidDimensions,comparable:band==='high'||band==='moderate',requiresLocalValidation:band!=='high'||missingCritical.length>0,effectTransferAllowed:false,parameterMutationAllowed:false,recommendationAllowed:false,hardMismatch};
 }
 
-function allocate(candidates=[],budget,options={}){
+function allocate(candidates=[],budget,options={}) {
   if(!finite(budget)||budget<0) throw new Error('valid-budget-required');
   const effectUnits=unique((Array.isArray(candidates)?candidates:[]).map(c=>text(c.effectUnit).toLowerCase()));
   const resourceUnits=unique((Array.isArray(candidates)?candidates:[]).map(c=>text(c.resourceUnit).toLowerCase()));
