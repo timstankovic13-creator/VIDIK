@@ -55,11 +55,16 @@ function validateDecisionArtifact(artifact) {
   if (!validCounterfactual(artifact?.counterfactual)) failures.push('counterfactual-invalid');
   if (!validSchedule(artifact?.reviewSchedule)) failures.push('review-schedule-invalid');
   if (artifact?.governance?.effectsImported || artifact?.governance?.comparableCityEffectsImported) failures.push('imported-effect');
+  if (!requiredString(artifact?.baselineHash)) failures.push('baseline-hash-missing');
   return { valid: failures.length === 0, failures };
 }
 
-function detectTamper(artifact, baselineHash) {
-  return artifact?.baselineHash !== baselineHash;
+async function detectTamper(artifact, baselineHash) {
+  if (!artifact || !requiredString(baselineHash) || artifact.baselineHash !== baselineHash) return true;
+  const copy = clone(artifact);
+  delete copy.baselineHash;
+  const recomputed = await auditHash(copy);
+  return recomputed !== baselineHash;
 }
 
 module.exports = { createDecisionArtifact, validateDecisionArtifact, detectTamper, validCounterfactual, validSchedule };
