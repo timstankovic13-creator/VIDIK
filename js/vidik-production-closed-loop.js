@@ -23,7 +23,8 @@ function buildDecisionScore({ candidates, verified, statusQuo }) {
   const quo = Number(statusQuo.expectedOutcome);
   const scores = {};
   for (const candidate of candidates) {
-    const parameter = verified.parametersByCandidate[candidate.id];
+    const promotion = verified.parametersByCandidate[candidate.id];
+    const parameter = promotion?.parameter;
     if (!parameter) continue;
     const expectedIncrement = Number(parameter.estimate);
     scores[candidate.id] = { outcome: quo + expectedIncrement, incrementalEffect: expectedIncrement, objectiveMetric: parameter.unit };
@@ -35,25 +36,18 @@ function buildDecisionScore({ candidates, verified, statusQuo }) {
 function selectOpportunityCost({ scores, selectedId }) {
   const alternatives = Object.entries(scores).filter(([id]) => id !== selectedId);
   const foregone = alternatives.sort((a, b) => b[1].outcome - a[1].outcome || a[0].localeCompare(b[0]))[0];
-  return {
-    selectedIntervention: selectedId,
-    foregoneIntervention: foregone?.[0] || 'STATUS_QUO',
-    foregoneExpectedOutcome: foregone?.[1]?.outcome ?? scores.STATUS_QUO.outcome,
-    selectedExpectedOutcome: scores[selectedId]?.outcome ?? null,
-    difference: scores[selectedId] ? scores[selectedId].outcome - (foregone?.[1]?.outcome ?? scores.STATUS_QUO.outcome) : null,
-    alternativesConsidered: Object.keys(scores)
-  };
+  return { selectedIntervention: selectedId, foregoneIntervention: foregone?.[0] || 'STATUS_QUO', foregoneExpectedOutcome: foregone?.[1]?.outcome ?? scores.STATUS_QUO.outcome, selectedExpectedOutcome: scores[selectedId]?.outcome ?? null, difference: scores[selectedId] ? scores[selectedId].outcome - (foregone?.[1]?.outcome ?? scores.STATUS_QUO.outcome) : null, alternativesConsidered: Object.keys(scores) };
 }
 
 function buildCanonicalAnalysis({ candidates, verified, baseline, scoreFn, decisionValue = 1, sensitivitySteps = 21, uncertaintySamples = 2000 }) {
   if (typeof scoreFn !== 'function') throw new Error('canonical-score-function-required');
-  const candidateIds = candidates.filter(c => verified.parametersByCandidate[c.id]).map(c => c.id);
+  const candidateIds = candidates.filter(c => verified.parametersByCandidate[c.id]?.parameter).map(c => c.id);
   const parameters = candidateIds.map(id => {
-    const p = verified.parametersByCandidate[id];
+    const p = verified.parametersByCandidate[id].parameter;
     return { id: `${id}.effect`, low: Number(p.uncertainty.low), mean: Number(p.estimate), high: Number(p.uncertainty.high) };
   });
   const voiCandidates = candidateIds.map(id => {
-    const p = verified.parametersByCandidate[id];
+    const p = verified.parametersByCandidate[id].parameter;
     return { id: `${id}.effect`, currentValue: Number(p.estimate), lowValue: Number(p.uncertainty.low), highValue: Number(p.uncertainty.high), pHigh: 0.5, cost: 0 };
   });
   const canonicalBaseline = { ...(baseline || {}), candidateIds };
@@ -61,30 +55,27 @@ function buildCanonicalAnalysis({ candidates, verified, baseline, scoreFn, decis
   return { analysis, parameters, voiCandidates, decisionInputsHash: hash({ baseline: canonicalBaseline, parameters, correlations: [], voiCandidates, decisionValue }) };
 }
 
-function buildCompleteArtifact({ problem, objective, run, candidate, verifiedParameter, analysis, statusQuo, opportunityCost, discovery, evidence, optimizer, learning }) {
+function buildCompleteArtifact({ problem, objective, candidate, verifiedParameter, analysis, statusQuo, opportunityCost, discovery, evidence, optimizer }) {
   const gates = {
-    A_evidenceQuality: Boolean(evidence.complete),
-    B_candidateParameter: Boolean(verifiedParameter),
+    A_evidenceQuality: evidence.complete === true,
+    B_candidateParameter: Boolean(verifiedParameter?.parameter),
     C_marginalResourceEffect: optimizer.status === 'OPTIMIZED' && Boolean(optimizer.allocation),
     D_uncertaintyVOIOptimization: Boolean(analysis?.integrityHash) && analysis.version === DecisionIntelligence.VERSION && Array.isArray(analysis.recommendationFlips) && Boolean(analysis.sensitivity?.hash) && Number(analysis.uncertainty?.sampleCount) >= 100 && Boolean(analysis.voi?.hash),
     E_decisionReadiness: statusQuo.explicit === true && opportunityCost.foregoneIntervention !== undefined
   };
   const eligible = Object.values(gates).every(Boolean);
-  const promotedCandidate = candidate ? {
-    id: candidate.id,
-    name: candidate.name,
-    discovery: { ...candidate.discovery, leadOnly: false, promotedFromLead: true, promotionSource: verifiedParameter?.sourceId || null, verificationId: verifiedParameter?.verificationId || null }
-  } : null;
-  const decision = { recommendation: candidate?.id || null, recommendationAllowed: eligible, status: eligible ? 'RECOMMENDATION_ELIGIBLE' : 'BLOCKED' };
+  const promotedCandidate = candidate ? { id: candidate.id, name: candidate.name, discovery: { ...candidate.discovery, leadOnly: false, promotedFromLead: true, promotionSource: verifiedParameter?.sourceId || null, verificationId: verifiedParameter?.verificationId || null } } : null;
+  const decision = { recommendation: eligible ? candidate?.id || null : null, recommendationAllowed: eligible, status: eligible ? 'RECOMMENDATION_ELIGIBLE' : 'BLOCKED' };
+  const counterfactual = { status: eligible ? 'quantified' : 'blocked', baseline: statusQuo, candidateId: candidate?.id || null, estimatedIncrementalEffect: eligible ? Number(verifiedParameter.parameter.estimate) : null, effectUnit: verifiedParameter?.parameter?.unit || null, resource: eligible ? Number(optimizer.allocation.amount) : null, resourceUnit: eligible ? optimizer.allocation.unit : null, unknownIsNotZero: !eligible, recommendationEligible: eligible, lineage: { discoveryHash: discovery.discoveryHash, evidenceHash: evidence.acquisitionHash, parameterHash: hash(verifiedParameter), analysisHash: analysis.integrityHash, optimizerHash: hash(optimizer) } };
   const artifact = Closure.buildDecisionArtifact({
     problem,
-    run: { decision, runHash: hash({ problem, objective, discovery, evidence, optimizer, analysis }), governance: { candidateUniverseIntelligence: discovery }, learningDiscovery: learning },
+    run: { decision, runHash: hash({ problem, objective, discovery, evidence, optimizer, analysis }), governance: { candidateUniverseIntelligence: discovery }, learningDiscovery: { learningHash: hash({ discovery, evidence }) } },
     candidate: promotedCandidate,
     gate: { recommendationEligible: eligible, gates },
-    analysis: { canonicalDecisionIntelligence: analysis, verifiedParameter: verifiedParameter || null, optimizer: { status: optimizer.status, allocation: optimizer.allocation } },
+    analysis: { canonicalDecisionIntelligence: analysis, verifiedParameter, optimizer: { status: optimizer.status, allocation: optimizer.allocation } },
     statusQuo,
-    whyWhyNot: { selected: candidate?.id || null, opportunityCost, alternatives: optimizer.candidates.map(c => c.id) },
-    counterfactual: { status: eligible ? 'quantified' : 'blocked', baseline: statusQuo, candidateId: candidate?.id || null, estimatedIncrementalEffect: verifiedParameter ? Number(verifiedParameter.estimate) : null, effectUnit: verifiedParameter?.unit || null, resource: optimizer.allocation?.amount || null, resourceUnit: optimizer.allocation?.unit || null, unknownIsNotZero: !eligible, recommendationEligible: eligible, lineage: { discoveryHash: discovery.discoveryHash, evidenceHash: evidence.acquisitionHash, parameterHash: verifiedParameter ? hash(verifiedParameter) : null, analysisHash: analysis?.integrityHash || null, optimizerHash: hash(optimizer) } },
+    whyWhyNot: { selected: eligible ? candidate?.id || null : null, opportunityCost, alternatives: optimizer.candidates.map(c => c.id) },
+    counterfactual,
     evidence: { acquisition: evidence, discovery, verifiedParameter },
     override: { applied: false }
   });
@@ -100,21 +91,35 @@ function buildLearningRecord({ artifact, observations }) {
 async function executeProductionDecision(args = {}) {
   const statusQuo = makeStatusQuo(args.statusQuo);
   if (!statusQuo.explicit || statusQuo.status !== 'admissible-alternative') return { status: 'BLOCKED', reasons: ['status-quo-required-and-must-be-quantified'], statusQuo };
-  const open = await ClosedLoop.runOpenWorldDecision({ ...args, statusQuo });
-  if (!open.discovery.complete || !open.evidence.complete || !open.verified.complete) return { ...open, status: 'BLOCKED', reasons: [...open.certification.reasons] };
-  const selectedId = open.optimizer.allocation?.intervention || null;
-  if (!selectedId) return { ...open, status: 'BLOCKED', reasons: ['canonical-optimizer-produced-no-selection'] };
+  const discovery = await ClosedLoop.discoverOpenWorldInterventions({ problem: args.problem, discoverySources: args.discoverySources || [], fallbackRegistry: args.fallbackRegistry || [] });
+  if (!discovery.complete) return { status: 'BLOCKED', reasons: [discovery.failureState || 'open-world-discovery-incomplete'], discovery };
+  const evidence = await ClosedLoop.acquireEvidenceForCandidates({ candidates: discovery.candidates, evidenceSources: args.evidenceSources || [], targetJurisdiction: args.targetJurisdiction });
+  if (!evidence.complete) return { status: 'BLOCKED', reasons: ['candidate-evidence-acquisition-incomplete'], discovery, evidence };
+  const verified = ClosedLoop.buildVerifiedParameters({ candidates: discovery.candidates, evidenceLeads: evidence.evidenceLeads, verifications: args.verifications || {}, targetJurisdiction: args.targetJurisdiction });
+  if (!verified.complete) return { status: 'BLOCKED', reasons: ['independent-verification-incomplete'], discovery, evidence, verified };
+  const resourceEnvelope = args.resourceEnvelope;
+  if (!resourceEnvelope?.marginalUnit) return { status: 'BLOCKED', reasons: ['marginal-resource-envelope-missing'], discovery, evidence, verified };
+  const optimizerComparison = discovery.candidates.map(c => ({ id: c.id, name: c.name, status: 'ADMISSIBLE' }));
+  const optimizerModels = {};
+  for (const candidate of discovery.candidates) {
+    const promotion = verified.parametersByCandidate[candidate.id];
+    const p = promotion?.parameter;
+    if (!p) continue;
+    optimizerModels[candidate.id] = { resourceUnit: resourceEnvelope.marginalUnit.unit, capacityPerCad: 1, activityPerCapacity: 1, effectPerActivity: Number(p.estimate), objectiveMetric: args.objectiveMetric || p.unit, capacityUnit: 'resource-units', activityUnit: 'activity-units', effectUnit: p.unit, uncertainty: { low: Number(p.uncertainty.low), high: Number(p.uncertainty.high) }, evidenceIds: [promotion.sourceId, promotion.externalId, promotion.verificationId] };
+  }
+  const optimizer = ResourceOptimization.evaluateResourceOptimization(resourceEnvelope, optimizerComparison, optimizerModels);
+  if (optimizer.status !== 'OPTIMIZED') return { status: 'BLOCKED', reasons: ['canonical-optimizer-blocked', optimizer.feedback], discovery, evidence, verified, optimizer };
   let canonical;
-  try { canonical = buildCanonicalAnalysis({ candidates: open.discovery.candidates, verified: open.verified, baseline: args.baseline, scoreFn: args.scoreFn, decisionValue: args.decisionValue || 1, sensitivitySteps: args.sensitivitySteps || 21, uncertaintySamples: args.uncertaintySamples || 2000 }); }
-  catch (error) { return { ...open, status: 'BLOCKED', reasons: [`canonical-analysis-failed:${error.message}`] }; }
-  const scores = buildDecisionScore({ candidates: open.discovery.candidates, verified: open.verified, statusQuo });
+  try { canonical = buildCanonicalAnalysis({ candidates: discovery.candidates, verified, baseline: args.baseline, scoreFn: args.scoreFn, decisionValue: args.decisionValue || 1, sensitivitySteps: args.sensitivitySteps || 21, uncertaintySamples: args.uncertaintySamples || 2000 }); }
+  catch (error) { return { status: 'BLOCKED', reasons: [`canonical-analysis-failed:${error.message}`], discovery, evidence, verified, optimizer }; }
+  const selectedId = optimizer.allocation.intervention;
+  const selectedParameter = verified.parametersByCandidate[selectedId];
+  const candidate = discovery.candidates.find(c => c.id === selectedId);
+  const scores = buildDecisionScore({ candidates: discovery.candidates, verified, statusQuo });
   const opportunityCost = selectOpportunityCost({ scores, selectedId });
-  const selectedParameter = open.verified.parametersByCandidate[selectedId];
-  const candidate = open.discovery.candidates.find(c => c.id === selectedId);
-  const learningSeed = { baselineArtifactHash: null, historicalDecisionRewrite: false };
-  const artifact = buildCompleteArtifact({ problem: args.problem, objective: args.objective, run: open, candidate, verifiedParameter: selectedParameter, analysis: canonical.analysis, statusQuo, opportunityCost, discovery: open.discovery, evidence: open.evidence, optimizer: open.optimizer, learning: learningSeed });
+  const artifact = buildCompleteArtifact({ problem: args.problem, objective: args.objective, candidate, verifiedParameter: selectedParameter, analysis: canonical.analysis, statusQuo, opportunityCost, discovery, evidence, optimizer });
   const learning = buildLearningRecord({ artifact: artifact.artifact, observations: args.observations });
-  const result = { ...open, analysis: canonical.analysis, decisionInputsHash: canonical.decisionInputsHash, status: artifact.valid ? 'RECOMMENDATION_ELIGIBLE' : 'BLOCKED', selectedId, scores, opportunityCost, artifact, learning, lineage: { discoveryHash: open.discovery.discoveryHash, evidenceHash: open.evidence.acquisitionHash, parameterHash: open.verified.parameterHash, decisionInputsHash: canonical.decisionInputsHash, optimizerHash: hash(open.optimizer), decisionIntelligenceHash: canonical.analysis.integrityHash, artifactHash: artifact.artifact?.artifactHash || null, learningHash: learning.learningHash } };
+  const result = { schemaVersion: 'vidik.production-closed-loop.v1', objective: args.objective, problem: args.problem, status: artifact.valid ? 'RECOMMENDATION_ELIGIBLE' : 'BLOCKED', selectedId, discovery, evidence, verified, optimizer, analysis: canonical.analysis, decisionInputsHash: canonical.decisionInputsHash, scores, opportunityCost, artifact, learning, lineage: { discoveryHash: discovery.discoveryHash, evidenceHash: evidence.acquisitionHash, parameterHash: verified.parameterHash, decisionInputsHash: canonical.decisionInputsHash, optimizerHash: hash(optimizer), decisionIntelligenceHash: canonical.analysis.integrityHash, artifactHash: artifact.artifact?.artifactHash || null, learningHash: learning.learningHash } };
   if (!artifact.valid) result.reasons = artifact.reasons;
   return result;
 }
