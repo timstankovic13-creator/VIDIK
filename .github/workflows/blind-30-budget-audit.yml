@@ -1,0 +1,15 @@
+name: Blind 30 Budget Audit
+on:
+  push:
+    branches: [ blind-30-budget-optimization-v1 ]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --test tests/blind-30-budget-optimization-summary.test.js
+      - run: node tests/decision-quantification-bridge.test.js
+      - run: node tests/vidik-resource-optimization.test.js
