@@ -1,0 +1,101 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const { executeProductionDecision, assertBlindRun } = require('../js/vidik-production-closed-loop');
+
+const hashNumber = text => parseInt(crypto.createHash('sha256').update(text).digest('hex').slice(0, 8), 16);
+
+function sourceFor(seed) {
+  return { id: `blind-source-${seed}`, async search({ problem }) {
+    const h = hashNumber(`${seed}:${problem}`);
+    return Array.from({ length: 3 }, (_, i) => ({
+      id: `novel-${h.toString(16)}-${i}`,
+      name: `Candidate ${i + 1}`,
+      domains: [`domain-${h % 7}`],
+      problemTags: [`signal-${h % 11}`],
+      requiredEvidence: ['causal', 'implementation', 'cost', 'equity'],
+      provenance: [{ source: `blind-${seed}`, queryHash: crypto.createHash('sha256').update(problem).digest('hex') }]
+    }));
+  } };
+}
+
+const evidenceSource = { id: 'blind-evidence', async search({ candidate }) {
+  return [{ id: `lead-${candidate.id}`, candidateId: candidate.id, provenance: { externalId: `external-${candidate.id}` }, evidenceLeadOnly: true, causalEffectImported: false, evidenceType: 'causal' }];
+} };
+
+function score(values) {
+  const ids = values.candidateIds || [];
+  let recommendation = 'STATUS_QUO';
+  let best = Number(values.STATUS_QUO || 0);
+  for (const id of ids) {
+    const v = Number(values[`${id}.effect`]);
+    if (Number.isFinite(v) && v > best) { best = v; recommendation = id; }
+  }
+  return { recommendation, score: best };
+}
+
+async function main() {
+  const problems = [
+    'nighttime pedestrian injury exposure', 'heat vulnerability in dense blocks', 'food access interruptions',
+    'wildfire smoke exposure', 'worker displacement after closure', 'stormwater flooding at transit stops',
+    'avoidable emergency demand', 'rental instability after income shock', 'school travel injury risk',
+    'winter shelter capacity pressure', 'urban tree mortality', 'industrial noise exposure',
+    'late-night collision risk', 'opioid response demand', 'household energy burden', 'local air quality alerts',
+    'construction worker heat exposure', 'isolation among older residents', 'vacant property hazards', 'bus reliability gaps',
+    'neighbourhood cooling deficits', 'eviction filing pressure', 'fire response travel delay', 'safe cycling network gaps'
+  ];
+  const results = [];
+  for (let i = 0; i < problems.length; i++) {
+    const problem = problems[i];
+    const source = sourceFor(i);
+    const discovered = await source.search({ problem });
+    const verifications = Object.fromEntries(discovered.map((candidate, index) => [
+      `lead-${candidate.id}`,
+      {
+        verificationId: `verification-${candidate.id}`,
+        verified: true,
+        sourceId: 'blind-evidence',
+        externalId: `external-${candidate.id}`,
+        evidenceType: 'causal',
+        targetJurisdiction: 'BLIND',
+        sourceJurisdiction: 'BLIND',
+        transportability: { admissible: true },
+        localEvidenceBoundary: 'explicit',
+        verifiedEvidence: ['causal', 'implementation', 'cost', 'equity'],
+        parameter: { estimate: 1 + ((hashNumber(candidate.id) + index) % 9), unit: 'outcome/CAD', uncertainty: { low: 0.5, high: 12 } }
+      }
+    ]));
+    const candidateIds = discovered.map(c => c.id);
+    const result = await executeProductionDecision({
+      objective: `improve ${problem}`,
+      problem,
+      discoverySources: [source],
+      evidenceSources: [evidenceSource],
+      verifications,
+      targetJurisdiction: 'BLIND',
+      resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } },
+      objectiveMetric: 'outcome/CAD',
+      baseline: { candidateIds, STATUS_QUO: 0 },
+      scoreFn: score,
+      statusQuo: { explicit: true, expectedOutcome: 0, objectiveMetric: 'outcome' },
+      uncertaintySamples: 100
+    });
+    const audit = assertBlindRun(result);
+    assert.equal(audit.passed, true, `${problem}: ${audit.failures.join(',')}`);
+    assert.equal(result.status, 'RECOMMENDATION_ELIGIBLE');
+    assert.equal(result.discovery.openWorld, true);
+    assert.equal(result.discovery.candidateCount, 3);
+    assert.equal(result.evidence.evidenceLeads.length, 3);
+    assert.equal(Object.keys(result.verified.parametersByCandidate).length, 3);
+    assert.equal(result.artifact.valid, true);
+    assert.ok(result.lineage.discoveryHash && result.lineage.evidenceHash && result.lineage.parameterHash && result.lineage.decisionInputsHash && result.lineage.optimizerHash && result.lineage.decisionIntelligenceHash && result.lineage.artifactHash);
+    results.push(result);
+  }
+
+  assert.equal(results.length, problems.length);
+  assert.equal(new Set(results.map(r => r.discovery.discoveryHash)).size, problems.length);
+  console.log(`BLIND OPEN-WORLD TOURNAMENT: ${results.length}/${problems.length} passed; no gold intervention answers supplied.`);
+}
+
+main().catch(error => { console.error(error); process.exitCode = 1; });
