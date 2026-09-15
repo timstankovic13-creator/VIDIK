@@ -89,4 +89,49 @@ function promoteVerifiedParameter(args = {}) {
   return { ...gate, recommendationEligible: false, verifiedParameter: { ...gate.verifiedParameter, recommendationEligible: false } };
 }
 
-module.exports = { REQUIRED_PARAMETER_FIELDS, uncertaintyIsValid, verificationSourceMatchesLead, assessEvidencePromotion, promoteVerifiedParameter };
+/*
+ * Explicit bridge from source-driven discovery to the existing promotion gate.
+ * Discovery records are still only leads. A verification record must be supplied
+ * for the exact discovered record before any parameter can be promoted.
+ */
+function promoteDiscoveredEvidence({ discovery, candidateId, verificationByEvidenceId = {}, targetJurisdiction, requiredEvidence } = {}) {
+  const safeDiscovery = discovery && typeof discovery === 'object' ? discovery : null;
+  const leads = Array.isArray(safeDiscovery?.evidenceLeads) ? safeDiscovery.evidenceLeads : [];
+  const expectedCandidateId = candidateId || safeDiscovery?.candidateId || null;
+  const promotions = [];
+  const blocked = [];
+
+  for (const lead of leads) {
+    const reasons = [];
+    if (!expectedCandidateId || lead.candidateId !== expectedCandidateId) reasons.push('candidate-id-mismatch');
+    if (lead.evidenceLeadOnly !== true) reasons.push('discovery-record-not-lead-only');
+    if (lead.causalEffectImported === true) reasons.push('effect-already-imported');
+    const verification = verificationByEvidenceId[lead.id];
+    if (!verification) reasons.push('independent-verification-missing');
+
+    if (reasons.length) {
+      blocked.push({ evidenceId: lead.id || null, candidateId: lead.candidateId || null, reasons });
+      continue;
+    }
+
+    const gate = promoteVerifiedParameter({ lead, verification, targetJurisdiction, requiredEvidence });
+    if (gate.eligible) promotions.push(gate.verifiedParameter);
+    else blocked.push({ evidenceId: lead.id || null, candidateId: lead.candidateId || null, reasons: gate.reasons });
+  }
+
+  return {
+    schemaVersion: 'vidik.discovery-evidence-promotion.v1',
+    candidateId: expectedCandidateId,
+    discoveryHash: safeDiscovery?.discoveryHash || null,
+    leadCount: leads.length,
+    promotedCount: promotions.length,
+    blockedCount: blocked.length,
+    promotions,
+    blocked,
+    recommendationEligible: false,
+    effectsImported: false,
+    promotionHash: sha256({ discoveryHash: safeDiscovery?.discoveryHash || null, promotions, blocked })
+  };
+}
+
+module.exports = { REQUIRED_PARAMETER_FIELDS, uncertaintyIsValid, verificationSourceMatchesLead, assessEvidencePromotion, promoteVerifiedParameter, promoteDiscoveredEvidence };
