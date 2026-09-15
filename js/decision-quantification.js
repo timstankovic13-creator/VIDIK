@@ -30,6 +30,26 @@ function quantitativeAcquisitionRequirements({ candidateId, causalEvidence = nul
   return { candidateId: candidateId || null, complete: missing.length === 0, missing: [...new Set(missing)], required: ['verified-causal-parameter', 'verified-marginal-resource', 'common-outcome-unit', 'explicit-uncertainty', 'transportability', 'provenance'] };
 }
 
+function buildResourceProductionModel(resource, effectUnit) {
+  const resourceAmount = Number(resource.resourceAmount);
+  const incrementalCapacity = Number(resource.incrementalCapacity);
+  const incrementalActivity = Number(resource.incrementalActivity);
+  const incrementalOutcome = Number(resource.incrementalOutcome);
+  const evidenceIds = Array.isArray(resource.evidenceIds) ? resource.evidenceIds.slice() : [resource.evidenceId];
+  return {
+    capacityPerCad: incrementalCapacity / resourceAmount,
+    activityPerCapacity: incrementalActivity / incrementalCapacity,
+    effectPerActivity: incrementalOutcome / incrementalActivity,
+    objectiveMetric: effectUnit,
+    resourceUnit: resource.resourceUnit,
+    effectUnit,
+    capacityUnit: resource.capacityUnit || 'capacity_units',
+    activityUnit: resource.activityUnit || 'activity_units',
+    evidenceIds,
+    uncertainty: resource.uncertainty || null
+  };
+}
+
 function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalResources = {}, budget = null, voiValues = {}, statusQuo = { explicit: true, effect: 0 } } = {}) {
   const rows = [];
   const blocked = [];
@@ -42,7 +62,7 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     const sourceId = causal.sourceId || causal.provenance?.sourceId;
     rows.push({
       id: id || candidate?.name, name: candidate?.name || id, status: 'ADMISSIBLE', effect: Number(causal.estimate), resource: Number(resource.resourceAmount),
-      effectUnit: causal.unit, resourceUnit: resource.resourceUnit, discoveryOnly: false, leadOnly: false, verified: true, evidenceIndependent: true,
+      effectUnit: causal.unit, resourceUnit: resource.resourceUnit, discoveryOnly: false, leadOnly: false, verified: true,
       evidence: [{ sourceId, verified: true, verification: { status: 'verified' } }, ...(Array.isArray(resource.evidenceIds) ? resource.evidenceIds.map(evidenceId => ({ sourceId: evidenceId, verified: true, verification: { status: 'verified' } })) : [])],
       parameter: { effect: Number(causal.estimate), resource: Number(resource.resourceAmount), effectUnit: causal.unit, resourceUnit: resource.resourceUnit, verified: true, verification: { status: 'verified' } },
       uncertainty: { low: Number(causal.uncertainty.low), high: Number(causal.uncertainty.high) }, marginalResourceEvidence: resource
@@ -54,10 +74,7 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
   const optimization = decisionBudget ? evaluateResourceOptimization(
     { marginalUnit: { amount: decisionBudget.amount, unit: decisionBudget.unit } },
     rows.map(row => ({ id: row.id, name: row.name, status: 'ADMISSIBLE' })),
-    Object.fromEntries(rows.map(row => [row.id, {
-      capacityPerCad: 1, activityPerCapacity: 1, effectPerActivity: row.effect / row.resource, objectiveMetric: row.effectUnit,
-      resourceUnit: row.resourceUnit, effectUnit: row.effectUnit, evidenceIds: [row.id, ...(row.marginalResourceEvidence.evidenceIds || [])]
-    }]))
+    Object.fromEntries(rows.map(row => [row.id, buildResourceProductionModel(row.marginalResourceEvidence, row.effectUnit)]))
   ) : { status: 'NOT_ACTIVATED', candidates: [] };
 
   const selected = optimization.allocation?.intervention || null;
@@ -90,4 +107,4 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
   };
 }
 
-module.exports = { validateCausalParameter, quantitativeAcquisitionRequirements, buildDecisionAnalysisInputs };
+module.exports = { validateCausalParameter, quantitativeAcquisitionRequirements, buildResourceProductionModel, buildDecisionAnalysisInputs };
