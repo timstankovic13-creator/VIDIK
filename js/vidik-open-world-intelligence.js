@@ -19,25 +19,22 @@ const EFFECT_KEYS = new Set(['effect', 'causalEffect', 'estimate', 'effectPerCad
 function findEffectLeak(value, path = '') {
   if (!value || typeof value !== 'object') return null;
   if (Array.isArray(value)) { for (let i = 0; i < value.length; i++) { const hit = findEffectLeak(value[i], `${path}[${i}]`); if (hit) return hit; } return null; }
-  for (const [key, child] of Object.entries(value)) {
-    if (EFFECT_KEYS.has(key)) return path ? `${path}.${key}` : key;
-    const hit = findEffectLeak(child, path ? `${path}.${key}` : key);
-    if (hit) return hit;
-  }
+  for (const [key, child] of Object.entries(value)) { if (EFFECT_KEYS.has(key)) return path ? `${path}.${key}` : key; const hit = findEffectLeak(child, path ? `${path}.${key}` : key); if (hit) return hit; }
   return null;
 }
 
 function canonicalCandidate(candidate, sourceId) {
   if (!candidate || !candidate.id) throw new Error('open-world-candidate-id-required');
+  if (!sourceId || !String(sourceId).trim()) throw new Error('open-world-source-id-required');
+  if (!Array.isArray(candidate.provenance) || candidate.provenance.length === 0) throw new Error(`candidate-provenance-missing:${candidate.id}`);
   const leaked = findEffectLeak(candidate);
   if (leaked) throw new Error(`discovery-effect-leak:${candidate.id}:${leaked}`);
-  return { id: String(candidate.id), name: String(candidate.name || candidate.id), domains: Array.isArray(candidate.domains) ? [...new Set(candidate.domains.map(String))] : [], problemTags: Array.isArray(candidate.problemTags) ? [...new Set(candidate.problemTags.map(String))] : [], requiredEvidence: Array.isArray(candidate.requiredEvidence) ? [...new Set(candidate.requiredEvidence.map(String))] : ['causal', 'implementation', 'cost', 'equity'], discovery: { source: 'open-world-acquisition', sourceId: sourceId || null, leadOnly: true, provenance: candidate.provenance || [] } };
+  return { id: String(candidate.id), name: String(candidate.name || candidate.id), domains: Array.isArray(candidate.domains) ? [...new Set(candidate.domains.map(String))] : [], problemTags: Array.isArray(candidate.problemTags) ? [...new Set(candidate.problemTags.map(String))] : [], requiredEvidence: Array.isArray(candidate.requiredEvidence) ? [...new Set(candidate.requiredEvidence.map(String))] : ['causal', 'implementation', 'cost', 'equity'], discovery: { source: 'open-world-acquisition', sourceId, leadOnly: true, provenance: candidate.provenance } };
 }
 
 async function discoverOpenWorldInterventions({ problem, discoverySources = [], fallbackRegistry = [] } = {}) {
   if (!String(problem || '').trim()) throw new Error('open-world-problem-required');
-  const sources = Array.isArray(discoverySources) ? discoverySources : [];
-  const results = [], sourceSearches = [], seen = new Set();
+  const sources = Array.isArray(discoverySources) ? discoverySources : [], results = [], sourceSearches = [], seen = new Set();
   for (const source of sources) {
     const sourceId = String(source?.id || 'unknown-source'), startedAt = new Date().toISOString();
     try {
@@ -68,8 +65,7 @@ async function acquireEvidenceForCandidates({ candidates = [], evidenceSources =
           if (!lead || !lead.id || !lead.provenance?.externalId) throw new Error(`evidence-lead-provenance-missing:${candidate.id}`);
           const leaked = findEffectLeak(lead);
           if (leaked) throw new Error(`evidence-effect-leak:${candidate.id}:${leaked}`);
-          const normalized = { ...lead, id: String(lead.id), candidateId: candidate.id, sourceId, evidenceLeadOnly: true, causalEffectImported: false, provenance: { ...lead.provenance, sourceId, externalId: String(lead.provenance.externalId) } };
-          allLeads.push(normalized);
+          allLeads.push({ ...lead, id: String(lead.id), candidateId: candidate.id, sourceId, evidenceLeadOnly: true, causalEffectImported: false, provenance: { ...lead.provenance, sourceId, externalId: String(lead.provenance.externalId) } });
         }
         sourceResults.push({ sourceId, status: 'success', leadsReturned: raw.length });
       } catch (error) { sourceResults.push({ sourceId, status: 'failed', leadsReturned: 0, failureReason: error.message }); }
@@ -129,7 +125,7 @@ async function runOpenWorldDecision({ problem, objective, discoverySources = [],
   const verified = buildVerifiedParameters({ candidates: discovery.candidates, evidenceLeads: evidence.evidenceLeads, verifications, targetJurisdiction });
   const optimizerInputs = buildOptimizerInputs({ candidates: discovery.candidates, verifiedParameters: verified, resourceEnvelope, objectiveMetric });
   const optimizer = ResourceOptimization.evaluateResourceOptimization(resourceEnvelope, optimizerInputs.comparison, optimizerInputs.models);
-  const sameParameters = parameters.length ? parameters : Object.entries(verified.parametersByCandidate).map(([id, p]) => ({ id: `${id}.effect`, low: p.parameter.low, mean: p.parameter.estimate, high: p.parameter.high }));
+  const sameParameters = parameters.length ? parameters : Object.entries(verified.parametersByCandidate).map(([id, p]) => ({ id: `${id}.effect`, low: p.parameter.uncertainty.low, mean: p.parameter.estimate, high: p.parameter.uncertainty.high }));
   const analysis = analyzeSameDecisionInputs({ baseline: baseline || {}, parameters: sameParameters, correlations, scoreFn, voiCandidates, decisionValue: 1 });
   const artifact = selectedArtifact ? Closure.validateDecisionArtifact(selectedArtifact) : { valid: false, reasons: ['selected-artifact-missing'] };
   const learning = { historyImmutable: true, automaticParameterMutation: false, baselineArtifactHash: selectedArtifact?.artifactHash || null, observations: observations.map(o => ({ metric: o.metric, predicted: o.predicted, observed: o.observed })) };
