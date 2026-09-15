@@ -4,7 +4,6 @@ const { validateMarginalResourceEvidence } = require('./marginal-resource-eviden
 const { evaluateResourceOptimization } = require('./vidik-resource-optimization');
 
 function finite(value) { return Number.isFinite(Number(value)); }
-function positive(value) { return finite(value) && Number(value) > 0; }
 function text(value) { return String(value ?? '').trim(); }
 
 function validateCausalParameter(evidence) {
@@ -28,15 +27,10 @@ function quantitativeAcquisitionRequirements({ candidateId, causalEvidence = nul
   if (!marginal.valid) missing.push(...marginal.failures);
   if (causalEvidence && marginalResourceEvidence && text(causalEvidence.unit) !== text(marginalResourceEvidence.unit)) missing.push('causal-marginal-outcome-unit-mismatch');
   if (causalEvidence && marginalResourceEvidence && finite(causalEvidence.estimate) && finite(marginalResourceEvidence.incrementalOutcome) && Number(causalEvidence.estimate) !== Number(marginalResourceEvidence.incrementalOutcome)) missing.push('causal-marginal-effect-link-not-equal');
-  return {
-    candidateId: candidateId || null,
-    complete: missing.length === 0,
-    missing: [...new Set(missing)],
-    required: ['verified-causal-parameter', 'verified-marginal-resource', 'common-outcome-unit', 'explicit-uncertainty', 'transportability', 'provenance']
-  };
+  return { candidateId: candidateId || null, complete: missing.length === 0, missing: [...new Set(missing)], required: ['verified-causal-parameter', 'verified-marginal-resource', 'common-outcome-unit', 'explicit-uncertainty', 'transportability', 'provenance'] };
 }
 
-function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalResources = {}, budget = null, statusQuo = { explicit: true, effect: 0 } } = {}) {
+function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalResources = {}, budget = null, voiValues = {}, statusQuo = { explicit: true, effect: 0 } } = {}) {
   const rows = [];
   const blocked = [];
   for (const candidate of Array.isArray(candidates) ? candidates : []) {
@@ -44,75 +38,55 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     const causal = evidence?.[id]?.causal || evidence?.[id] || null;
     const resource = marginalResources?.[id] || evidence?.[id]?.marginalResource || null;
     const requirements = quantitativeAcquisitionRequirements({ candidateId: id, causalEvidence: causal, marginalResourceEvidence: resource });
-    if (!requirements.complete) {
-      blocked.push({ candidateId: id || null, requirements });
-      continue;
-    }
+    if (!requirements.complete) { blocked.push({ candidateId: id || null, requirements }); continue; }
     const sourceId = causal.sourceId || causal.provenance?.sourceId;
     rows.push({
-      id: id || candidate?.name,
-      name: candidate?.name || id,
-      status: 'ADMISSIBLE',
-      effect: Number(causal.estimate),
-      resource: Number(resource.resourceAmount),
-      effectUnit: causal.unit,
-      resourceUnit: resource.resourceUnit,
-      discoveryOnly: false,
-      leadOnly: false,
-      verified: true,
-      evidenceIndependent: true,
+      id: id || candidate?.name, name: candidate?.name || id, status: 'ADMISSIBLE', effect: Number(causal.estimate), resource: Number(resource.resourceAmount),
+      effectUnit: causal.unit, resourceUnit: resource.resourceUnit, discoveryOnly: false, leadOnly: false, verified: true, evidenceIndependent: true,
       evidence: [{ sourceId, verified: true, verification: { status: 'verified' } }, ...(Array.isArray(resource.evidenceIds) ? resource.evidenceIds.map(evidenceId => ({ sourceId: evidenceId, verified: true, verification: { status: 'verified' } })) : [])],
       parameter: { effect: Number(causal.estimate), resource: Number(resource.resourceAmount), effectUnit: causal.unit, resourceUnit: resource.resourceUnit, verified: true, verification: { status: 'verified' } },
-      uncertainty: { low: Number(causal.uncertainty.low), high: Number(causal.uncertainty.high) },
-      marginalResourceEvidence: resource
+      uncertainty: { low: Number(causal.uncertainty.low), high: Number(causal.uncertainty.high) }, marginalResourceEvidence: resource
     });
   }
 
-  const optimization = evaluateResourceOptimization(
-    { marginalUnit: budget == null ? null : { amount: budget.amount, unit: budget.unit } },
+  const resourceUnit = rows[0]?.resourceUnit || budget?.unit || 'CAD';
+  const decisionBudget = budget || (rows.length ? { amount: Math.max(...rows.map(row => row.resource)), unit: resourceUnit } : null);
+  const optimization = decisionBudget ? evaluateResourceOptimization(
+    { marginalUnit: { amount: decisionBudget.amount, unit: decisionBudget.unit } },
     rows.map(row => ({ id: row.id, name: row.name, status: 'ADMISSIBLE' })),
     Object.fromEntries(rows.map(row => [row.id, {
-      capacityPerCad: 1,
-      activityPerCapacity: 1,
-      effectPerActivity: row.effect / row.resource,
-      objectiveMetric: row.effectUnit,
-      resourceUnit: row.resourceUnit,
-      effectUnit: row.effectUnit,
-      evidenceIds: [row.id, ...(row.marginalResourceEvidence.evidenceIds || [])]
+      capacityPerCad: 1, activityPerCapacity: 1, effectPerActivity: row.effect / row.resource, objectiveMetric: row.effectUnit,
+      resourceUnit: row.resourceUnit, effectUnit: row.effectUnit, evidenceIds: [row.id, ...(row.marginalResourceEvidence.evidenceIds || [])]
     }]))
-  );
+  ) : { status: 'NOT_ACTIVATED', candidates: [] };
 
   const selected = optimization.allocation?.intervention || null;
   const selectedRow = rows.find(row => row.id === selected) || null;
   const analysis = {};
   for (const row of rows) {
-    const low = Number(row.uncertainty.low);
-    const high = Number(row.uncertainty.high);
-    const lowEfficiency = low / row.resource;
-    const highEfficiency = high / row.resource;
+    const low = Number(row.uncertainty.low), high = Number(row.uncertainty.high);
+    const lowEfficiency = low / row.resource, highEfficiency = high / row.resource;
     const selectedEfficiency = selectedRow ? selectedRow.effect / selectedRow.resource : null;
     const reversalCondition = selectedRow && row.id !== selectedRow.id && highEfficiency > selectedEfficiency
-      ? `Higher-bound uncertainty can exceed the selected candidate's point efficiency (${selectedEfficiency}); obtain better evidence before treating the ranking as robust.`
-      : null;
+      ? `Higher-bound uncertainty can exceed the selected candidate's point efficiency (${selectedEfficiency}); obtain better evidence before treating the ranking as robust.` : null;
+    const explicitVoi = voiValues?.[row.id];
+    const voiDefined = finite(explicitVoi);
     analysis[row.id] = {
       parameter: { value: row.effect, unit: row.effectUnit, verified: true, uncertainty: row.uncertainty },
       marginal: { effect: row.effect, effectUnit: row.effectUnit, resource: row.resource, resourceUnit: row.resourceUnit },
       uncertainty: { low, high, lowEfficiency, highEfficiency, stable: true, validated: true },
-      voi: { value: Math.max(0, highEfficiency - lowEfficiency), unit: `${row.effectUnit}/${row.resourceUnit}`, method: 'uncertainty-width-per-resource', decisionSensitive: Boolean(reversalCondition), interpretation: reversalCondition || 'No candidate-specific ranking reversal is identified from the stated interval against the selected point estimate.' },
-      optimization: { validated: optimization.status === 'OPTIMIZED' || (optimization.status === 'NOT_ACTIVATED' && rows.length > 0), selectedCandidateId: selected, opportunityCost: optimization.opportunityCost || null },
-      keyAssumption: reversalCondition || 'Verified causal estimate and marginal resource-to-outcome chain are admissible for the requested jurisdiction and share a common outcome unit.',
-      reversalCondition
+      voi: { value: voiDefined ? Number(explicitVoi) : null, defined: voiDefined, method: voiDefined ? 'externally-valued-decision-information' : null, decisionSensitive: Boolean(reversalCondition), interpretation: voiDefined ? 'Explicitly supplied value-of-information estimate; VIDIK does not invent a monetary value.' : 'VOI must be supplied or separately established before recommendation eligibility.' },
+      optimization: { validated: optimization.status === 'OPTIMIZED', selectedCandidateId: selected, opportunityCost: optimization.opportunityCost || null },
+      keyAssumption: reversalCondition || 'Verified causal estimate and marginal resource-to-outcome chain are admissible for the requested jurisdiction and share a common outcome unit.', reversalCondition
     };
   }
 
+  const quantitativeComplete = rows.length > 0 && blocked.length === 0;
+  const recommendationReady = quantitativeComplete && optimization.status === 'OPTIMIZED' && rows.every(row => analysis[row.id].voi.defined) && statusQuo?.explicit === true;
   return {
-    status: rows.length && blocked.length === 0 ? 'QUANTITATIVE_READY' : (rows.length ? 'PARTIAL' : 'BLOCKED_MISSING_QUANTITATIVE_EVIDENCE'),
-    candidates: rows,
-    blocked,
-    analysisInputs: analysis,
-    optimization,
-    statusQuo,
-    acquisitionRequirements: blocked.map(item => item.requirements)
+    status: recommendationReady ? 'DECISION_QUANTITATIVE_READY' : quantitativeComplete ? 'QUANTITATIVE_READY_VOI_OR_GATE_REQUIRED' : rows.length ? 'PARTIAL' : 'BLOCKED_MISSING_QUANTITATIVE_EVIDENCE',
+    candidates: rows, blocked, analysisInputs: analysis, optimization, statusQuo,
+    acquisitionRequirements: blocked.map(item => item.requirements), recommendationReady
   };
 }
 
