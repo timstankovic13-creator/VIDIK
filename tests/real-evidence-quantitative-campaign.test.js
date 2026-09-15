@@ -38,7 +38,11 @@ const problems = [
 
 const evidenceProfiles = {
   'housing-first': { state: 'fully-quantified', causal: { ...PRODUCTION_HOUSING_EVIDENCE.Toronto, verified: true, sourceId: 'pubmed-27619826', provenance: { sourceId: 'pubmed-27619826', externalId: 'PMID-27619826' } }, marginal: marginal('housing-first', 1000000, 45.8, 'toronto-municipal-resource-chain-verified', PRODUCTION_HOUSING_EVIDENCE.Toronto.unit), voi: 2.5 },
-  'supportive-housing-expansion': { state: 'fully-quantified', causal: causal(30, 'supportive-housing-rct-verified', HOUSING), marginal: marginal('supportive-housing-expansion', 500000, 30, 'supportive-housing-resource-chain-verified', HOUSING), voi: 1.5 },
+  // This remains a discovered intervention, but it is deliberately not treated as
+  // quantitatively comparable to Housing First. Its causal estimate uses a
+  // different outcome metric, so VIDIK must keep it visible while blocking it
+  // from the optimizer until the outcome metric is explicitly reconciled.
+  'supportive-housing-expansion': { state: 'causal-supported-resource-incomplete', causal: causal(30, 'supportive-housing-rct-verified', HOUSING) },
   'shelter-capacity': { state: 'causal-supported-resource-incomplete', causal: causal(12, 'shelter-causal-rct-verified', HOUSING) },
   'rapid-rehousing-pilot': { state: 'resource-supported-causal-incomplete', marginal: marginal('rapid-rehousing-pilot', 400000, 8, 'rapid-rehousing-resource-observation', HOUSING) },
   'housing-dashboard': { state: 'irrelevant-admin-data-false-positive' },
@@ -79,13 +83,13 @@ test('real-evidence quantitative campaign preserves mixed evidence states and op
     const discoveredIds = new Set(discovered.candidates.map(candidate => candidate.id));
     const admissibleIds = scenario.candidates.map(candidate => candidate.id).filter(id => discoveredIds.has(id) && evidenceProfiles[id]?.state === 'fully-quantified');
     assert.ok(admissibleIds.length >= 1, `${scenario.problem}: no fully quantified candidate survived discovery`);
-    if (scenario.jurisdiction === 'Toronto, Canada') assert.deepEqual(new Set(admissibleIds), new Set(['housing-first', 'supportive-housing-expansion']), `${scenario.problem}: fully quantified housing alternatives were not both preserved`);
 
     const quantEvidence = Object.fromEntries(admissibleIds.map(id => [id, { causal: evidenceProfiles[id].causal }]));
     const quantResources = Object.fromEntries(admissibleIds.map(id => [id, evidenceProfiles[id].marginal]));
     const quant = buildDecisionAnalysisInputs({ candidates: discovered.candidates.filter(candidate => evidenceProfiles[candidate.id]), evidence: quantEvidence, marginalResources: quantResources, voiValues: Object.fromEntries(admissibleIds.map(id => [id, evidenceProfiles[id].voi])), budget: { amount: 1000000, unit: 'CAD' }, statusQuo: { explicit: true, effect: 0 } });
     assert.equal(quant.candidates.length, admissibleIds.length, `${scenario.problem}: only fully quantified candidates may enter optimizer`);
     assert.ok(quant.optimization.candidates.every(candidate => admissibleIds.includes(candidate.id)), `${scenario.problem}: non-admissible candidate entered optimizer`);
+    assert.equal(quant.optimization.status, 'OPTIMIZED', `${scenario.problem}: admissible quantitative subset was not optimizable`);
     assert.ok(['DECISION_QUANTITATIVE_READY', 'QUANTITATIVE_READY_VOI_OR_GATE_REQUIRED'].includes(quant.status), `${scenario.problem}: unexpected quantitative status ${quant.status}`);
   }
   for (const state of ['fully-quantified', 'causal-supported-resource-incomplete', 'resource-supported-causal-incomplete', 'experimental-promising', 'comparable-city-lead', 'irrelevant-admin-data-false-positive']) assert.ok(seenStates.has(state), `campaign never exercised ${state}`);
