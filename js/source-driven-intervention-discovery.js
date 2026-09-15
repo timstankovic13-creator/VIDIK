@@ -20,7 +20,8 @@ function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) {
 }
 const NON_INTERVENTION_TERMS = ['dataset','data set','census','statistics','statistic','report','budget','indicator','information','dashboard','administrative records','records','open data','mapping data','survey','profile','monitoring data','raw data'];
 const INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity'];
-const STRONG_INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity'];
+const STRONG_INTERVENTION_TERMS = ['program','programme','service','initiative','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','enforcement','patrol','training','support service','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity'];
+const GENERIC_ACTION_TERMS = new Set(['prevention','intervention']);
 const INTERVENTION_FAMILIES = [
   ['housing','housing','shelter','housing first','rapid rehousing'],
   ['food-access','food','food bank','food access'],
@@ -43,9 +44,10 @@ function classifyCkanRecord(row) {
   const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => text.includes(term)); const positive = INTERVENTION_TERMS.filter(term => text.includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => text.includes(term));
   if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] };
   if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] };
-  if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] };
+  if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] };
   if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] };
-  if (positive.length === 0) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] };
+  const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term));
+  if (positive.length === 0 || actionablePositive.length === 0) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] };
   const families = inferInterventionFamily(text);
   return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families };
 }
