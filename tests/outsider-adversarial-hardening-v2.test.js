@@ -1,0 +1,109 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const {
+  classifyCkanRecord,
+  extractCkanInterventionLeads,
+  discoverSourceDrivenInterventions,
+  buildApplicabilityAudit
+} = require('../js/source-driven-intervention-discovery');
+
+const CA = {
+  sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
+  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+  url: 'https://open.canada.ca/data/en/api/3/action/package_search?q='
+};
+const US = {
+  sourceId: 'us-open-data-program-discovery', provider: 'US Open Data', jurisdiction: 'US',
+  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+  url: 'https://data.gov/api/3/action/package_search?q='
+};
+
+function mockResponse(value) {
+  const bytes = Buffer.from(JSON.stringify(value));
+  return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
+}
+
+const nonInterventions = [
+  { title: 'Older Adult Population Census Data', notes: 'Population counts by age.' },
+  { title: 'Emergency Department Visits', notes: 'Administrative statistics on emergency visits.' },
+  { title: 'Municipal Budget Open Data', notes: 'Annual expenditure and revenue records.' },
+  { title: 'Climate Information — General Information', notes: 'General climate information and indicators.' },
+  { title: 'Housing Statistics Report', notes: 'Annual report on housing outcomes.' },
+  { title: 'Violent Crime Dashboard', notes: 'Interactive indicator dashboard.' }
+];
+
+test('outsider audit: relevant government records are not automatically interventions', () => {
+  for (const row of nonInterventions) {
+    const classification = classifyCkanRecord(row);
+    assert.equal(classification.accepted, false, row.title);
+    assert.match(classification.reason, /non-intervention|insufficient/);
+  }
+});
+
+test('legitimate intervention forms remain discoverable without effects', () => {
+  const rows = [
+    { id: 'p1', title: 'Community food access program', notes: 'Municipal service providing food support.' },
+    { id: 'p2', title: 'Housing First supportive housing initiative', notes: 'Permanent housing and support services.' },
+    { id: 'p3', title: 'Protected bike lane project', notes: 'Street infrastructure intervention.' },
+    { id: 'p4', title: 'Cooling centre emergency response service', notes: 'Heat-response service for residents.' },
+    { id: 'p5', title: 'Violence prevention outreach program', notes: 'Community prevention and outreach.' }
+  ];
+  const leads = extractCkanInterventionLeads({ result: { results: rows } }, CA, 'public safety');
+  assert.equal(leads.length, rows.length);
+  for (const lead of leads) {
+    assert.equal(lead.discovery.leadOnly, true);
+    assert.equal(lead.discovery.effectsImported, false);
+    assert.equal(lead.discovery.discoveryOnly, true);
+    assert.equal(lead.discovery.classification.basis, 'intervention-signal');
+  }
+});
+
+test('ambiguous catalogue records fail closed rather than becoming intervention candidates', () => {
+  const rows = [
+    { id: 'a1', title: 'Community outcomes', notes: 'Information related to food insecurity.' },
+    { id: 'a2', title: 'Housing resources', notes: 'Links and information for residents.' },
+    { id: 'a3', title: 'Crime prevention', notes: 'General information and statistics.' }
+  ];
+  const leads = extractCkanInterventionLeads({ result: { results: rows } }, CA, 'crime');
+  assert.equal(leads.length, 0);
+});
+
+test('requested jurisdiction cannot be bypassed by injecting another jurisdiction source', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'food insecurity', jurisdiction: 'CA', sources: [US],
+    fetchImpl: async () => { throw new Error('should-not-fetch-rejected-source'); }
+  });
+  assert.deepEqual(result.sourcesSelected, []);
+  assert.deepEqual(result.sourceSearches, []);
+  assert.equal(result.candidates.length, 0);
+  assert.equal(result.recommendationEligible, false);
+  assert.deepEqual(result.sourceApplicability.rejectedSuppliedSources, [{ sourceId: US.sourceId, jurisdiction: 'US', reason: 'jurisdiction-mismatch' }]);
+});
+
+test('international source remains eligible when a jurisdiction is requested', () => {
+  const INTERNATIONAL = { ...CA, sourceId: 'ca-program-discovery', jurisdiction: 'international' };
+  const audit = buildApplicabilityAudit({ problem: 'housing', jurisdiction: 'CA', suppliedSources: [INTERNATIONAL] });
+  assert.equal(audit.rejectedSuppliedSources.length, 0);
+});
+
+test('partial source outage preserves usable leads but remains recommendation-blocked', async () => {
+  const source2 = { ...CA, sourceId: 'ca-ontario-program-discovery', jurisdiction: 'CA' };
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'food insecurity', jurisdiction: 'CA', sources: [CA, source2],
+    fetchImpl: async (_url) => {
+      if (_url.includes('open.canada.ca')) return mockResponse({ result: { results: [{ id: 'p1', title: 'Community food access program', notes: 'Food support service.' }] } });
+      throw new Error('upstream-timeout');
+    }
+  });
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.sourceSearches.filter(s => s.status === 'search-failed').length, 1);
+  assert.equal(result.recommendationEligible, false);
+});
+
+test('malformed and missing metadata cannot create candidates', () => {
+  const rows = [null, {}, { id: 'x', notes: 'program service' }, { id: 'y', title: '   ' }, { id: 'z', title: 'Housing dataset', notes: 'supportive housing program data' }];
+  const leads = extractCkanInterventionLeads({ result: { results: rows } }, CA, 'housing');
+  assert.equal(leads.length, 0);
+});
