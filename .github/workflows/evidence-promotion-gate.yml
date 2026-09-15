@@ -1,0 +1,29 @@
+name: VIDIK Evidence Promotion Gate
+
+on:
+  pull_request:
+    paths:
+      - 'js/evidence-promotion-gate.js'
+      - 'tests/evidence-promotion-gate.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'js/evidence-promotion-gate.js'
+      - 'tests/evidence-promotion-gate.test.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evidence-promotion-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run test:evidence-promotion-gate
