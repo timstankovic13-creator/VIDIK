@@ -23,6 +23,8 @@ jobs:
         run: node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js
       - name: Production intelligence 1-7 certification
         run: node --test tests/production-intelligence-certification.test.js
+      - name: Canonical production integration
+        run: node --test tests/canonical-production-intelligence-integration.test.js
       - name: Core discovery regression
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
       - name: Full scope regression
