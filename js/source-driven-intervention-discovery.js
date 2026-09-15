@@ -20,38 +20,41 @@ function selectInterventionSources({ problem, jurisdiction = null } = {}) { cons
 function buildApplicabilityAudit({ problem, jurisdiction = null, suppliedSources = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => CKAN_SOURCE_IDS.has(source.sourceId) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const rejectedSuppliedSources = Array.isArray(suppliedSources) && jurisdiction ? suppliedSources.filter(source => !sourceMatchesJurisdiction(source, jurisdiction)).map(source => ({ sourceId: source.sourceId, jurisdiction: source.jurisdiction, canonicalJurisdiction: canonicalSource(source)?.jurisdiction || null, reason: canonicalSource(source) ? 'jurisdiction-mismatch' : 'unregistered-source' })) : []; return { problem, jurisdiction, eligibleSources: eligible.map(source => source.sourceId), matchedSources: matched.map(source => source.sourceId), rejectedSuppliedSources, fallbackUsed: matched.length === 0 && eligible.length > 0, decision: matched.length ? 'tag-matched' : (eligible.length ? 'broad-fallback' : 'no-eligible-source'), consideredCount: eligible.length }; }
 function deduplicateInterventionLeads(leads = []) { const groups = new Map(); for (const lead of leads) { const key = lead.canonicalName || normalizeInterventionName(lead.name); if (!key) continue; const existing = groups.get(key); if (!existing) { groups.set(key, { ...lead, id: `universe:${sha256(key).slice(0, 16)}`, sourceIds: [lead.discovery?.source].filter(Boolean), sourceCount: 1, sourceProvenance: lead.discovery?.provenance || [], interventionFamily: lead.interventionFamily || ['other'] }); continue; } existing.sourceIds = [...new Set([...existing.sourceIds, lead.discovery?.source].filter(Boolean))]; existing.sourceCount = existing.sourceIds.length; existing.sourceProvenance = [...existing.sourceProvenance, ...(lead.discovery?.provenance || [])]; existing.interventionFamily = [...new Set([...existing.interventionFamily, ...(lead.interventionFamily || [])])]; existing.discovery = { ...existing.discovery, corroboratedBySources: existing.sourceIds.length, leadOnly: true, effectsImported: false, discoveryOnly: true }; } return [...groups.values()]; }
 function buildInterventionUniverseAssessment({ problem, jurisdiction = null, sourceSearches = [], candidates = [], requestedSourceCount = 0 } = {}) { const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const deduped = deduplicateInterventionLeads(candidates); const families = [...new Set(deduped.flatMap(candidate => candidate.interventionFamily || ['other']))]; const coverage = requestedSourceCount > 0 ? usable.length / requestedSourceCount : 0; const evidenceReadyLeads = deduped.filter(candidate => candidate.requiredEvidence?.length).length; return { problem, jurisdiction, sourcesAttempted: sourceSearches.length, usableSources: usable.length, failedSources: failed.length, sourceCoverageRatio: coverage, rawCandidateCount: candidates.length, uniqueCandidateCount: deduped.length, interventionFamilies: families, evidenceRequirementsAttached: evidenceReadyLeads === deduped.length, discoveryComplete: sourceSearches.length > 0 && failed.length === 0 && deduped.length > 0, recommendationEligible: false, stoppingReason: sourceSearches.length === 0 ? 'no-source-searches' : failed.length === sourceSearches.length ? 'all-sources-failed' : deduped.length === 0 ? 'no-intervention-candidates' : failed.length ? 'partial-source-failure' : 'candidate-universe-discovered' }; }
-
-// Relevance is applied after the broad source classifier. This keeps discovery permissive
-// enough to find unfamiliar interventions while preventing an unrelated program from
-// entering the problem-specific universe merely because it contains generic words such as
-// "program", "project", or "service".
-const PROBLEM_CONCEPT_GROUPS = [
-  ['crime','violence','assault','robbery','homicide','policing','enforcement','patrol','public safety'],
-  ['housing','homeless','shelter','rent','rehousing','tenancy','eviction'],
-  ['food','nutrition','grocery','meal','hunger','food insecurity','food access'],
-  ['energy','utility','electricity','weatherization','heating','cooling','fuel','power','energy burden'],
-  ['transit','bus','rail','mobility','commute','signal','traffic','delay','congestion','travel time'],
-  ['pedestrian','crossing','sidewalk','walking','bike','bicycle','traffic calming','road safety','collision','crash','injury'],
-  ['health','hospital','clinic','patient','treatment','care','emergency department','urgent care','overcrowding','patient flow'],
-  ['wildfire','smoke','air quality','filtration','clean air','fire season'],
-  ['flood','flooding','stormwater','drainage','water','resilience'],
-  ['heat','heatwave','extreme heat','cooling','temperature'],
-  ['poverty','low income','income','benefit','subsidy','grant','voucher','affordability','economic hardship'],
-  ['employment','worker','job','workforce','training','displacement'],
-  ['youth','child','children','student','school','education'],
-  ['senior','seniors','aging','elderly','disability','accessible','accessibility','caregiver'],
-  ['environment','pollution','waste','recycling','emissions','air pollution']
+const DISCOVERY_DOMAIN_GROUPS = [
+  ['public-safety',['crime','violence','assault','robbery','homicide','policing','enforcement','patrol','public safety']],
+  ['housing',['housing','homeless','shelter','rent','rehousing','tenancy','eviction']],
+  ['food',['food','nutrition','grocery','meal','hunger','food insecurity','food access']],
+  ['energy',['energy','utility','electricity','weatherization','heating','cooling','fuel','power','energy burden']],
+  ['mobility',['transit','bus','rail','mobility','commute','signal','traffic','delay','congestion','travel time','pedestrian','crossing','sidewalk','bike','bicycle','road safety']],
+  ['health',['health','hospital','clinic','patient','treatment','care','emergency department','urgent care','overcrowding','patient flow']],
+  ['climate',['wildfire','smoke','air quality','filtration','clean air','fire season','heat','heatwave','extreme heat','cooling','temperature','flood','flooding','stormwater','drainage','resilience']],
+  ['employment',['employment','worker','job','workforce','training','displacement']],
+  ['economic',['poverty','low income','income','benefit','subsidy','grant','voucher','affordability','economic hardship']],
+  ['education',['youth','child','children','student','school','education']],
+  ['accessibility',['senior','seniors','aging','elderly','disability','accessible','accessibility','caregiver']],
+  ['environment',['environment','pollution','waste','recycling','emissions','air pollution']],
+  ['infrastructure',['infrastructure','road resurfacing','water billing','drainage','stormwater','utility billing']]
 ];
-const RELEVANCE_STOPWORDS = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with']);
-function problemRelevanceTokens(value) { return normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(token => token && !RELEVANCE_STOPWORDS.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')).filter(token => token.length > 2); }
-function relevanceConcepts(value) { const text = normalizeText(value).toLowerCase(); const concepts = new Set(problemRelevanceTokens(text)); for (const group of PROBLEM_CONCEPT_GROUPS) if (group.some(term => text.includes(term))) concepts.add(`group:${group[0]}`); return concepts; }
-function interventionMatchesProblem(problem, candidate) { const problemText = normalizeText(problem).toLowerCase(); const candidateText = normalizeText(`${candidate?.name || ''} ${candidate?.discoveryText || ''} ${(candidate?.interventionFamily || []).join(' ')}`).toLowerCase(); const problemTokens = relevanceConcepts(problemText); const candidateTokens = relevanceConcepts(candidateText); for (const token of problemTokens) if (!token.startsWith('group:') && candidateTokens.has(token)) return true; for (const group of PROBLEM_CONCEPT_GROUPS) { const groupId = `group:${group[0]}`; if (problemTokens.has(groupId) && candidateTokens.has(groupId)) return true; } return false; }
-
-const originalExtractCkanInterventionLeads = extractCkanInterventionLeads;
-extractCkanInterventionLeads = function(payload, source, problem) {
-  return originalExtractCkanInterventionLeads(payload, source, problem).filter(candidate => interventionMatchesProblem(problem, candidate));
+const CROSS_DOMAIN_COMPATIBILITY = {
+  'public-safety': new Set(['housing','health','mobility']),
+  housing: new Set(['public-safety','health','economic']),
+  food: new Set(['housing','economic','health']),
+  energy: new Set(['housing','health','climate','economic']),
+  mobility: new Set(['public-safety','climate']),
+  health: new Set(['public-safety','housing','food','energy','climate']),
+  climate: new Set(['health','mobility']),
+  employment: new Set(['economic','housing']),
+  economic: new Set(['housing','food','employment','health','energy']),
+  education: new Set(['housing','employment','health']),
+  accessibility: new Set(['housing','health','mobility']),
+  environment: new Set(['climate','health']),
+  infrastructure: new Set([])
 };
-
+function discoveryDomains(text) { const normalized = normalizeText(text).toLowerCase(); return DISCOVERY_DOMAIN_GROUPS.filter(([,terms]) => terms.some(term => normalized.includes(term))).map(([name]) => name); }
+function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
+function interventionMatchesProblem(problem, candidate) { const problemDomains = discoveryDomains(problem); const candidateDomains = discoveryDomains(`${candidate?.name || ''} ${candidate?.discoveryText || ''}`); if (directConceptOverlap(problem, `${candidate?.name || ''} ${candidate?.discoveryText || ''}`)) return true; if (!problemDomains.length || !candidateDomains.length) return false; if (candidateDomains.some(domain => problemDomains.includes(domain))) return true; return problemDomains.some(problemDomain => candidateDomains.some(candidateDomain => CROSS_DOMAIN_COMPATIBILITY[problemDomain]?.has(candidateDomain))); }
+const originalExtractCkanInterventionLeads = extractCkanInterventionLeads;
+extractCkanInterventionLeads = function(payload, source, problem) { return originalExtractCkanInterventionLeads(payload, source, problem).filter(candidate => interventionMatchesProblem(problem, candidate)); };
 async function discoverSourceDrivenInterventions({ problem, jurisdiction = null, sources = null, fetchImpl, now = new Date(), rows = 25 } = {}) {
   const supplied = Array.isArray(sources) ? sources : null;
   const selected = (supplied ? supplied.filter(source => sourceMatchesJurisdiction(source, jurisdiction)) : selectInterventionSources({ problem, jurisdiction })).map(source => canonicalSource(source)).filter(Boolean).filter((source, index, all) => all.findIndex(candidate => candidate.sourceId === source.sourceId) === index);
