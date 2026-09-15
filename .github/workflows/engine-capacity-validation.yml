@@ -1,0 +1,41 @@
+name: VIDIK Engine Capacity Validation
+on:
+  pull_request:
+    paths:
+      - 'js/engine-capacity.js'
+      - 'js/source-driven-intervention-discovery.js'
+      - 'js/source-driven-evidence-discovery.js'
+      - 'js/production-decision-pipeline.js'
+      - 'js/decision-discovery-orchestrator.js'
+      - 'js/decision-artifact-store.js'
+      - 'tests/engine-capacity.test.js'
+      - '.github/workflows/engine-capacity-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/engine-capacity.js'
+      - 'js/source-driven-intervention-discovery.js'
+      - 'js/source-driven-evidence-discovery.js'
+      - 'js/production-decision-pipeline.js'
+      - 'js/decision-discovery-orchestrator.js'
+      - 'js/decision-artifact-store.js'
+      - 'tests/engine-capacity.test.js'
+      - '.github/workflows/engine-capacity-validation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: vidik-engine-capacity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  engine-capacity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --test tests/engine-capacity.test.js
+      - run: node --test tests/production-decision-pipeline.test.js
+      - run: node --test tests/evidence-promotion-gate.test.js
+      - run: node --test tests/source-driven-intervention-discovery.test.js
+      - run: node --test tests/source-driven-evidence-discovery.test.js
