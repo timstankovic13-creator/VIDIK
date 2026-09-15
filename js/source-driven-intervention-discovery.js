@@ -39,6 +39,26 @@ function inferInterventionFamily(text) {
   const matches = INTERVENTION_FAMILIES.filter(([, ...terms]) => terms.some(term => normalized.includes(term)));
   return matches.length ? matches.map(([family]) => family) : ['other'];
 }
+function buildDiscoveryQueries(problem) {
+  const original = normalizeText(problem);
+  const normalized = original.toLowerCase();
+  const queries = new Set([original]);
+  const stripped = normalized
+    .replace(/\b(reduce|increase|improve|prevent|address|mitigate|lower|decrease|support|expand|improve|eliminate)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (stripped && stripped !== normalized) queries.add(stripped);
+  const familyTerms = inferInterventionFamily(normalized)
+    .flatMap(family => INTERVENTION_FAMILIES.find(([name]) => name === family)?.slice(1) || [])
+    .filter(term => normalized.includes(term));
+  familyTerms.forEach(term => queries.add(term));
+  const matchedFamily = inferInterventionFamily(normalized);
+  if (matchedFamily.includes('climate-resilience')) queries.add('cooling centre');
+  if (matchedFamily.includes('public-safety')) queries.add('prevention program');
+  if (matchedFamily.includes('food-access')) queries.add('food access program');
+  if (matchedFamily.includes('housing')) queries.add('housing service');
+  if (matchedFamily.includes('employment')) queries.add('employment training');
+  return [...queries].filter(Boolean).slice(0, 6);
+}
 function classifyCkanRecord(row) {
   const title = normalizeText(row?.title || row?.name); const notes = normalizeText(row?.notes || row?.description); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
   const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => text.includes(term)); const positive = INTERVENTION_TERMS.filter(term => text.includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => text.includes(term));
@@ -103,13 +123,27 @@ async function discoverSourceDrivenInterventions({ problem, jurisdiction = null,
   const supplied = Array.isArray(sources) ? sources : null;
   const selected = supplied ? supplied.filter(source => sourceMatchesJurisdiction(source, jurisdiction)).map(source => canonicalSource(source)).filter(Boolean) : selectInterventionSources({ problem, jurisdiction });
   const applicability = buildApplicabilityAudit({ problem, jurisdiction, suppliedSources: supplied }); const sourceSearches = [], rawCandidates = [];
+  const queries = buildDiscoveryQueries(problem);
   for (const source of selected) {
-    const url = buildCkanSearchUrl(source, problem, { rows });
-    try { const snapshot = await retrieve({ ...source, url }, { fetchImpl, now }); const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType); if (payload.format !== 'json') throw new Error('source-driven-response-not-json'); const leads = extractCkanInterventionLeads(payload.value, source, problem); rawCandidates.push(...leads); sourceSearches.push({ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, query: problem, status: leads.length ? 'candidates-found' : 'searched-empty', candidatesReturned: leads.length, recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0, provenance: snapshot.retrieval, failureReason: null }); }
-    catch (error) { sourceSearches.push({ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, query: problem, status: 'search-failed', candidatesReturned: 0, provenance: null, failureReason: error?.message || 'source-driven-search-failed' }); }
+    let sourceFound = false;
+    for (const query of queries) {
+      if (sourceFound) break;
+      const url = buildCkanSearchUrl(source, query, { rows });
+      try {
+        const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
+        const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+        if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
+        const leads = extractCkanInterventionLeads(payload.value, source, problem);
+        rawCandidates.push(...leads);
+        sourceSearches.push({ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, query, originalProblem: problem, status: leads.length ? 'candidates-found' : 'searched-empty', candidatesReturned: leads.length, recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0, provenance: snapshot.retrieval, failureReason: null });
+        if (leads.length) sourceFound = true;
+      } catch (error) {
+        sourceSearches.push({ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, query, originalProblem: problem, status: 'search-failed', candidatesReturned: 0, provenance: null, failureReason: error?.message || 'source-driven-search-failed' });
+      }
+    }
   }
   const candidates = deduplicateInterventionLeads(rawCandidates);
   const universe = buildInterventionUniverseAssessment({ problem, jurisdiction, sourceSearches, candidates: rawCandidates, requestedSourceCount: selected.length });
-  return { schemaVersion: 'vidik.source-driven-intervention-discovery.v4', problem, sourcesSelected: selected.map(source => source.sourceId), sourceApplicability: applicability, sourceSearches, rawCandidateCount: rawCandidates.length, candidates, interventionUniverse: universe, discoveryHash: sha256({ problem, sourceApplicability: applicability, sourceSearches, candidates: candidates.map(candidate => ({ id: candidate.id, name: candidate.name, canonicalName: candidate.canonicalName, interventionFamily: candidate.interventionFamily, discovery: candidate.discovery })) }), recommendationEligible: false };
+  return { schemaVersion: 'vidik.source-driven-intervention-discovery.v5', problem, sourcesSelected: selected.map(source => source.sourceId), discoveryQueries: queries, sourceApplicability: applicability, sourceSearches, rawCandidateCount: rawCandidates.length, candidates, interventionUniverse: universe, discoveryHash: sha256({ problem, sourceApplicability: applicability, discoveryQueries: queries, sourceSearches, candidates: candidates.map(candidate => ({ id: candidate.id, name: candidate.name, canonicalName: candidate.canonicalName, interventionFamily: candidate.interventionFamily, discovery: candidate.discovery })) }), recommendationEligible: false };
 }
-module.exports = { CKAN_SOURCE_IDS, INTERVENTION_FAMILIES, buildCkanSearchUrl, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, discoverSourceDrivenInterventions };
+module.exports = { CKAN_SOURCE_IDS, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, discoverSourceDrivenInterventions };
