@@ -1,0 +1,23 @@
+name: Real Evidence Quantitative Decision Campaign
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  real-evidence-quantitative-campaign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run real evidence quantitative campaign
+        run: node --test tests/real-evidence-quantitative-campaign.test.js
+      - name: Run quantitative bridge regression
+        run: node tests/decision-quantification-bridge.test.js
+      - name: Run live three-city evidence decision
+        run: node tests/real-three-city-evidence-decision.test.js
