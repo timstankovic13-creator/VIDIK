@@ -19,5 +19,9 @@ test('duplicate evidence records collapse and untrusted effects are stripped', (
 });
 
 test('caller cannot spoof an evidence source into authority', () => {
-  assert.equal(sourceIsAuthoritative({ sourceId: 'openalex-works', jurisdiction: 'CA' }), true); assert.equal(sourceIsAuthoritative({ sourceId: 'openalex-works', jurisdiction: 'US' }), false); assert.equal(sourceIsAuthoritative({ sourceId: 'unknown', jurisdiction: 'CA' }), false);
+  // OpenAlex is registered as an international source. Authority follows the
+  // canonical registry jurisdiction; a caller cannot relabel it as US evidence.
+  assert.equal(sourceIsAuthoritative({ sourceId: 'openalex-works', jurisdiction: 'international' }), true);
+  assert.equal(sourceIsAuthoritative({ sourceId: 'openalex-works', jurisdiction: 'US' }), false);
+  assert.equal(sourceIsAuthoritative({ sourceId: 'unknown', jurisdiction: 'CA' }), false);
 });
