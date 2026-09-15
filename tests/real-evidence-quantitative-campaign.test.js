@@ -31,6 +31,7 @@ const problems = [
   { problem: 'reduce extreme heat illness', jurisdiction: 'Ottawa, Canada', candidates: [
     { id: 'cooling-centres', name: 'Cooling centre expansion', problemTags: ['extreme-heat'] },
     { id: 'heat-alert-outreach', name: 'Heat alert outreach', problemTags: ['extreme-heat'] },
+    { id: 'heat-health-warning', name: 'Heat-health warning system', problemTags: ['extreme-heat'] },
     { id: 'reflective-roof-pilot', name: 'Reflective roof pilot', problemTags: ['extreme-heat'] },
     { id: 'heat-dashboard', name: 'Heat illness dashboard', problemTags: ['extreme-heat'] }
   ], comparableCities: [{ city: 'Toronto', problem: 'reduce extreme heat illness', interventions: 'cooling centres' }] }
@@ -38,10 +39,6 @@ const problems = [
 
 const evidenceProfiles = {
   'housing-first': { state: 'fully-quantified', causal: { ...PRODUCTION_HOUSING_EVIDENCE.Toronto, verified: true, sourceId: 'pubmed-27619826', provenance: { sourceId: 'pubmed-27619826', externalId: 'PMID-27619826' } }, marginal: marginal('housing-first', 1000000, 45.8, 'toronto-municipal-resource-chain-verified', PRODUCTION_HOUSING_EVIDENCE.Toronto.unit), voi: 2.5 },
-  // This remains a discovered intervention, but it is deliberately not treated as
-  // quantitatively comparable to Housing First. Its causal estimate uses a
-  // different outcome metric, so VIDIK must keep it visible while blocking it
-  // from the optimizer until the outcome metric is explicitly reconciled.
   'supportive-housing-expansion': { state: 'causal-supported-resource-incomplete', causal: causal(30, 'supportive-housing-rct-verified', HOUSING) },
   'shelter-capacity': { state: 'causal-supported-resource-incomplete', causal: causal(12, 'shelter-causal-rct-verified', HOUSING) },
   'rapid-rehousing-pilot': { state: 'resource-supported-causal-incomplete', marginal: marginal('rapid-rehousing-pilot', 400000, 8, 'rapid-rehousing-resource-observation', HOUSING) },
@@ -50,8 +47,9 @@ const evidenceProfiles = {
   'corridor-redesign': { state: 'causal-supported-resource-incomplete', causal: causal(10, 'corridor-redesign-causal-verified', PEDESTRIAN) },
   'quick-build-pilot': { state: 'experimental-promising', marginal: { ...marginal('quick-build-pilot', 250000, 5, 'quick-build-resource-observation', PEDESTRIAN), transportability: { admissible: false } } },
   'pedestrian-dashboard': { state: 'irrelevant-admin-data-false-positive' },
-  'cooling-centres': { state: 'resource-supported-causal-incomplete', marginal: marginal('cooling-centres', 300000, 4, 'ottawa-cooling-centre-resource-observation', HEAT) },
-  'heat-alert-outreach': { state: 'causal-supported-resource-incomplete', causal: causal(7, 'heat-outreach-causal-verified', HEAT) },
+  'cooling-centres': { state: 'fully-quantified', causal: causal(7, 'cooling-centre-causal-verified', HEAT), marginal: marginal('cooling-centres', 300000, 7, 'ottawa-cooling-centre-resource-chain-verified', HEAT), voi: 1.3 },
+  'heat-alert-outreach': { state: 'resource-supported-causal-incomplete', marginal: marginal('heat-alert-outreach', 200000, 4, 'ottawa-heat-outreach-resource-observation', HEAT) },
+  'heat-health-warning': { state: 'causal-supported-resource-incomplete', causal: causal(5, 'heat-warning-causal-verified', HEAT) },
   'reflective-roof-pilot': { state: 'experimental-promising' },
   'heat-dashboard': { state: 'irrelevant-admin-data-false-positive' }
 };
