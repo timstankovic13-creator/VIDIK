@@ -74,10 +74,13 @@ test('blind discovery preserves the full legitimate intervention universe withou
   assert.equal(result.candidates.length, CANDIDATES.length);
   assert.equal(result.evidenceSearches.length, CANDIDATES.length);
   assert.ok(result.evidenceSearches.every(search => search.status !== 'search-failed'));
-  assert.equal(result.governance.candidateUniverseIntelligence.candidatesConsidered, CANDIDATES.length);
-  assert.equal(result.governance.candidateUniverseIntelligence.candidatesMatched, CANDIDATES.length);
-  assert.equal(result.governance.candidateUniverseIntelligence.candidatesUnmatched, 0);
-  assert.ok(result.governance.candidateUniverseIntelligence.candidateUniverseHash);
+
+  const universe = result.governance.candidateUniverseIntelligence;
+  assert.equal(universe.candidatesConsidered, CANDIDATES.length);
+  assert.equal(universe.uniqueCandidateNames, CANDIDATES.length);
+  assert.equal(universe.duplicateCandidateGroups, 0);
+  assert.equal(universe.provenanceGaps.length, 0);
+  assert.equal(universe.status, 'universe-found');
 
   const ranking = result.intelligence.ranking;
   assert.equal(ranking.length, CANDIDATES.length);
