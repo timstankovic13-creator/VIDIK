@@ -87,6 +87,13 @@ assert.ok(ready.optimization.opportunityCost.foregoneExpectedIncrement > 0);
 assert.ok(ready.analysisInputs['supportive-housing-expansion'].parameter.verified);
 assert.strictEqual(ready.analysisInputs['housing-first'].voi.value, 2.5);
 
+const housingModel = ready.optimization.candidates.find(candidate => candidate.id === 'housing-first');
+assert.ok(housingModel, 'housing-first must reach the real resource optimizer');
+assert.ok(Math.abs(housingModel.effectPerCad - 45.8 / 1000000) < 1e-15, 'effect/resource ratio must come from the supplied marginal chain, not a synthetic unit model');
+assert.ok(Math.abs(housingModel.translation.capacity.value - 1) < 1e-12, 'capacity translation must use the supplied incremental capacity');
+assert.ok(Math.abs(housingModel.translation.activity.value - 1) < 1e-12, 'activity translation must use the supplied incremental activity');
+assert.ok(Math.abs(housingModel.translation.outcome.expectedIncrement - 45.8) < 1e-12, 'outcome translation must preserve the supplied incremental outcome');
+
 const noVoi = buildDecisionAnalysisInputs({
   candidates,
   evidence: {
@@ -106,4 +113,5 @@ console.log('Decision quantification bridge: PASS');
 console.log('Real Toronto causal evidence accepted as verified parameter input.');
 console.log('Incomplete municipal resource evidence remains blocked at the marginal causal boundary.');
 console.log('Complete verified chains produce quantitative optimization and explicit opportunity cost.');
+console.log('The optimizer consumes the supplied resource -> capacity -> activity -> outcome chain without synthetic 1:1 factors.');
 console.log('Missing VOI remains recommendation-blocking rather than being invented.');
