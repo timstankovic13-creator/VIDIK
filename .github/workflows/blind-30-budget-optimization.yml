@@ -1,0 +1,28 @@
+name: Blind 30 Budget Optimization Campaign
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+# A campaign run for the same PR must never pile up behind an older run.
+# The PR is the authoritative trigger; branch pushes are intentionally not a
+# second trigger because every push to a PR branch already updates the PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  blind-30-budget-optimization:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run 30 blind budget optimization tests
+        run: node --test tests/blind-30-budget-optimization.test.js
+      - name: Run quantitative bridge regression
+        run: node tests/decision-quantification-bridge.test.js
+      - name: Run resource optimization regression
+        run: node tests/vidik-resource-optimization.test.js

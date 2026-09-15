@@ -35,7 +35,7 @@ function buildResourceProductionModel(resource, effectUnit) {
   const incrementalCapacity = Number(resource.incrementalCapacity);
   const incrementalActivity = Number(resource.incrementalActivity);
   const incrementalOutcome = Number(resource.incrementalOutcome);
-  const evidenceIds = Array.isArray(resource.evidenceIds) ? resource.evidenceIds.slice() : [resource.evidenceId];
+  const evidenceIds = [...new Set([resource.evidenceId, ...(Array.isArray(resource.evidenceIds) ? resource.evidenceIds : [])].filter(Boolean))];
   return {
     capacityPerCad: incrementalCapacity / resourceAmount,
     activityPerCapacity: incrementalActivity / incrementalCapacity,
@@ -98,11 +98,6 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     };
   }
 
-  // A mixed evidence universe is not itself a failure. The decision engine must
-  // retain blocked candidates for audit/learning while allowing the verified,
-  // quantitatively admissible subset to compete. A recommendation is therefore
-  // blocked only when the admissible decision set cannot satisfy the quantitative
-  // gates, not merely because other candidates remain evidence-incomplete.
   const quantitativeSubsetReady = rows.length > 0 && optimization.status === 'OPTIMIZED';
   const allAdmissibleHaveVoi = rows.length > 0 && rows.every(row => analysis[row.id].voi.defined);
   const recommendationReady = quantitativeSubsetReady && allAdmissibleHaveVoi && statusQuo?.explicit === true;

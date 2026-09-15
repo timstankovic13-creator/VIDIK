@@ -1,0 +1,14 @@
+name: Blind 30 Budget Final v2
+on:
+  push:
+    branches: [ blind-30-budget-optimization-v1 ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - run: node --test tests/blind-30-budget-final.test.js
+      - run: node tests/decision-quantification-bridge.test.js
+      - run: node tests/vidik-resource-optimization.test.js
