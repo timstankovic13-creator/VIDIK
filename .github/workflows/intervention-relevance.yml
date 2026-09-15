@@ -1,0 +1,34 @@
+name: VIDIK Intervention Relevance Validation
+
+on:
+  pull_request:
+    paths:
+      - 'js/source-driven-intervention-discovery.js'
+      - 'tests/intervention-relevance-scenarios.test.js'
+      - 'tests/intervention-relevance-novel-problems.test.js'
+      - '.github/workflows/intervention-relevance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/source-driven-intervention-discovery.js'
+      - 'tests/intervention-relevance-scenarios.test.js'
+      - 'tests/intervention-relevance-novel-problems.test.js'
+      - '.github/workflows/intervention-relevance.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  relevance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run established relevance scenarios
+        run: node --test tests/intervention-relevance-scenarios.test.js
+      - name: Run novel-problem relevance scenarios
+        run: node --test tests/intervention-relevance-novel-problems.test.js
