@@ -7,77 +7,55 @@ const Closure = require('./vidik-decision-artifact-closure');
 const DecisionIntelligence = require('./decision-intelligence-9.7');
 const ResourceOptimization = require('./vidik-resource-optimization');
 
-const sha256 = value => crypto.createHash('sha256').update(JSON.stringify(value, Object.keys(value || {}).sort())).digest('hex');
+const stable = value => {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;
+  return JSON.stringify(value);
+};
+const sha256 = value => crypto.createHash('sha256').update(stable(value)).digest('hex');
 const finite = value => Number.isFinite(Number(value));
+const EFFECT_KEYS = new Set(['effect', 'causalEffect', 'estimate', 'effectPerCad', 'expectedEffect', 'score', 'value', 'parameter', 'verifiedParameter']);
+
+function findEffectLeak(value, path = '') {
+  if (!value || typeof value !== 'object') return null;
+  if (Array.isArray(value)) { for (let i = 0; i < value.length; i++) { const hit = findEffectLeak(value[i], `${path}[${i}]`); if (hit) return hit; } return null; }
+  for (const [key, child] of Object.entries(value)) {
+    if (EFFECT_KEYS.has(key)) return path ? `${path}.${key}` : key;
+    const hit = findEffectLeak(child, path ? `${path}.${key}` : key);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 function canonicalCandidate(candidate, sourceId) {
   if (!candidate || !candidate.id) throw new Error('open-world-candidate-id-required');
-  const forbidden = ['effect', 'causalEffect', 'estimate', 'effectPerCad', 'expectedEffect', 'score', 'value'];
-  const leaked = forbidden.filter(key => candidate[key] !== undefined);
-  if (leaked.length) throw new Error(`discovery-effect-leak:${candidate.id}:${leaked.join(',')}`);
-  return {
-    id: String(candidate.id),
-    name: String(candidate.name || candidate.id),
-    domains: Array.isArray(candidate.domains) ? [...new Set(candidate.domains.map(String))] : [],
-    problemTags: Array.isArray(candidate.problemTags) ? [...new Set(candidate.problemTags.map(String))] : [],
-    requiredEvidence: Array.isArray(candidate.requiredEvidence) ? [...new Set(candidate.requiredEvidence.map(String))] : ['causal', 'implementation', 'cost', 'equity'],
-    discovery: {
-      source: 'open-world-acquisition',
-      sourceId: sourceId || null,
-      leadOnly: true,
-      provenance: candidate.provenance || []
-    }
-  };
+  const leaked = findEffectLeak(candidate);
+  if (leaked) throw new Error(`discovery-effect-leak:${candidate.id}:${leaked}`);
+  return { id: String(candidate.id), name: String(candidate.name || candidate.id), domains: Array.isArray(candidate.domains) ? [...new Set(candidate.domains.map(String))] : [], problemTags: Array.isArray(candidate.problemTags) ? [...new Set(candidate.problemTags.map(String))] : [], requiredEvidence: Array.isArray(candidate.requiredEvidence) ? [...new Set(candidate.requiredEvidence.map(String))] : ['causal', 'implementation', 'cost', 'equity'], discovery: { source: 'open-world-acquisition', sourceId: sourceId || null, leadOnly: true, provenance: candidate.provenance || [] } };
 }
 
 async function discoverOpenWorldInterventions({ problem, discoverySources = [], fallbackRegistry = [] } = {}) {
   if (!String(problem || '').trim()) throw new Error('open-world-problem-required');
   const sources = Array.isArray(discoverySources) ? discoverySources : [];
-  const results = [];
-  const sourceSearches = [];
-  const seen = new Set();
+  const results = [], sourceSearches = [], seen = new Set();
   for (const source of sources) {
-    const sourceId = String(source?.id || 'unknown-source');
-    const startedAt = new Date().toISOString();
+    const sourceId = String(source?.id || 'unknown-source'), startedAt = new Date().toISOString();
     try {
       if (typeof source?.search !== 'function') throw new Error('discovery-source-search-unavailable');
       const raw = await source.search({ problem });
       if (!Array.isArray(raw)) throw new Error('discovery-source-invalid-result');
       let accepted = 0;
-      for (const candidate of raw) {
-        const normalized = canonicalCandidate(candidate, sourceId);
-        if (seen.has(normalized.id)) continue;
-        seen.add(normalized.id);
-        results.push(normalized);
-        accepted += 1;
-      }
+      for (const candidate of raw) { const normalized = canonicalCandidate(candidate, sourceId); if (seen.has(normalized.id)) continue; seen.add(normalized.id); results.push(normalized); accepted++; }
       sourceSearches.push({ sourceId, status: 'success', candidatesReturned: raw.length, candidatesAccepted: accepted, startedAt, completedAt: new Date().toISOString() });
-    } catch (error) {
-      sourceSearches.push({ sourceId, status: 'failed', candidatesReturned: 0, failureReason: error.message, startedAt, completedAt: new Date().toISOString() });
-    }
+    } catch (error) { sourceSearches.push({ sourceId, status: 'failed', candidatesReturned: 0, failureReason: error.message, startedAt, completedAt: new Date().toISOString() }); }
   }
-  // The legacy registry is explicitly non-authoritative. It is allowed only as a
-  // diagnostic comparison and can never make an open-world run complete.
   const registryMatches = Discovery.discoverInterventions({ problem, candidates: fallbackRegistry }).map(c => c.id);
   const complete = sources.length > 0 && sourceSearches.every(s => s.status === 'success') && results.length > 0;
-  return {
-    schemaVersion: 'vidik.open-world-discovery.v1',
-    problem: String(problem).trim(),
-    candidates: results,
-    sourceSearches,
-    sourceCount: sources.length,
-    candidateCount: results.length,
-    registryDiagnosticMatches: registryMatches,
-    openWorld: true,
-    complete,
-    failureState: complete ? null : (sources.length === 0 ? 'no-discovery-sources' : results.length === 0 ? 'no-candidates-discovered' : 'source-acquisition-incomplete'),
-    discoveryHash: sha256({ problem, results, sourceSearches })
-  };
+  return { schemaVersion: 'vidik.open-world-discovery.v1', problem: String(problem).trim(), candidates: results, sourceSearches, sourceCount: sources.length, candidateCount: results.length, registryDiagnosticMatches: registryMatches, openWorld: true, complete, failureState: complete ? null : (sources.length === 0 ? 'no-discovery-sources' : results.length === 0 ? 'no-candidates-discovered' : 'source-acquisition-incomplete'), discoveryHash: sha256({ problem, results, sourceSearches }) };
 }
 
 async function acquireEvidenceForCandidates({ candidates = [], evidenceSources = [], targetJurisdiction } = {}) {
-  const evidenceDiscovery = {};
-  const allLeads = [];
+  const evidenceDiscovery = {}, allLeads = [];
   for (const candidate of candidates) {
     const sourceResults = [];
     for (const source of evidenceSources) {
@@ -88,22 +66,13 @@ async function acquireEvidenceForCandidates({ candidates = [], evidenceSources =
         if (!Array.isArray(raw)) throw new Error('evidence-source-invalid-result');
         for (const lead of raw) {
           if (!lead || !lead.id || !lead.provenance?.externalId) throw new Error(`evidence-lead-provenance-missing:${candidate.id}`);
-          if (lead.effect !== undefined || lead.causalEffect !== undefined || lead.estimate !== undefined || lead.parameter !== undefined) throw new Error(`evidence-effect-leak:${candidate.id}`);
-          const normalized = {
-            ...lead,
-            id: String(lead.id),
-            candidateId: candidate.id,
-            sourceId,
-            evidenceLeadOnly: true,
-            causalEffectImported: false,
-            provenance: { ...lead.provenance, sourceId, externalId: String(lead.provenance.externalId) }
-          };
+          const leaked = findEffectLeak(lead);
+          if (leaked) throw new Error(`evidence-effect-leak:${candidate.id}:${leaked}`);
+          const normalized = { ...lead, id: String(lead.id), candidateId: candidate.id, sourceId, evidenceLeadOnly: true, causalEffectImported: false, provenance: { ...lead.provenance, sourceId, externalId: String(lead.provenance.externalId) } };
           allLeads.push(normalized);
         }
         sourceResults.push({ sourceId, status: 'success', leadsReturned: raw.length });
-      } catch (error) {
-        sourceResults.push({ sourceId, status: 'failed', leadsReturned: 0, failureReason: error.message });
-      }
+      } catch (error) { sourceResults.push({ sourceId, status: 'failed', leadsReturned: 0, failureReason: error.message }); }
     }
     evidenceDiscovery[candidate.id] = { candidateId: candidate.id, evidenceLeads: allLeads.filter(l => l.candidateId === candidate.id), sourceResults, status: sourceResults.length && sourceResults.some(s => s.status === 'success') ? 'found' : 'failed' };
   }
@@ -112,16 +81,12 @@ async function acquireEvidenceForCandidates({ candidates = [], evidenceSources =
 }
 
 function buildVerifiedParameters({ candidates = [], evidenceLeads = [], verifications = {}, targetJurisdiction } = {}) {
-  const byCandidate = {};
-  const failures = {};
+  const byCandidate = {}, failures = {};
   for (const candidate of candidates) {
-    const leads = evidenceLeads.filter(lead => lead.candidateId === candidate.id);
     const promoted = [];
-    for (const lead of leads) {
-      const verification = verifications[lead.id] || null;
-      const gate = Promotion.assessEvidencePromotion({ lead, verification, targetJurisdiction, requiredEvidence: candidate.requiredEvidence });
-      if (gate.eligible) promoted.push(gate.verifiedParameter);
-      else failures[lead.id] = gate.reasons;
+    for (const lead of evidenceLeads.filter(x => x.candidateId === candidate.id)) {
+      const gate = Promotion.assessEvidencePromotion({ lead, verification: verifications[lead.id] || null, targetJurisdiction, requiredEvidence: candidate.requiredEvidence });
+      if (gate.eligible) promoted.push(gate.verifiedParameter); else failures[lead.id] = gate.reasons;
     }
     if (promoted.length) byCandidate[candidate.id] = promoted[0];
   }
@@ -130,37 +95,19 @@ function buildVerifiedParameters({ candidates = [], evidenceLeads = [], verifica
 }
 
 function buildOptimizerInputs({ candidates, verifiedParameters, resourceEnvelope, objectiveMetric }) {
-  const comparison = [];
-  const models = {};
+  const comparison = [], models = {};
   for (const candidate of candidates) {
-    const p = verifiedParameters.parametersByCandidate[candidate.id];
+    const promotion = verifiedParameters.parametersByCandidate[candidate.id], p = promotion?.parameter;
     if (!p) continue;
-    const unit = String(p.unit || 'outcome_units');
-    // The optimizer's chain is assembled from verified parameters only. No
-    // numerical value is read from discovery candidates.
-    const estimate = Number(p.estimate);
-    const low = Number(p.uncertainty.low), high = Number(p.uncertainty.high);
+    const unit = String(p.unit || 'outcome_units'), estimate = Number(p.estimate), low = Number(p.uncertainty.low), high = Number(p.uncertainty.high);
     if (![estimate, low, high].every(finite) || low > high) continue;
-    models[candidate.id] = {
-      resourceUnit: resourceEnvelope.marginalUnit.unit,
-      capacityPerCad: 1,
-      activityPerCapacity: 1,
-      effectPerActivity: estimate,
-      objectiveMetric: objectiveMetric || unit,
-      capacityUnit: 'resource-units',
-      activityUnit: 'activity-units',
-      effectUnit: unit,
-      uncertainty: { low, high },
-      evidenceIds: [p.sourceId, p.externalId, p.verificationId].filter(Boolean)
-    };
+    models[candidate.id] = { resourceUnit: resourceEnvelope.marginalUnit.unit, capacityPerCad: 1, activityPerCapacity: 1, effectPerActivity: estimate, objectiveMetric: objectiveMetric || unit, capacityUnit: 'resource-units', activityUnit: 'activity-units', effectUnit: unit, uncertainty: { low, high }, evidenceIds: [promotion.sourceId, promotion.externalId, promotion.verificationId].filter(Boolean) };
     comparison.push({ id: candidate.id, name: candidate.name, status: 'ADMISSIBLE', source: 'verified-parameter' });
   }
   return { comparison, models };
 }
 
-function analyzeSameDecisionInputs({ baseline, parameters, correlations, scoreFn, voiCandidates, sensitivitySteps = 21, uncertaintySamples = 2000, decisionValue = 1 }) {
-  return DecisionIntelligence.analyze({ baseline, parameters, correlations, scoreFn, candidates: voiCandidates, sensitivitySteps, uncertaintySamples, decisionValue });
-}
+function analyzeSameDecisionInputs({ baseline, parameters, correlations, scoreFn, voiCandidates, sensitivitySteps = 21, uncertaintySamples = 2000, decisionValue = 1 }) { return DecisionIntelligence.analyze({ baseline, parameters, correlations, scoreFn, candidates: voiCandidates, sensitivitySteps, uncertaintySamples, decisionValue }); }
 
 function certifyClosedLoop({ discovery, evidence, verified, optimizer, analysis, statusQuo, opportunityCost, artifact, learning }) {
   const reasons = [];
@@ -182,7 +129,7 @@ async function runOpenWorldDecision({ problem, objective, discoverySources = [],
   const verified = buildVerifiedParameters({ candidates: discovery.candidates, evidenceLeads: evidence.evidenceLeads, verifications, targetJurisdiction });
   const optimizerInputs = buildOptimizerInputs({ candidates: discovery.candidates, verifiedParameters: verified, resourceEnvelope, objectiveMetric });
   const optimizer = ResourceOptimization.evaluateResourceOptimization(resourceEnvelope, optimizerInputs.comparison, optimizerInputs.models);
-  const sameParameters = parameters.length ? parameters : Object.entries(verified.parametersByCandidate).map(([id, p]) => ({ id: `${id}.effect`, low: p.uncertainty.low, mean: p.estimate, high: p.uncertainty.high }));
+  const sameParameters = parameters.length ? parameters : Object.entries(verified.parametersByCandidate).map(([id, p]) => ({ id: `${id}.effect`, low: p.parameter.low, mean: p.parameter.estimate, high: p.parameter.high }));
   const analysis = analyzeSameDecisionInputs({ baseline: baseline || {}, parameters: sameParameters, correlations, scoreFn, voiCandidates, decisionValue: 1 });
   const artifact = selectedArtifact ? Closure.validateDecisionArtifact(selectedArtifact) : { valid: false, reasons: ['selected-artifact-missing'] };
   const learning = { historyImmutable: true, automaticParameterMutation: false, baselineArtifactHash: selectedArtifact?.artifactHash || null, observations: observations.map(o => ({ metric: o.metric, predicted: o.predicted, observed: o.observed })) };
@@ -203,4 +150,4 @@ function blindTournament({ runs = [] } = {}) {
   return { schemaVersion: 'vidik.blind-tournament.v1', runCount: runs.length, failures, passed: failures.length === 0, tournamentHash: sha256(runs.map(r => ({ id: r.id, discoveryHash: r.discovery?.discoveryHash, certificationHash: r.certification?.certificationHash }))) };
 }
 
-module.exports = { discoverOpenWorldInterventions, acquireEvidenceForCandidates, buildVerifiedParameters, buildOptimizerInputs, analyzeSameDecisionInputs, certifyClosedLoop, runOpenWorldDecision, blindTournament, canonicalCandidate, sha256 };
+module.exports = { discoverOpenWorldInterventions, acquireEvidenceForCandidates, buildVerifiedParameters, buildOptimizerInputs, analyzeSameDecisionInputs, certifyClosedLoop, runOpenWorldDecision, blindTournament, canonicalCandidate, sha256, findEffectLeak };
