@@ -1,5 +1,6 @@
 name: VIDIK Intervention Relevance Validation
 
+# Explicit engine validation: exercise the intervention-relevance contract directly.
 on:
   pull_request:
     paths:
