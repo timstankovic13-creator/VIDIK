@@ -1,0 +1,22 @@
+name: VIDIK Intelligence Completion v1
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, intelligence-completion-v1]
+jobs:
+  intelligence-completion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Intervention universe hardening
+        run: node --test tests/intelligence-completion-intervention-universe.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
+      - name: Evidence sufficiency hardening
+        run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js
+      - name: Core discovery regression
+        run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
+      - name: Full scope regression
+        run: node --test tests/vidik-full-scope-functional.test.js
