@@ -13,6 +13,7 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       await page.evaluate(reconciliation=>{
         window.VIDIK_MUNICIPAL_RECONCILIATIONS={[reconciliation.identity.name]:reconciliation};
       },f.reconciliation);
+      await page.fill('#decisionProblem','Improve housing stability');
       await page.selectOption('#city',city);
       await page.evaluate(()=>window.VIDIK_92_INTEGRATION.recompute());
       await expect.poll(()=>page.evaluate(()=>window.VIDIK_92_INTEGRATION.status)).toBe('READY');
@@ -47,8 +48,6 @@ test.describe('VIDIK real municipal end-to-end lifecycle validation',()=>{
       expect(persisted.record.decisionObject.municipalEvidence.normalizedEvidence.status).toBe('verified');
       expect(persisted.record.decisionObject.municipalOutcomePlan.mode).toBe('validation-fixture');
 
-      // Governance controls are intentionally inside a collapsed advanced panel in the product UI.
-      // Open that real panel before interacting rather than weakening the UI or the lifecycle assertions.
       await page.locator('details').filter({has: page.locator('#lifecycleActor')}).evaluate(el=>{el.open=true});
       await page.fill('#lifecycleActor','municipal decision committee');
       await page.fill('#lifecycleOverride','ase');

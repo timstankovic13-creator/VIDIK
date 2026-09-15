@@ -1,27 +1,19 @@
 name: VIDIK Production Finish Line
 
+# This is an explicit certification workflow, not a per-commit fan-out.
+# Run it deliberately after the targeted validation is green.
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
-jobs:
-  live-generalization:
-    name: Live arbitrary-problem generalization
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --no-package-lock --no-audit --no-fund
-      - run: npm run test:production-finish-line
+concurrency:
+  group: vidik-production-finish-line
+  cancel-in-progress: true
 
-  production-battery:
-    name: Production decision battery
+jobs:
+  production-finish-line:
+    name: Production finish-line certification
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,16 +42,9 @@ jobs:
           npm run test:municipal-production
           npm run test:municipal-decision-integrity
           npm run test:outcome-learning
-
-  browser-acceptance:
-    name: Browser production acceptance
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --no-package-lock --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Browser production acceptance
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Production finish-line generalization
+        run: npm run test:production-finish-line
