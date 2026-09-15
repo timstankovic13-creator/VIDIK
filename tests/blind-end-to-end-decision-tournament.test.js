@@ -68,18 +68,26 @@ for (const scenario of CASES) {
       decisionContext: { outcomeObservations: [] }
     });
 
-    // Problem -> universe: multiple leads survive discovery, while the engine retains governance metadata.
+    // Problem -> universe: the supplied intervention leads plus comparable-city learning leads survive discovery.
     assert.equal(result.problem, scenario.problem);
-    assert.equal(result.candidates.length, 3);
+    assert.equal(result.candidates.length, 4);
+    assert.ok(result.candidates.some(candidate => candidate.id === 'street-redesign' || candidate.id === 'cooling-centres'));
     assert.ok(result.governance.candidateUniverseIntelligence);
     assert.ok(result.governance.candidateUniverseIntelligence.candidatesConsidered >= 3);
     assert.ok(result.governance.discoveryStrategyHash);
 
-    // Evidence: candidate-specific searches are diversified, but lead-only evidence cannot become effects.
-    assert.equal(result.evidenceSearches.length, 3);
+    // Comparable-city candidates are explicitly discovery-only and must never import effects.
+    const comparableLead = result.candidates.find(candidate => candidate.discovery?.sourceType === 'comparable-city');
+    assert.ok(comparableLead);
+    assert.equal(comparableLead.discovery.leadOnly, true);
+    assert.equal(comparableLead.discovery.effectsImported, false);
+
+    // Evidence: every surviving candidate gets a candidate-specific search; lead-only evidence cannot become effects.
+    assert.equal(result.evidenceSearches.length, result.candidates.length);
     assert.ok(result.evidenceSearches.every(search => search.status !== 'search-failed'));
-    assert.ok(result.evidenceDiscovery.length === 3);
-    assert.ok(result.evidenceDiscovery.every(item => item.effectsImported === false));
+    assert.ok(result.evidenceSearches.every(search => search.sourceIds.length >= 2));
+    assert.equal(result.evidenceDiscovery.length, 0);
+    assert.ok(Object.values(result.governance.evidenceToDecisionGates).every(gate => gate.recommendationEligible === false));
 
     // Decision boundary: insufficient causal qualification blocks recommendation rather than inventing one.
     assert.equal(result.governance.recommendationAllowed, false);
@@ -91,7 +99,7 @@ for (const scenario of CASES) {
     assert.equal(result.governance.whyNotAvailable, true);
     assert.ok(result.nextPhase.whyWhyNot);
     assert.equal(result.governance.counterfactualRequired, true);
-    assert.equal(Object.keys(result.governance.decisionArtifacts).length, 3);
+    assert.equal(Object.keys(result.governance.decisionArtifacts).length, result.candidates.length);
     assert.ok(Object.values(result.governance.decisionArtifacts).every(artifact => artifact.validation.valid === true));
     assert.ok(result.governance.reviewPlan);
     assert.ok(result.governance.outcomeClosure);
