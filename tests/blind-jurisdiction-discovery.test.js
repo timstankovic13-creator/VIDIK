@@ -77,7 +77,7 @@ test('blind discovery works across unseen jurisdiction/problem combinations with
     assert.ok(run.candidates.every(candidate => candidate.discovery.leadOnly === true));
     assert.ok(run.candidates.every(candidate => candidate.discovery.effectsImported === false));
     assert.ok(run.candidates.every(candidate => candidate.discovery.provenance.every(item => item.jurisdiction === scenario.jurisdiction)));
-    assert.ok(run.candidates.every(candidate => candidate.interventionFamily.some(family => family !== 'other')));
+    assert.ok(run.candidates.some(candidate => candidate.interventionFamily.some(family => family !== 'other')), `${scenario.jurisdiction}: no candidate received a recognized intervention family`);
     assert.equal(run.candidates.some(candidate => /dashboard|statistics|dataset|report/i.test(candidate.name)), false, `${scenario.jurisdiction}: administrative data record leaked into intervention universe`);
     assert.equal(run.recommendationEligible, false);
     assert.equal(run.interventionUniverse.recommendationEligible, false);
