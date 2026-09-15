@@ -54,5 +54,6 @@ jobs:
         with:
           node-version: 20
       - run: npm install --ignore-scripts
+      - run: npx playwright install --with-deps chromium
       - run: npx playwright test tests/e2e/production-gui-engine6.spec.js
       - run: npx playwright test tests/e2e/decision-intelligence-9.7-browser.spec.js
