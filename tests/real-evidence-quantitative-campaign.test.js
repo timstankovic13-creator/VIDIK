@@ -47,9 +47,9 @@ const problems = [
       { id: 'supportive-housing-expansion', name: 'Supportive housing expansion' },
       { id: 'shelter-capacity', name: 'Shelter capacity expansion' },
       { id: 'rapid-rehousing-pilot', name: 'Rapid rehousing pilot' },
-      { id: 'comparable-city-housing-lead', name: 'Comparable-city housing lead' },
       { id: 'housing-dashboard', name: 'Housing dashboard' }
-    ]
+    ],
+    comparableCities: [{ city: 'Vancouver', problem: 'improve stable housing outcomes for people experiencing homelessness', interventions: 'supportive housing' }]
   },
   {
     problem: 'reduce pedestrian injuries around high-risk corridors',
@@ -59,7 +59,8 @@ const problems = [
       { id: 'corridor-redesign', name: 'High-risk corridor redesign' },
       { id: 'quick-build-pilot', name: 'Quick-build safety pilot' },
       { id: 'pedestrian-dashboard', name: 'Pedestrian injury dashboard' }
-    ]
+    ],
+    comparableCities: [{ city: 'Toronto', problem: 'reduce pedestrian injuries around high-risk corridors', interventions: 'road safety redesign' }]
   },
   {
     problem: 'reduce extreme heat illness',
@@ -69,7 +70,8 @@ const problems = [
       { id: 'heat-alert-outreach', name: 'Heat alert outreach' },
       { id: 'reflective-roof-pilot', name: 'Reflective roof pilot' },
       { id: 'heat-dashboard', name: 'Heat illness dashboard' }
-    ]
+    ],
+    comparableCities: [{ city: 'Toronto', problem: 'reduce extreme heat illness', interventions: 'cooling centres' }]
   }
 ];
 
@@ -86,15 +88,8 @@ const evidenceProfiles = {
     marginal: marginal('supportive-housing-expansion', 500000, 30),
     voi: 1.5
   },
-  'shelter-capacity': {
-    state: 'causal-supported-resource-incomplete',
-    causal: causal(12, 'shelter-causal-rct-verified')
-  },
-  'rapid-rehousing-pilot': {
-    state: 'resource-supported-causal-incomplete',
-    marginal: marginal('rapid-rehousing-pilot', 400000, 8)
-  },
-  'comparable-city-housing-lead': { state: 'comparable-city-lead' },
+  'shelter-capacity': { state: 'causal-supported-resource-incomplete', causal: causal(12, 'shelter-causal-rct-verified') },
+  'rapid-rehousing-pilot': { state: 'resource-supported-causal-incomplete', marginal: marginal('rapid-rehousing-pilot', 400000, 8) },
   'housing-dashboard': { state: 'irrelevant-admin-data-false-positive' },
   'pedestrian-safety-program': {
     state: 'fully-quantified',
@@ -102,10 +97,7 @@ const evidenceProfiles = {
     marginal: { ...marginal('pedestrian-safety-program', 750000, 18, 'ottawa-pedestrian-resource-chain-verified'), unit: 'percentage-point reduction in pedestrian injury rate', uncertainty: { low: 12, high: 24 } },
     voi: 1.1
   },
-  'corridor-redesign': {
-    state: 'causal-supported-resource-incomplete',
-    causal: causal(10, 'corridor-redesign-causal-verified', 'percentage-point reduction in pedestrian injury rate')
-  },
+  'corridor-redesign': { state: 'causal-supported-resource-incomplete', causal: causal(10, 'corridor-redesign-causal-verified', 'percentage-point reduction in pedestrian injury rate') },
   'quick-build-pilot': {
     state: 'experimental-promising',
     marginal: { ...marginal('quick-build-pilot', 250000, 5, 'quick-build-resource-observation'), unit: 'percentage-point reduction in pedestrian injury rate', uncertainty: { low: 0, high: 12 }, transportability: { admissible: false } }
@@ -115,40 +107,44 @@ const evidenceProfiles = {
     state: 'resource-supported-causal-incomplete',
     marginal: { ...marginal('cooling-centres', 300000, 4, 'ottawa-cooling-centre-resource-observation'), unit: 'heat-illness outcome units' }
   },
-  'heat-alert-outreach': {
-    state: 'causal-supported-resource-incomplete',
-    causal: causal(7, 'heat-outreach-causal-verified', 'heat-illness outcome units')
-  },
+  'heat-alert-outreach': { state: 'causal-supported-resource-incomplete', causal: causal(7, 'heat-outreach-causal-verified', 'heat-illness outcome units') },
   'reflective-roof-pilot': { state: 'experimental-promising' },
   'heat-dashboard': { state: 'irrelevant-admin-data-false-positive' }
 };
 
 function discoverySearchers(scenario) {
+  const admin = scenario.candidates.find(candidate => candidate.id.endsWith('-dashboard'));
   return {
     'local-program': async () => ({ sourceId: `${scenario.jurisdiction}-local-program`, jurisdiction: scenario.jurisdiction, candidates: scenario.candidates.slice(0, 2) }),
     research: async () => ({ sourceId: `${scenario.jurisdiction}-research`, jurisdiction: scenario.jurisdiction, candidates: scenario.candidates.slice(2, 4) }),
-    'intervention-library': async () => ({ sourceId: `${scenario.jurisdiction}-library`, jurisdiction: scenario.jurisdiction, candidates: scenario.candidates.filter(c => c.id === 'comparable-city-housing-lead') }),
-    'official-data': async () => ({ sourceId: `${scenario.jurisdiction}-official-data`, jurisdiction: scenario.jurisdiction, candidates: [{ id: `${scenario.problem}-admin-data`, name: 'Official outcome dashboard', problemTags: ['administrative-data'] }] })
+    'intervention-library': async () => ({ sourceId: `${scenario.jurisdiction}-library`, jurisdiction: scenario.jurisdiction, candidates: [] }),
+    'official-data': async () => ({ sourceId: `${scenario.jurisdiction}-official-data`, jurisdiction: scenario.jurisdiction, candidates: admin ? [admin] : [] })
   };
 }
 
 test('real-evidence quantitative campaign preserves mixed evidence states and optimizes only admissible candidates', async () => {
+  const seenStates = new Set();
   for (const scenario of problems) {
     const discovered = await executeDecisionDiscovery({
       problem: scenario.problem,
       discoveryJurisdiction: scenario.jurisdiction,
       requiredSourceTypes: SOURCE_TYPES.filter(type => type !== 'comparable-city'),
       searchers: discoverySearchers(scenario),
+      comparableCities: scenario.comparableCities,
       evidenceSearcher: async ({ candidate }) => {
         const profile = evidenceProfiles[candidate.id];
+        if (profile) seenStates.add(profile.state);
         return profile ? { status: 'searched', evidence: { causal: profile.causal, marginalResource: profile.marginal }, sourceIds: [profile.causal?.sourceId, profile.marginal?.evidenceId].filter(Boolean) } : { status: 'searched', evidence: {} };
       },
       statusQuo: { explicit: true, effect: 0, label: 'status quo' }
     });
 
     assert.equal(discovered.governance.recommendationAllowed, false, `${scenario.problem}: discovery alone must not recommend`);
-    assert.ok(discovered.candidates.length >= 2, `${scenario.problem}: multiple discovered interventions must survive`);
-    assert.ok(discovered.discoveryAudit?.candidateUniverseHash || discovered.governance.candidateUniverseIntelligence, `${scenario.problem}: candidate-universe audit missing`);
+    assert.ok(discovered.candidates.length >= 3, `${scenario.problem}: multiple discovered interventions must survive`);
+    assert.ok(discovered.governance.candidateUniverseIntelligence, `${scenario.problem}: candidate-universe audit missing`);
+    assert.equal(discovered.comparableCityLeads.length, 1, `${scenario.problem}: comparable-city lead must be preserved separately`);
+    assert.equal(discovered.comparableCityLeads[0].leadOnly, true, `${scenario.problem}: comparator must remain lead-only`);
+    assert.equal(discovered.comparableCityLeads[0].effectsImported, false, `${scenario.problem}: comparator effects must not be imported`);
 
     const discoveredIds = new Set(discovered.candidates.map(c => c.id));
     const admissibleIds = scenario.candidates.map(c => c.id).filter(id => discoveredIds.has(id) && evidenceProfiles[id]?.state === 'fully-quantified');
@@ -168,6 +164,7 @@ test('real-evidence quantitative campaign preserves mixed evidence states and op
     assert.ok(quant.optimization.candidates.every(c => admissibleIds.includes(c.id)), `${scenario.problem}: non-admissible candidate entered optimizer`);
     assert.ok(quant.status === 'DECISION_QUANTITATIVE_READY' || quant.status === 'QUANTITATIVE_READY_VOI_OR_GATE_REQUIRED', `${scenario.problem}: unexpected quantitative status ${quant.status}`);
   }
+  for (const state of ['fully-quantified', 'causal-supported-resource-incomplete', 'resource-supported-causal-incomplete', 'experimental-promising', 'irrelevant-admin-data-false-positive']) assert.ok(seenStates.has(state), `campaign never exercised ${state}`);
 });
 
 test('real Toronto causal evidence and live municipal three-city evidence remain part of the campaign', async () => {
