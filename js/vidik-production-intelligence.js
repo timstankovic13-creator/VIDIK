@@ -4,6 +4,8 @@ const crypto = require('node:crypto');
 const Discovery = require('./intervention-discovery');
 const Promotion = require('./evidence-promotion-gate');
 const Closure = require('./vidik-decision-artifact-closure');
+const DecisionIntelligence = require('./decision-intelligence-9.7');
+const ResourceOptimization = require('./vidik-resource-optimization');
 
 function stable(value) {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -88,7 +90,37 @@ function buildLearningEnvelope({ artifactHash, observations = [] } = {}) {
   return { schemaVersion: 'vidik.production-learning.v1', baselineArtifactHash: artifactHash || null, observations: residuals, observedCount: residuals.length, driftSignal: residuals.some(r => Math.abs(r.residual) > 0), attributionRequired: true, automaticParameterMutation: false, historyImmutable: true, learningHash: sha256({ artifactHash, residuals }) };
 }
 
-function certifyDecision({ run, selectedCandidateId = null, verifications = {}, targetJurisdiction = null, budget = null, decisionValue = null, informationCost = null, observations = [], tournament = null } = {}) {
+/**
+ * Runs the canonical Decision Intelligence 9.7 analysis and the canonical
+ * resource optimizer together. This is intentionally an integration gate,
+ * not a second optimizer: production certification must consume the same
+ * sensitivity/uncertainty/VOI and resource->capacity->activity->outcome
+ * machinery used elsewhere in VIDIK.
+ */
+function validateCanonicalDecisionIntegration({ resourceEnvelope, interventionComparison = [], resourceModels = {}, baseline = {}, parameters = [], correlations = [], scoreFn, voiCandidates = [], decisionValue = 1, sensitivitySteps = 21, uncertaintySamples = 500, expectedOptimizerStatus = 'OPTIMIZED' } = {}) {
+  const optimization = ResourceOptimization.evaluateResourceOptimization(resourceEnvelope, interventionComparison, resourceModels);
+  let analysis = null;
+  let analysisError = null;
+  try {
+    analysis = DecisionIntelligence.analyze({ baseline, parameters, correlations, scoreFn, candidates: voiCandidates, decisionValue, sensitivitySteps, uncertaintySamples });
+  } catch (error) {
+    analysisError = error.message;
+  }
+  const analysisValid = Boolean(analysis && analysis.version === DecisionIntelligence.VERSION && analysis.integrityHash && analysis.integrityHash.length === 64);
+  const optimizerValid = optimization.status === expectedOptimizerStatus && Array.isArray(optimization.candidates);
+  return {
+    schemaVersion: 'vidik.canonical-decision-integration.v1',
+    optimizer: optimization,
+    decisionIntelligence: analysis,
+    analysisError,
+    optimizerValid,
+    analysisValid,
+    validated: optimizerValid && analysisValid,
+    integrationHash: sha256({ optimization, analysis, analysisError })
+  };
+}
+
+function certifyDecision({ run, selectedCandidateId = null, verifications = {}, targetJurisdiction = null, budget = null, decisionValue = null, informationCost = null, observations = [], tournament = null, canonicalIntegration = null } = {}) {
   const universe = auditInterventionUniverse({ problem: run?.problem, candidates: run?.candidates || [], sourceSearches: run?.acquisitionSources || run?.sourceSearches || [], statusQuo: run?.statusQuo });
   const evidenceLeads = Object.values(run?.evidenceDiscovery || {}).flatMap(item => item?.evidenceLeads || []).filter(Boolean);
   const evidence = auditEvidencePipeline({ candidates: run?.candidates || [], evidenceLeads, verifications, targetJurisdiction });
@@ -108,7 +140,8 @@ function certifyDecision({ run, selectedCandidateId = null, verifications = {}, 
     outcomeLearning: learning.historyImmutable && learning.automaticParameterMutation === false,
     adversarialReadiness: Boolean(tournament?.passed === true)
   };
-  return { schemaVersion: 'vidik.production-intelligence-certification.v1', stages, complete: Object.values(stages).every(Boolean), blockers: Object.entries(stages).filter(([, ok]) => !ok).map(([id]) => id), universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, tournament: tournament || { passed: false, reason: 'tournament-not-supplied' }, certificationHash: sha256({ stages, universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, tournament }) };
+  if (canonicalIntegration) stages.canonicalIntegration = canonicalIntegration.validated === true;
+  return { schemaVersion: 'vidik.production-intelligence-certification.v1', stages, complete: Object.values(stages).every(Boolean), blockers: Object.entries(stages).filter(([, ok]) => !ok).map(([id]) => id), universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, canonicalIntegration, tournament: tournament || { passed: false, reason: 'tournament-not-supplied' }, certificationHash: sha256({ stages, universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, canonicalIntegration, tournament }) };
 }
 
 function runAdversarialTournament({ scenarios = [] } = {}) {
@@ -124,4 +157,4 @@ function runAdversarialTournament({ scenarios = [] } = {}) {
   return { schemaVersion: 'vidik.adversarial-tournament.v1', results, passed: results.length > 0 && results.every(r => r.passed), tournamentHash: sha256(results) };
 }
 
-module.exports = { auditInterventionUniverse, auditEvidencePipeline, validateOptimization, buildSensitivityEnvelope, calculateVOI, buildLearningEnvelope, certifyDecision, runAdversarialTournament, sha256 };
+module.exports = { auditInterventionUniverse, auditEvidencePipeline, validateOptimization, buildSensitivityEnvelope, calculateVOI, buildLearningEnvelope, validateCanonicalDecisionIntegration, certifyDecision, runAdversarialTournament, sha256 };
