@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Run quantitative evidence acquisition
+        run: node tests/evidence-acquisition-orchestrator.test.js
       - name: Run evidence-to-decision bridge
         run: node tests/decision-quantification-bridge.test.js
       - name: Run quantitative optimizer regression
