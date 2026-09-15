@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: 20
       - name: Intervention universe hardening
-        run: node --test tests/intelligence-completion-intervention-universe.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
+        run: node --test tests/intelligence-completion-intervention-universe.test.js tests/intelligence-completion-arbitrary-problem.integration.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
       - name: Evidence sufficiency hardening
         run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js
       - name: Core discovery regression
