@@ -16,6 +16,8 @@ jobs:
           node-version: 20
       - name: Novel problem generalization
         run: node tests/intelligence-generalization.test.js
+      - name: Novel municipal discovery tournament
+        run: node --test tests/novel-municipal-problem-discovery.test.js
       - name: Existing A-E validation
         run: node tests/intelligence-validation-a-e.test.js
       - name: Existing discovery gauntlet
