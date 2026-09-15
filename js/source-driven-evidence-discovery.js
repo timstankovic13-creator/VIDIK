@@ -6,7 +6,7 @@ const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 function queryFor(candidate, problem) { const name = String(candidate?.name || '').trim(); const text = String(candidate?.discoveryText || '').trim(); return `${problem} ${name} ${text}`.replace(/\s+/g, ' ').slice(0, 500); }
 function buildEvidenceSearchUrl(source, query) { if (!source || !EVIDENCE_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-evidence-source'); const url = new URL(source.url); if (source.sourceId === 'pubmed-eutils') { url.searchParams.set('term', query); url.searchParams.set('retmode', 'json'); } else url.searchParams.set('search', query); return url.toString(); }
 function canonicalEvidenceSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
-function sourceIsAuthoritative(source) { const canonical = canonicalEvidenceSource(source); return Boolean(canonical && source?.jurisdiction === canonical.jurisdiction && EVIDENCE_SOURCE_IDS.has(canonical.sourceId)); }
+function sourceIsAuthoritative(source) { const canonical = canonicalEvidenceSource(source); return Boolean(canonical && (source?.jurisdiction === canonical.jurisdiction || canonical.jurisdiction === 'international') && EVIDENCE_SOURCE_IDS.has(canonical.sourceId)); }
 function extractEvidenceLeads(payload, source, candidate, problem) {
   if (source.sourceId === 'openalex-works') {
     const rows = Array.isArray(payload?.results) ? payload.results : [];
