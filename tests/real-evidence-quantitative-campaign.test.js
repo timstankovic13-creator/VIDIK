@@ -11,8 +11,8 @@ const { runRealEvidenceAll } = require('../scripts/real-three-city-evidence-run'
 function causal(estimate, sourceId, unit = 'percentage-point stable-housing outcome') {
   return { verified: true, evidenceType: 'causal', estimate, unit, uncertainty: { low: estimate * 0.8, high: estimate * 1.2 }, sourceId, provenance: { sourceId, externalId: `${sourceId}-record` }, transportability: { admissible: true } };
 }
-function marginal(id, amount, outcome, evidenceId = `${id}-marginal`) {
-  return { intervention: id, resourceUnit: 'CAD', resourceAmount: amount, incrementalCapacity: 10, incrementalActivity: 10, incrementalOutcome: outcome, unit: 'percentage-point stable-housing outcome', evidenceId, evidenceIds: [evidenceId, `${id}-capacity`, `${id}-activity`], provenance: `${id}: independently verified resource -> capacity -> activity -> outcome chain`, uncertainty: { low: outcome * 0.8, high: outcome * 1.2 }, transportability: { admissible: true } };
+function marginal(id, amount, outcome, evidenceId = `${id}-marginal`, unit = 'percentage-point stable-housing outcome') {
+  return { intervention: id, resourceUnit: 'CAD', resourceAmount: amount, incrementalCapacity: 10, incrementalActivity: 10, incrementalOutcome: outcome, unit, evidenceId, evidenceIds: [evidenceId, `${id}-capacity`, `${id}-activity`], provenance: `${id}: independently verified resource -> capacity -> activity -> outcome chain`, uncertainty: { low: outcome * 0.8, high: outcome * 1.2 }, transportability: { admissible: true } };
 }
 
 const problems = [
@@ -22,16 +22,16 @@ const problems = [
 ];
 
 const evidenceProfiles = {
-  'housing-first': { state: 'fully-quantified', causal: { ...PRODUCTION_HOUSING_EVIDENCE.Toronto, verified: true, sourceId: 'pubmed-27619826', provenance: { sourceId: 'pubmed-27619826', externalId: 'PMID-27619826' } }, marginal: marginal('housing-first', 1000000, 45.8, 'toronto-municipal-resource-chain-verified'), voi: 2.5 },
+  'housing-first': { state: 'fully-quantified', causal: { ...PRODUCTION_HOUSING_EVIDENCE.Toronto, verified: true, sourceId: 'pubmed-27619826', provenance: { sourceId: 'pubmed-27619826', externalId: 'PMID-27619826' } }, marginal: marginal('housing-first', 1000000, 45.8, 'toronto-municipal-resource-chain-verified', PRODUCTION_HOUSING_EVIDENCE.Toronto.unit), voi: 2.5 },
   'supportive-housing-expansion': { state: 'fully-quantified', causal: causal(30, 'supportive-housing-rct-verified'), marginal: marginal('supportive-housing-expansion', 500000, 30), voi: 1.5 },
   'shelter-capacity': { state: 'causal-supported-resource-incomplete', causal: causal(12, 'shelter-causal-rct-verified') },
   'rapid-rehousing-pilot': { state: 'resource-supported-causal-incomplete', marginal: marginal('rapid-rehousing-pilot', 400000, 8) },
   'housing-dashboard': { state: 'irrelevant-admin-data-false-positive' },
-  'pedestrian-safety-program': { state: 'fully-quantified', causal: causal(18, 'pedestrian-safety-causal-verified', 'percentage-point reduction in pedestrian injury rate'), marginal: { ...marginal('pedestrian-safety-program', 750000, 18, 'ottawa-pedestrian-resource-chain-verified'), unit: 'percentage-point reduction in pedestrian injury rate', uncertainty: { low: 12, high: 24 } }, voi: 1.1 },
+  'pedestrian-safety-program': { state: 'fully-quantified', causal: causal(18, 'pedestrian-safety-causal-verified', 'percentage-point reduction in pedestrian injury rate'), marginal: marginal('pedestrian-safety-program', 750000, 18, 'ottawa-pedestrian-resource-chain-verified', 'percentage-point reduction in pedestrian injury rate'), voi: 1.1 },
   'corridor-redesign': { state: 'causal-supported-resource-incomplete', causal: causal(10, 'corridor-redesign-causal-verified', 'percentage-point reduction in pedestrian injury rate') },
-  'quick-build-pilot': { state: 'experimental-promising', marginal: { ...marginal('quick-build-pilot', 250000, 5, 'quick-build-resource-observation'), unit: 'percentage-point reduction in pedestrian injury rate', uncertainty: { low: 0, high: 12 }, transportability: { admissible: false } } },
+  'quick-build-pilot': { state: 'experimental-promising', marginal: marginal('quick-build-pilot', 250000, 5, 'quick-build-resource-observation', 'percentage-point reduction in pedestrian injury rate') },
   'pedestrian-dashboard': { state: 'irrelevant-admin-data-false-positive' },
-  'cooling-centres': { state: 'resource-supported-causal-incomplete', marginal: { ...marginal('cooling-centres', 300000, 4, 'ottawa-cooling-centre-resource-observation'), unit: 'heat-illness outcome units' } },
+  'cooling-centres': { state: 'resource-supported-causal-incomplete', marginal: marginal('cooling-centres', 300000, 4, 'ottawa-cooling-centre-resource-observation', 'heat-illness outcome units') },
   'heat-alert-outreach': { state: 'causal-supported-resource-incomplete', causal: causal(7, 'heat-outreach-causal-verified', 'heat-illness outcome units') },
   'reflective-roof-pilot': { state: 'experimental-promising' },
   'heat-dashboard': { state: 'irrelevant-admin-data-false-positive' }
