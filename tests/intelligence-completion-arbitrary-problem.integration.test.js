@@ -1,0 +1,26 @@
+'use strict';
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
+const CA = { sourceId: 'ca-program-discovery', jurisdiction: 'CA', domain: 'intervention-universe', url: 'https://open.canada.ca/data/en/api/3/action/package_search?q=' };
+const OPENALEX = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence', url: 'https://api.openalex.org/works?search=' };
+const PUBMED = { sourceId: 'pubmed-eutils', jurisdiction: 'US', domain: 'causal-evidence', url: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=' };
+function response(value) { const bytes = Buffer.from(JSON.stringify(value)); return { ok: true, status: 200, headers: { get: k => k === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes }; }
+
+test('arbitrary problem produces a bounded candidate universe then evidence leads without recommendation leakage', async () => {
+  const discovery = await discoverSourceDrivenInterventions({ problem: 'reduce extreme heat illness', jurisdiction: 'CA', sources: [CA], fetchImpl: async () => response({ result: { results: [
+    { id: 'cooling', title: 'Community cooling centre emergency response service', notes: 'Seasonal heat-response service.' },
+    { id: 'data', title: 'Extreme Heat Statistics Dataset', notes: 'Observed heat illness counts.' },
+    { id: 'shade', title: 'Neighbourhood shade infrastructure project', notes: 'Public cooling infrastructure.' }
+  ] } }) });
+  assert.equal(discovery.candidates.length, 2);
+  assert.ok(discovery.candidates.every(c => c.discovery.leadOnly && !c.discovery.effectsImported));
+  assert.ok(discovery.interventionUniverse.interventionFamilies.length >= 1);
+  assert.equal(discovery.recommendationEligible, false);
+  const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: 'Cooling interventions evaluation' }] }) : response({ esearchresult: { idlist: ['12345'] } }) });
+  assert.equal(evidence.evidenceLeads.length, 2);
+  assert.equal(evidence.evidenceSufficiency.independentSourceCount, 2);
+  assert.equal(evidence.evidenceSufficiency.recommendationEligible, false);
+  assert.equal(evidence.effectsImported, false);
+});
