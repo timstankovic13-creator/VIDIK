@@ -1,0 +1,30 @@
+name: VIDIK Production Intelligence Engine
+on:
+  pull_request:
+    paths:
+      - 'js/production-intelligence.js'
+      - 'js/evidence-promotion-gate.js'
+      - 'tests/production-intelligence-engine.test.js'
+      - 'package.json'
+      - '.github/workflows/production-intelligence-engine.yml'
+  push:
+    paths:
+      - 'js/production-intelligence.js'
+      - 'js/evidence-promotion-gate.js'
+      - 'tests/production-intelligence-engine.test.js'
+      - 'package.json'
+      - '.github/workflows/production-intelligence-engine.yml'
+permissions:
+  contents: read
+concurrency:
+  group: production-intelligence-engine-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run test:production-intelligence-engine
