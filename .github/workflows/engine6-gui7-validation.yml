@@ -1,41 +1,39 @@
 name: VIDIK Engine 1-6 + GUI 1-7 Validation
-
 on:
   pull_request:
     paths:
       - 'js/production-decision-pipeline.js'
       - 'js/vidik-production-gui.js'
-      - 'js/decision-discovery-orchestrator.js'
+      - 'js/evidence-promotion-gate.js'
       - 'js/source-driven-intervention-discovery.js'
       - 'js/source-driven-evidence-discovery.js'
-      - 'js/evidence-promotion-gate.js'
+      - 'js/decision-discovery-orchestrator.js'
       - 'js/decision-artifact-store.js'
       - 'js/config.js'
       - 'tests/production-decision-pipeline.test.js'
-      - 'index.html'
+      - 'tests/e2e/production-gui-engine6.spec.js'
+      - 'tests/e2e/decision-intelligence-9.7-browser.spec.js'
       - '.github/workflows/engine6-gui7-validation.yml'
   push:
     branches: [main]
     paths:
       - 'js/production-decision-pipeline.js'
       - 'js/vidik-production-gui.js'
-      - 'js/decision-discovery-orchestrator.js'
+      - 'js/evidence-promotion-gate.js'
       - 'js/source-driven-intervention-discovery.js'
       - 'js/source-driven-evidence-discovery.js'
-      - 'js/evidence-promotion-gate.js'
+      - 'js/decision-discovery-orchestrator.js'
       - 'js/decision-artifact-store.js'
       - 'js/config.js'
       - 'tests/production-decision-pipeline.test.js'
-      - 'index.html'
+      - 'tests/e2e/production-gui-engine6.spec.js'
+      - 'tests/e2e/decision-intelligence-9.7-browser.spec.js'
       - '.github/workflows/engine6-gui7-validation.yml'
-
 permissions:
   contents: read
-
 concurrency:
   group: vidik-engine6-gui7-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   engine:
     runs-on: ubuntu-latest
@@ -44,15 +42,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Validate integrated engine
-        run: node --test tests/production-decision-pipeline.test.js
-      - name: Validate existing promotion gate
-        run: node --test tests/evidence-promotion-gate.test.js
-      - name: Validate source-driven discovery
-        run: node --test tests/source-driven-evidence-discovery.test.js
-      - name: Validate intervention discovery
-        run: node --test tests/source-driven-intervention-discovery.test.js
-
+      - run: node --test tests/production-decision-pipeline.test.js
+      - run: node --test tests/evidence-promotion-gate.test.js
+      - run: node --test tests/source-driven-evidence-discovery.test.js
+      - run: node --test tests/source-driven-intervention-discovery.test.js
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -61,5 +54,5 @@ jobs:
         with:
           node-version: 20
       - run: npm install --ignore-scripts
-      - name: Validate browser surface
-        run: npx playwright test tests/e2e --grep "VIDIK" --pass-with-no-tests
+      - run: npx playwright test tests/e2e/production-gui-engine6.spec.js
+      - run: npx playwright test tests/e2e/decision-intelligence-9.7-browser.spec.js
