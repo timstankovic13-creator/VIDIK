@@ -29,6 +29,8 @@ jobs:
         run: node tests/open-world-production-closed-loop.test.js
       - name: Blind open-world tournament
         run: node tests/blind-open-world-tournament.test.js
+      - name: Production boundary hardening
+        run: node tests/production-boundary-hardening.test.js
       - name: Core discovery regression
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
       - name: Full scope regression
