@@ -29,11 +29,17 @@ test('universe assessment distinguishes complete discovery from partial or total
   const complete = buildInterventionUniverseAssessment({ problem: 'food insecurity', jurisdiction: 'CA', requestedSourceCount: 2, sourceSearches: [{ status: 'candidates-found' }, { status: 'searched-empty' }], candidates: [{ id: '1', name: 'Food access program', canonicalName: 'food access program', interventionFamily: ['food-access'], requiredEvidence: ['causal'] }] });
   assert.equal(complete.discoveryComplete, true);
   assert.equal(complete.stoppingReason, 'candidate-universe-discovered');
-  const partial = buildInterventionUniverseAssessment({ requestedSourceCount: 2, sourceSearches: [{ status: 'candidates-found' }, { status: 'search-failed' }], candidates: [{ id: '1', requiredEvidence: ['causal'] }] });
+  const partial = buildInterventionUniverseAssessment({ requestedSourceCount: 2, sourceSearches: [{ status: 'candidates-found' }, { status: 'search-failed' }], candidates: [{ id: '1', name: 'Food access program', canonicalName: 'food access program', interventionFamily: ['food-access'], requiredEvidence: ['causal'] }] });
   assert.equal(partial.discoveryComplete, false);
   assert.equal(partial.stoppingReason, 'partial-source-failure');
   const outage = buildInterventionUniverseAssessment({ requestedSourceCount: 2, sourceSearches: [{ status: 'search-failed' }, { status: 'search-failed' }], candidates: [] });
   assert.equal(outage.discoveryComplete, false);
   assert.equal(outage.stoppingReason, 'all-sources-failed');
   assert.equal(outage.recommendationEligible, false);
+});
+
+test('generic prevention language in informational records is not enough to create an intervention candidate', () => {
+  const result = classifyCkanRecord({ title: 'Crime Prevention General Information', notes: 'Statistics and general prevention information' });
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, 'non-intervention-resource');
 });
