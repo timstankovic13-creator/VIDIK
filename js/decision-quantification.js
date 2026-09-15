@@ -98,12 +98,32 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     };
   }
 
-  const quantitativeComplete = rows.length > 0 && blocked.length === 0;
-  const recommendationReady = quantitativeComplete && optimization.status === 'OPTIMIZED' && rows.every(row => analysis[row.id].voi.defined) && statusQuo?.explicit === true;
+  // A mixed evidence universe is not itself a failure. The decision engine must
+  // retain blocked candidates for audit/learning while allowing the verified,
+  // quantitatively admissible subset to compete. A recommendation is therefore
+  // blocked only when the admissible decision set cannot satisfy the quantitative
+  // gates, not merely because other candidates remain evidence-incomplete.
+  const quantitativeSubsetReady = rows.length > 0 && optimization.status === 'OPTIMIZED';
+  const allAdmissibleHaveVoi = rows.length > 0 && rows.every(row => analysis[row.id].voi.defined);
+  const recommendationReady = quantitativeSubsetReady && allAdmissibleHaveVoi && statusQuo?.explicit === true;
+  const status = recommendationReady
+    ? 'DECISION_QUANTITATIVE_READY'
+    : quantitativeSubsetReady
+      ? 'QUANTITATIVE_READY_VOI_OR_GATE_REQUIRED'
+      : rows.length
+        ? 'PARTIAL'
+        : 'BLOCKED_MISSING_QUANTITATIVE_EVIDENCE';
+
   return {
-    status: recommendationReady ? 'DECISION_QUANTITATIVE_READY' : quantitativeComplete ? 'QUANTITATIVE_READY_VOI_OR_GATE_REQUIRED' : rows.length ? 'PARTIAL' : 'BLOCKED_MISSING_QUANTITATIVE_EVIDENCE',
-    candidates: rows, blocked, analysisInputs: analysis, optimization, statusQuo,
-    acquisitionRequirements: blocked.map(item => item.requirements), recommendationReady
+    status,
+    candidates: rows,
+    blocked,
+    analysisInputs: analysis,
+    optimization,
+    statusQuo,
+    recommendationReady,
+    evidenceCoverage: { admissible: rows.length, blocked: blocked.length, mixed: rows.length > 0 && blocked.length > 0 },
+    acquisitionRequirements: blocked.map(item => item.requirements)
   };
 }
 
