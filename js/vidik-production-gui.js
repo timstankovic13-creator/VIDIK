@@ -35,6 +35,8 @@
     problem?.addEventListener('input', render);
     ['recommendation','candidates','evidenceTable','audit','lifecycleStatus','v96Status','gate'].forEach(id => { const node=document.getElementById(id); if(node) new MutationObserver(render).observe(node,{subtree:true,childList:true,characterData:true,attributes:true}); });
   }
-  window.addEventListener('DOMContentLoaded', init);
-  window.VIDIK_PRODUCTION_GUI = { render, collectState };
+  // config.js injects this script dynamically; DOMContentLoaded may already have fired.
+  if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
+  window.VIDIK_PRODUCTION_GUI = { render, collectState, init };
 })();
