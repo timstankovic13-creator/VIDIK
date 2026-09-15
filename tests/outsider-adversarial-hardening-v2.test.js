@@ -47,3 +47,11 @@ test('malformed and missing metadata cannot create candidates', () => {
   const rows = [null, {}, { id: 'x', notes: 'program service' }, { id: 'y', title: '   ' }, { id: 'z', title: 'Housing dataset', notes: 'supportive housing program data' }];
   assert.equal(extractCkanInterventionLeads({ result: { results: rows } }, CA, 'housing').length, 0);
 });
+test('catalogue records cannot smuggle causal effects into a discovery lead', () => {
+  const leads = extractCkanInterventionLeads({ result: { results: [{ id: 'p', title: 'Housing First program', notes: 'program', effect: -0.9, causalEffect: -0.9, estimatedImpact: 999999, recommendationEligible: true }] } }, CA, 'homelessness');
+  assert.equal(leads.length, 1); const lead = leads[0]; assert.equal(lead.discovery.effectsImported, false); assert.equal(lead.discovery.leadOnly, true); assert.equal(Object.hasOwn(lead, 'effect'), false); assert.equal(Object.hasOwn(lead, 'causalEffect'), false); assert.equal(Object.hasOwn(lead, 'estimatedImpact'), false); assert.equal(Object.hasOwn(lead, 'recommendationEligible'), false);
+});
+test('discovery hash is stable for identical source evidence', async () => {
+  const options = { problem: 'food insecurity', jurisdiction: 'CA', sources: [CA], fetchImpl: async () => mockResponse({ result: { results: [{ id: 'p1', title: 'Community food access program', notes: 'Food support service.' }] } }) };
+  const first = await discoverSourceDrivenInterventions(options); const second = await discoverSourceDrivenInterventions(options); assert.equal(first.discoveryHash, second.discoveryHash);
+});
