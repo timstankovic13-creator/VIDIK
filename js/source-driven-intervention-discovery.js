@@ -7,6 +7,7 @@ const CKAN_SOURCE_IDS = new Set([
   'ca-program-discovery', 'ca-ontario-program-discovery', 'us-open-data-program-discovery',
   'uk-open-data-program-discovery', 'au-open-data-program-discovery'
 ]);
+
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) {
   if (!source?.url || !CKAN_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-ckan-intervention-source');
@@ -16,13 +17,14 @@ function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) {
 }
 const NON_INTERVENTION_TERMS = ['dataset','data set','census','statistics','statistic','report','budget','indicator','information','dashboard','administrative records','records','open data','mapping data'];
 const INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity'];
+const STRONG_INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','enforcement','patrol','training','support service','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity'];
 function classifyCkanRecord(row) {
   const title = normalizeText(row?.title || row?.name); const notes = normalizeText(row?.notes || row?.description);
   const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
-  const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase();
-  const negative = NON_INTERVENTION_TERMS.filter(term => text.includes(term)); const positive = INTERVENTION_TERMS.filter(term => text.includes(term));
+  const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => text.includes(term)); const positive = INTERVENTION_TERMS.filter(term => text.includes(term));
+  const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => text.includes(term));
   if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [] };
-  if (negative.length > 0 && positive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative };
+  if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative };
   if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative };
   if (positive.length === 0) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative };
   return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative };
@@ -31,8 +33,8 @@ function extractCkanInterventionLeads(payload, source, problem) {
   const results = Array.isArray(payload?.result?.results) ? payload.result.results : [];
   return results.map((row, index) => {
     const classification = classifyCkanRecord(row); if (!classification.accepted) return null;
-    const id = row.id || row.name || `${source.sourceId}-${index + 1}`; const title = normalizeText(row.title || row.name);
-    const notes = normalizeText(row.notes || row.description); const tags = Array.isArray(row.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
+    const id = row.id || row.name || `${source.sourceId}-${index + 1}`; const title = normalizeText(row.title || row.name); const notes = normalizeText(row.notes || row.description);
+    const tags = Array.isArray(row.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     return { id: `source:${source.sourceId}:${id}`, name: title, problemTags: [String(problem).toLowerCase(), ...tags].filter(Boolean).slice(0, 13), domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${notes} ${tags.join(' ')}`, evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, datasetId: row.id || row.name || null, classification: { basis: classification.reason, positiveSignals: classification.positiveSignals, negativeSignals: classification.negativeSignals }, provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, evidenceStatus: 'potential' }] } };
   }).filter(Boolean);
 }
