@@ -18,7 +18,7 @@ jobs:
       - name: Intervention relevance scenario battery
         run: node --test tests/intervention-relevance-scenarios.test.js
       - name: Evidence sufficiency hardening
-        run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js tests/evidence-promotion-gate.test.js
+        run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js tests/evidence-promotion-gate.test.js tests/evidence-acquisition-orchestrator.test.js
       - name: Quantitative evidence-to-decision bridge
         run: node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js
       - name: Core discovery regression
