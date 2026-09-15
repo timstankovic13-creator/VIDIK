@@ -24,3 +24,5 @@ jobs:
           node tests/machinery-deep-adversarial.test.js
           node tests/machinery-pipeline-integrity.test.js
           node tests/machinery-learning-ledger.test.js
+      - name: Blind end-to-end municipal decision tournament
+        run: node --test tests/blind-end-to-end-decision-tournament.test.js
