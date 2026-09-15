@@ -72,3 +72,55 @@ test('imported effect is never accepted as independent verification', () => {
   assert.equal(result.eligible, false);
   assert.ok(result.reasons.includes('effect-already-imported'));
 });
+
+test('source-driven discovery remains lead-only until an exact verification is supplied', () => {
+  const discovery = {
+    schemaVersion: 'vidik.source-driven-evidence-discovery.v2',
+    candidateId: 'universe:abc',
+    discoveryHash: 'discovery-1',
+    evidenceLeads: [lead()]
+  };
+  const result = Gate.promoteDiscoveredEvidence({ discovery, targetJurisdiction: 'Ottawa, Canada' });
+  assert.equal(result.leadCount, 1);
+  assert.equal(result.promotedCount, 0);
+  assert.equal(result.blockedCount, 1);
+  assert.equal(result.recommendationEligible, false);
+  assert.ok(result.blocked[0].reasons.includes('independent-verification-missing'));
+});
+
+test('exactly verified discovery lead can promote its parameter without importing an effect or recommendation', () => {
+  const discovery = {
+    schemaVersion: 'vidik.source-driven-evidence-discovery.v2',
+    candidateId: 'universe:abc',
+    discoveryHash: 'discovery-2',
+    evidenceLeads: [lead()]
+  };
+  const result = Gate.promoteDiscoveredEvidence({
+    discovery,
+    targetJurisdiction: 'Ottawa, Canada',
+    verificationByEvidenceId: { [lead().id]: verification() }
+  });
+  assert.equal(result.promotedCount, 1);
+  assert.equal(result.blockedCount, 0);
+  assert.equal(result.promotions[0].candidateId, 'universe:abc');
+  assert.equal(result.promotions[0].parameter.estimate, 0.42);
+  assert.equal(result.recommendationEligible, false);
+  assert.equal(result.effectsImported, false);
+});
+
+test('verification for a different discovered lead cannot cross the promotion boundary', () => {
+  const discovery = {
+    schemaVersion: 'vidik.source-driven-evidence-discovery.v2',
+    candidateId: 'universe:abc',
+    discoveryHash: 'discovery-3',
+    evidenceLeads: [lead()]
+  };
+  const result = Gate.promoteDiscoveredEvidence({
+    discovery,
+    targetJurisdiction: 'Ottawa, Canada',
+    verificationByEvidenceId: { 'evidence:openalex-works:OTHER': verification({ externalId: 'OTHER' }) }
+  });
+  assert.equal(result.promotedCount, 0);
+  assert.equal(result.blockedCount, 1);
+  assert.ok(result.blocked[0].reasons.includes('independent-verification-missing'));
+});
