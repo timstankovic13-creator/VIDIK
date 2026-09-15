@@ -2,7 +2,7 @@ name: VIDIK Intelligence Generalization
 
 on:
   push:
-    branches: [main, intelligence-generalization-v1]
+    branches: [main, intelligence-generalization-v1, blind-jurisdiction-discovery-v1]
   pull_request:
     branches: [main]
 
@@ -18,6 +18,8 @@ jobs:
         run: node tests/intelligence-generalization.test.js
       - name: Novel municipal discovery tournament
         run: node --test tests/novel-municipal-problem-discovery.test.js
+      - name: Blind jurisdiction discovery
+        run: node --test tests/blind-jurisdiction-discovery.test.js
       - name: Existing A-E validation
         run: node tests/intelligence-validation-a-e.test.js
       - name: Existing discovery gauntlet
