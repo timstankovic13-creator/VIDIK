@@ -1,0 +1,115 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const { executeProductionDecision, assertBlindRun } = require('../js/vidik-production-closed-loop');
+
+function makeDiscoverySource(seed) {
+  return { id: `discovery-${seed}`, async search({ problem }) {
+    const key = problem.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return [
+      { id: `${key}-intervention-a`, name: `Intervention A for ${problem}`, domains: ['municipal'], problemTags: ['target'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'], provenance: [{ source: `synthetic-${seed}` }] },
+      { id: `${key}-intervention-b`, name: `Intervention B for ${problem}`, domains: ['municipal'], problemTags: ['target'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'], provenance: [{ source: `synthetic-${seed}` }] },
+      { id: `${key}-decoy`, name: 'Unrelated service', domains: ['municipal'], problemTags: ['unrelated'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'], provenance: [{ source: `synthetic-${seed}` }] }
+    ];
+  } };
+}
+
+function makeEvidenceSource() {
+  return { id: 'evidence-source', async search({ candidate }) {
+    return [{ id: `lead-${candidate.id}`, candidateId: candidate.id, provenance: { externalId: `study-${candidate.id}`, sourceId: 'evidence-source' }, evidenceLeadOnly: true, causalEffectImported: false, evidenceType: 'causal' }];
+  } };
+}
+
+function makeVerifications(candidates) {
+  const out = {};
+  for (const candidate of candidates) {
+    const id = `lead-${candidate.id}`;
+    out[id] = {
+      verificationId: `verification-${candidate.id}`,
+      verified: true,
+      sourceId: 'evidence-source',
+      externalId: `study-${candidate.id}`,
+      evidenceType: 'causal',
+      targetJurisdiction: 'TEST',
+      sourceJurisdiction: 'TEST',
+      transportability: { admissible: true },
+      localEvidenceBoundary: 'explicit',
+      verifiedEvidence: ['causal', 'implementation', 'cost', 'equity'],
+      parameter: { estimate: candidate.id.endsWith('a') ? 2 : 1, unit: 'outcome/CAD', uncertainty: { low: candidate.id.endsWith('a') ? 1 : 0.5, high: candidate.id.endsWith('a') ? 3 : 1.5 } }
+    };
+  }
+  return out;
+}
+
+function scoreFn(values) {
+  const ids = values.candidateIds || [];
+  let best = 'STATUS_QUO';
+  let bestScore = Number(values.STATUS_QUO ?? 0);
+  for (const id of ids) {
+    const value = Number(values[`${id}.effect`]);
+    if (Number.isFinite(value) && value > bestScore) { best = id; bestScore = value; }
+  }
+  return { recommendation: best, score: bestScore };
+}
+
+async function run() {
+  const problems = ['nighttime pedestrian injuries', 'extreme heat exposure', 'food access gaps', 'wildfire smoke exposure', 'worker displacement'];
+  const runs = [];
+  for (const [i, problem] of problems.entries()) {
+    const discoverySource = makeDiscoverySource(i);
+    const discovered = await discoverySource.search({ problem });
+    const verifications = makeVerifications(discovered.filter(c => !c.id.endsWith('decoy')));
+    const candidateIds = discovered.filter(c => !c.id.endsWith('decoy')).map(c => c.id);
+    const result = await executeProductionDecision({
+      objective: `reduce ${problem}`,
+      problem,
+      discoverySources: [discoverySource],
+      evidenceSources: [makeEvidenceSource()],
+      verifications,
+      targetJurisdiction: 'TEST',
+      resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } },
+      objectiveMetric: 'outcome/CAD',
+      baseline: { candidateIds, STATUS_QUO: 10 },
+      scoreFn,
+      voiCandidates: candidateIds.map(id => ({ id, currentValue: 1, lowValue: 0.5, highValue: 2, pHigh: 0.5, cost: 0 })),
+      statusQuo: { explicit: true, expectedOutcome: 10, objectiveMetric: 'outcome' },
+      observations: []
+    });
+    assert.equal(result.status, 'RECOMMENDATION_ELIGIBLE');
+    assert.equal(result.discovery.openWorld, true);
+    assert.equal(result.discovery.registryDiagnosticMatches.length, 0);
+    assert.equal(result.evidence.complete, true);
+    assert.equal(result.verified.complete, true);
+    assert.equal(result.optimizer.status, 'OPTIMIZED');
+    assert.equal(result.artifact.valid, true);
+    assert.equal(result.artifact.artifact.recommendationAllowed, true);
+    assert.equal(result.artifact.artifact.statusQuo.explicit, true);
+    assert.notEqual(result.opportunityCost.foregoneIntervention, undefined);
+    assert.equal(result.learning.historicalDecisionRewrite, false);
+    assert.ok(result.analysis.integrityHash);
+    assert.deepEqual(assertBlindRun(result), { passed: true, failures: [] });
+    runs.push(result);
+  }
+
+  // Blind means the test never supplies a gold intervention answer. It checks
+  // invariants and lineage only, while candidate identities are generated from
+  // the problem at execution time.
+  for (const runResult of runs) {
+    assert.ok(runResult.discovery.candidates.every(c => c.discovery.leadOnly === true));
+    assert.ok(Object.keys(runResult.verified.parametersByCandidate).length >= 2);
+    assert.ok(runResult.lineage.discoveryHash && runResult.lineage.evidenceHash && runResult.lineage.parameterHash && runResult.lineage.decisionIntelligenceHash && runResult.lineage.artifactHash);
+  }
+
+  const failedEvidence = await executeProductionDecision({
+    objective: 'test failure', problem: 'arbitrary problem', discoverySources: [makeDiscoverySource(99)], evidenceSources: [{ id: 'broken', async search() { throw new Error('upstream-unavailable'); } }], targetJurisdiction: 'TEST', resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } }, statusQuo: { explicit: true, expectedOutcome: 10 }, scoreFn
+  });
+  assert.equal(failedEvidence.status, 'BLOCKED');
+  assert.ok(failedEvidence.reasons.includes('candidate-evidence-acquisition-incomplete'));
+
+  const effectLeakSource = { id: 'bad-discovery', async search() { return [{ id: 'bad', name: 'Bad', effect: 99, provenance: [{ source: 'bad' }] }]; } };
+  const leaked = await executeProductionDecision({ objective: 'test leak', problem: 'arbitrary problem', discoverySources: [effectLeakSource], evidenceSources: [], targetJurisdiction: 'TEST', resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } }, statusQuo: { explicit: true, expectedOutcome: 10 }, scoreFn });
+  assert.equal(leaked.discovery.complete, false);
+  assert.equal(leaked.status, 'BLOCKED');
+}
+
+run().catch(error => { console.error(error); process.exitCode = 1; });
