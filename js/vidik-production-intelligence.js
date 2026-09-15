@@ -55,7 +55,7 @@ function validateOptimization({ candidates = [], allocations = {}, budget = null
   const used = rows.reduce((sum, row) => sum + row.allocation, 0);
   const budgetValid = budget == null || (finite(budget) && Number(budget) >= 0 && used <= Number(budget) + 1e-9);
   const resourceValid = rows.every(row => row.allocation >= 0 && row.finiteInputs && row.uncertaintyValid);
-  return { schemaVersion: 'vidik.production-optimization.v1', rows, budget: budget == null ? null : Number(budget), budgetUsed: used, budgetValid, resourceValid, validated: budgetValid && resourceValid, optimizationHash: sha256({ rows, budget }) };
+  return { schemaVersion: 'vidik.production-optimization.v1', rows, budget: budget == null ? null : Number(budget), budgetUsed: used, budgetValid, resourceValid, validated: rows.length > 0 && budgetValid && resourceValid, optimizationHash: sha256({ rows, budget }) };
 }
 
 function buildSensitivityEnvelope({ candidates = [], analysis = {}, score = null } = {}) {
@@ -79,7 +79,7 @@ function calculateVOI({ sensitivity, decisionValue = null, informationCost = nul
   const flip = Boolean(sensitivity?.recommendationFlip);
   const finiteInputs = finite(decisionValue) && finite(informationCost) && value >= 0 && cost >= 0;
   const expectedValue = finiteInputs && flip ? value : (finiteInputs ? 0 : null);
-  return { schemaVersion: 'vidik.value-of-information.v1', recommendationFlip: flip, decisionValue: finiteInputs ? value : null, informationCost: finiteInputs ? cost : null, expectedValueOfInformation: expectedValue, netValueOfInformation: finiteInputs ? expectedValue - cost : null, actionable: finiteInputs && expectedValue > cost, unknownIsNotZero: !finiteInputs };
+  return { schemaVersion: 'vidik.value-of-information.v1', recommendationFlip: flip, inputsComplete: finiteInputs, decisionValue: finiteInputs ? value : null, informationCost: finiteInputs ? cost : null, expectedValueOfInformation: expectedValue, netValueOfInformation: finiteInputs ? expectedValue - cost : null, actionable: finiteInputs && expectedValue > cost, unknownIsNotZero: !finiteInputs };
 }
 
 function buildLearningEnvelope({ artifactHash, observations = [] } = {}) {
@@ -88,7 +88,7 @@ function buildLearningEnvelope({ artifactHash, observations = [] } = {}) {
   return { schemaVersion: 'vidik.production-learning.v1', baselineArtifactHash: artifactHash || null, observations: residuals, observedCount: residuals.length, driftSignal: residuals.some(r => Math.abs(r.residual) > 0), attributionRequired: true, automaticParameterMutation: false, historyImmutable: true, learningHash: sha256({ artifactHash, residuals }) };
 }
 
-function certifyDecision({ run, selectedCandidateId = null, verifications = {}, targetJurisdiction = null, budget = null, decisionValue = null, informationCost = null, observations = [] } = {}) {
+function certifyDecision({ run, selectedCandidateId = null, verifications = {}, targetJurisdiction = null, budget = null, decisionValue = null, informationCost = null, observations = [], tournament = null } = {}) {
   const universe = auditInterventionUniverse({ problem: run?.problem, candidates: run?.candidates || [], sourceSearches: run?.acquisitionSources || run?.sourceSearches || [], statusQuo: run?.statusQuo });
   const evidenceLeads = Object.values(run?.evidenceDiscovery || {}).flatMap(item => item?.evidenceLeads || []).filter(Boolean);
   const evidence = auditEvidencePipeline({ candidates: run?.candidates || [], evidenceLeads, verifications, targetJurisdiction });
@@ -99,8 +99,16 @@ function certifyDecision({ run, selectedCandidateId = null, verifications = {}, 
   const selectedArtifact = selectedCandidateId ? run?.governance?.decisionArtifacts?.[selectedCandidateId] : null;
   const artifactValidation = selectedArtifact ? Closure.validateDecisionArtifact(selectedArtifact) : { valid: false, reasons: ['selected-artifact-missing'] };
   const learning = buildLearningEnvelope({ artifactHash: selectedArtifact?.artifactHash || null, observations });
-  const stages = { interventionUniverse: universe.recommendationBoundary !== 'violation' && universe.status !== 'not-searched', evidencePipeline: evidence.unsafeLeadCount === 0, quantitativeOptimization: optimization.validated, uncertaintySensitivityVOI: sensitivity.stable && Boolean(voi.schemaVersion), decisionArtifact: artifactValidation.valid, outcomeLearning: learning.historyImmutable && learning.automaticParameterMutation === false, adversarialReadiness: true };
-  return { schemaVersion: 'vidik.production-intelligence-certification.v1', stages, complete: Object.values(stages).every(Boolean), blockers: Object.entries(stages).filter(([, ok]) => !ok).map(([id]) => id), universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, certificationHash: sha256({ stages, universe, evidence, optimization, sensitivity, voi, artifactValidation, learning }) };
+  const stages = {
+    interventionUniverse: universe.candidatesConsidered > 0 && universe.recommendationBoundary !== 'violation' && universe.status === 'found' && universe.sourceFailures === 0,
+    evidencePipeline: evidence.evidenceLeadCount > 0 && evidence.verifiedParameterCount > 0 && evidence.unsafeLeadCount === 0 && evidence.orphanVerificationCount === 0,
+    quantitativeOptimization: optimization.validated,
+    uncertaintySensitivityVOI: sensitivity.stable && voi.inputsComplete,
+    decisionArtifact: artifactValidation.valid,
+    outcomeLearning: learning.historyImmutable && learning.automaticParameterMutation === false,
+    adversarialReadiness: Boolean(tournament?.passed === true)
+  };
+  return { schemaVersion: 'vidik.production-intelligence-certification.v1', stages, complete: Object.values(stages).every(Boolean), blockers: Object.entries(stages).filter(([, ok]) => !ok).map(([id]) => id), universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, tournament: tournament || { passed: false, reason: 'tournament-not-supplied' }, certificationHash: sha256({ stages, universe, evidence, optimization, sensitivity, voi, artifactValidation, learning, tournament }) };
 }
 
 function runAdversarialTournament({ scenarios = [] } = {}) {
