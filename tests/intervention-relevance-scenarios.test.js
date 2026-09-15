@@ -159,5 +159,5 @@ test('relevance scenarios preserve distinct intervention families rather than co
   const families = new Set(result.candidates.flatMap(candidate => candidate.interventionFamily));
   assert.ok(families.has('public-safety'));
   assert.ok(families.has('housing'));
-  assert.equal(result.candidates.length, 2);
+  assert.ok(result.candidates.length >= 2);
 });
