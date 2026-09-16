@@ -1,0 +1,1 @@
+Audit replay/export is validated directly by the Intelligence Completion workflow with `node --test tests/audit-replay-export.test.js`. The package script was intentionally left unchanged to avoid unnecessary package churn.
