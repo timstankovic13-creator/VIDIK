@@ -1,6 +1,7 @@
 name: full-scope-discovery-engine
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - 'src/full-scope/discovery-engine.js'
       - 'tests/full-scope-discovery-engine.test.js'
