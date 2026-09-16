@@ -50,3 +50,5 @@ jobs:
         run: npm run test:decision-lifecycle-closure
       - name: Operational review and governance lifecycle
         run: npm run test:operational-governance
+      - name: Audit replay and export integrity
+        run: node --test tests/audit-replay-export.test.js
