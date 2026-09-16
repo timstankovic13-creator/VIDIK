@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 
 const CHECKPOINTS = Object.freeze({ '6-month': 6, '1-year': 12, '2-year': 24, '5-year': 60 });
 const LOCK_STALE_MS = 60_000;
+const LEARNING_SCHEMA = 'VIDIK.OutcomeLearning.v2';
 
 function fail(code, detail) {
   const error = new Error(detail ? `${code}: ${detail}` : code);
@@ -25,18 +26,43 @@ function validateCheckpoint(checkpoint) {
   if (!Object.hasOwn(CHECKPOINTS, checkpoint)) fail('invalid-checkpoint');
   return checkpoint;
 }
-function emptyState() { return { version: 1, outcomes: [], recalibrations: [], audit: [] }; }
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+function sha256(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
+function integrityPayload(state) {
+  const copy = JSON.parse(JSON.stringify(state));
+  delete copy.integrity;
+  return copy;
+}
+function sealState(state, previousHash = '') {
+  const contentHash = sha256(integrityPayload(state));
+  state.integrity = { schema: LEARNING_SCHEMA, algorithm: 'SHA-256', previousHash, contentHash };
+  return state;
+}
+function verifyState(state) {
+  if (!state || state.version !== 2 || state.schema !== LEARNING_SCHEMA || !Array.isArray(state.outcomes) || !Array.isArray(state.recalibrations) || !Array.isArray(state.audit)) fail('invalid-learning-store');
+  if (!state.integrity || state.integrity.algorithm !== 'SHA-256' || typeof state.integrity.contentHash !== 'string') fail('missing-learning-integrity');
+  const actual = sha256(integrityPayload(state));
+  if (actual !== state.integrity.contentHash) fail('learning-store-integrity-mismatch');
+  return state;
+}
+function emptyState() {
+  return sealState({ schema: LEARNING_SCHEMA, version: 2, outcomes: [], recalibrations: [], audit: [] });
+}
 function readState(filePath) {
   if (!fs.existsSync(filePath)) return emptyState();
   let parsed;
   try { parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
   catch (error) { fail('corrupt-learning-store', error.message); }
-  if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.outcomes) || !Array.isArray(parsed.recalibrations) || !Array.isArray(parsed.audit)) fail('invalid-learning-store');
-  return parsed;
+  return verifyState(parsed);
 }
-function writeState(filePath, state) {
+function writeState(filePath, state, previousHash) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temp = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  sealState(state, previousHash);
   try {
     fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
     fs.renameSync(temp, filePath);
@@ -54,10 +80,7 @@ function acquireLock(lockFile, attempts = 400) {
       if (error.code !== 'EEXIST') throw error;
       try {
         const age = Date.now() - fs.statSync(lockFile).mtimeMs;
-        if (age > LOCK_STALE_MS) {
-          fs.unlinkSync(lockFile);
-          continue;
-        }
+        if (age > LOCK_STALE_MS) { fs.unlinkSync(lockFile); continue; }
       } catch (statError) {
         if (statError.code === 'ENOENT') continue;
         throw statError;
@@ -75,8 +98,9 @@ function transactionWithLock(filePath, mutator) {
   const lockFd = acquireLock(lockFile);
   try {
     const state = readState(filePath);
+    const previousHash = state.integrity?.contentHash || '';
     const result = mutator(state);
-    writeState(filePath, state);
+    writeState(filePath, state, previousHash);
     return result;
   } finally {
     try { fs.closeSync(lockFd); } catch {}
@@ -96,10 +120,12 @@ function createOutcomeLearningStore(options = {}) {
   finiteNumber(threshold.absolute, 'drift-threshold-absolute');
   finiteNumber(threshold.relative, 'drift-threshold-relative');
   if (threshold.absolute < 0 || threshold.relative < 0) fail('invalid-drift-threshold');
+  const minimumRecalibrationObservations = 2;
 
   return {
     filePath,
     snapshot() { return readState(filePath); },
+    verifyIntegrity() { const state = readState(filePath); return { ok: true, contentHash: state.integrity.contentHash, previousHash: state.integrity.previousHash }; },
 
     recordOutcome(input = {}) {
       if (!input.decisionId || typeof input.decisionId !== 'string') fail('invalid-decision-id');
@@ -115,6 +141,7 @@ function createOutcomeLearningStore(options = {}) {
       outcome.drift = driftForOutcome(outcome, threshold);
       return transactionWithLock(filePath, state => {
         if (state.outcomes.some(item => item.id === outcome.id)) fail('duplicate-outcome-id');
+        if (state.outcomes.some(item => item.decisionId === outcome.decisionId && item.parameterName === outcome.parameterName && item.checkpoint === outcome.checkpoint)) fail('duplicate-outcome-checkpoint');
         state.outcomes.push(outcome);
         addAudit(state, 'OUTCOME_RECORDED', { outcomeId: outcome.id, decisionId: outcome.decisionId, checkpoint }, outcomeAt);
         if (outcome.drift.flagged) addAudit(state, 'DRIFT_SIGNAL', { outcomeId: outcome.id, decisionId: outcome.decisionId, parameterName: outcome.parameterName, drift: outcome.drift }, outcomeAt);
@@ -148,11 +175,11 @@ function createOutcomeLearningStore(options = {}) {
       if (learningRate < 0 || learningRate > 1) fail('invalid-learning-rate');
       return transactionWithLock(filePath, state => {
         const outcomes = state.outcomes.filter(item => item.decisionId === input.decisionId && item.parameterName === input.parameterName);
-        if (!outcomes.length) fail('no-outcomes-for-recalibration');
+        if (outcomes.length < minimumRecalibrationObservations) fail('insufficient-observations-for-recalibration');
         const meanError = outcomes.reduce((sum, item) => sum + item.error, 0) / outcomes.length;
         const signal = { id: crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, currentValue, observations: outcomes.length, meanError, suggestedDelta: meanError * learningRate, suggestedValue: currentValue + meanError * learningRate, learningRate, automaticApply: false, generatedAt: new Date().toISOString() };
         state.recalibrations.push(signal);
-        addAudit(state, 'RECALIBRATION_SIGNAL', { signalId: signal.id, decisionId: signal.decisionId, parameterName: signal.parameterName, automaticApply: false }, signal.generatedAt);
+        addAudit(state, 'RECALIBRATION_SIGNAL', { signalId: signal.id, decisionId: signal.decisionId, parameterName: signal.parameterName, observations: signal.observations, automaticApply: false }, signal.generatedAt);
         return signal;
       });
     },
@@ -169,4 +196,4 @@ function createOutcomeLearningStore(options = {}) {
   };
 }
 
-module.exports = { CHECKPOINTS, LOCK_STALE_MS, createOutcomeLearningStore };
+module.exports = { CHECKPOINTS, LOCK_STALE_MS, LEARNING_SCHEMA, createOutcomeLearningStore };
