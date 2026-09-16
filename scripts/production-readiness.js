@@ -8,7 +8,7 @@ const REQUIRED_REPOSITORY_CONTROLS = Object.freeze([
   'SECURITY.md',
   'infra/PRODUCTION_DEPLOYMENT.md',
   'scripts/production-config.js',
-  'scripts/decision-artifact-store.js',
+  'js/decision-artifact-store.js',
   'scripts/outcome-learning.js',
   'scripts/operational-governance.js',
   'scripts/audit-replay-export.js',
