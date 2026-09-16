@@ -1,0 +1,17 @@
+name: VIDIK Open-World Production Certification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  open-world-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Open-world production closed loop
+        run: node tests/open-world-production-closed-loop.test.js
