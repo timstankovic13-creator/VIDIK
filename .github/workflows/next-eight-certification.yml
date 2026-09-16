@@ -1,8 +1,6 @@
 name: VIDIK Next Eight Certification
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [hardening/vidik-next-eight]
 
