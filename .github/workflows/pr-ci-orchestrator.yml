@@ -1,0 +1,42 @@
+name: VIDIK PR CI Orchestrator
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+concurrency:
+  group: vidik-pr-orchestrator-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  cancel-redundant-pr-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel redundant PR workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          KEEP_WORKFLOW: VIDIK Intelligence Completion v1
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PR_NUMBER:-}" ]]; then
+            echo "No pull request event; nothing to cancel."
+            exit 0
+          fi
+          runs=$(gh api --paginate \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${REPO}/actions/runs?event=pull_request&per_page=100" \
+            --jq '.workflow_runs[] | select(.pull_requests | any(.[]; .number == ('"${PR_NUMBER}"'))) | [.id,.status,.name] | @tsv')
+          while IFS=$'\t' read -r id status name; do
+            [[ -z "${id:-}" ]] && continue
+            if [[ "$name" == "$KEEP_WORKFLOW" || "$name" == "VIDIK PR CI Orchestrator" ]]; then
+              continue
+            fi
+            if [[ "$status" == "queued" || "$status" == "in_progress" || "$status" == "waiting" || "$status" == "pending" ]]; then
+              echo "Cancelling redundant run $id ($name; $status)"
+              gh api --method POST "/repos/${REPO}/actions/runs/${id}/cancel" >/dev/null || true
+            fi
+          done <<< "$runs"

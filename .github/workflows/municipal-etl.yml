@@ -2,7 +2,6 @@ name: Municipal ETL Validation
 on:
   push:
     branches: [main, 'prep/**']
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read

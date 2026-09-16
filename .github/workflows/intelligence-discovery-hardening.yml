@@ -3,8 +3,6 @@ name: VIDIK Intelligence Discovery Hardening
 on:
   push:
     branches: [main, intelligence-discovery-hardening-v1, intelligence-discovery-gauntlet-v1, intelligence-validation-a-e-v1]
-  pull_request:
-    branches: [main]
 
 jobs:
   discovery-probe:

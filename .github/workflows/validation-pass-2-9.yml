@@ -1,8 +1,6 @@
 name: VIDIK Validation Pass 2-9
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main, 'prep/**']
   workflow_dispatch:

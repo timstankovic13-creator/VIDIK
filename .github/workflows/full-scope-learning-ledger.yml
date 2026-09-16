@@ -1,6 +1,7 @@
 name: full-scope-learning-ledger
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - 'src/full-scope/learning-ledger.js'
       - 'src/full-scope/learning-engine.js'

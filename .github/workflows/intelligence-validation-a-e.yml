@@ -3,8 +3,6 @@ name: VIDIK Intelligence Validation A-E
 on:
   push:
     branches: [main, intelligence-validation-a-e-v1]
-  pull_request:
-    branches: [main]
 
 jobs:
   a-e-validation:

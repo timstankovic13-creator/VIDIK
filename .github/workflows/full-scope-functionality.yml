@@ -1,10 +1,5 @@
 name: Full-Scope Functionality
 on:
-  pull_request:
-    paths:
-      - 'full-scope.html'
-      - 'tests/full-scope-functionality.test.js'
-      - '.github/workflows/full-scope-functionality.yml'
   push:
     branches: [main]
     paths:

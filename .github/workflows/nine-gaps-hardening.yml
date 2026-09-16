@@ -1,8 +1,6 @@
 name: VIDIK Nine-Gap Hardening
 
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [hardening/vidik-nine-gaps-v2]
 

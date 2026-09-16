@@ -1,16 +1,16 @@
-name: VIDIK Architecture Completeness
+name: VIDIK Open-World Production Certification
 
 on:
   push:
     branches: [main]
 
 jobs:
-  architecture-completeness:
+  open-world-production:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run canonical architecture and comparable-city contract
-        run: npm run test:architecture-completeness
+      - name: Open-world production closed loop
+        run: node tests/open-world-production-closed-loop.test.js

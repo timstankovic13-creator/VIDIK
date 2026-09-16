@@ -3,8 +3,6 @@ name: VIDIK RC2 Cases 004-012 Validation
 on:
   push:
     branches: [rc2-cases-004-012-validation]
-  pull_request:
-    branches: [main]
 
 jobs:
   cases-004-012-gate:

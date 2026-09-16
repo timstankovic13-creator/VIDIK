@@ -1,16 +1,6 @@
 name: Blind End-to-End Decision Tournament
 
 on:
-  pull_request:
-    paths:
-      - 'tests/blind-end-to-end-decision-tournament.test.js'
-      - 'js/decision-discovery-execution.js'
-      - 'js/decision-discovery-orchestrator.js'
-      - 'js/vidik-arbitrary-decision-governance.js'
-      - 'js/vidik-decision-artifact-closure.js'
-      - 'js/discovery-transfer-intelligence.js'
-      - 'js/vidik-next-phase.js'
-      - '.github/workflows/blind-end-to-end-decision-tournament.yml'
   push:
     branches: [main]
     paths:

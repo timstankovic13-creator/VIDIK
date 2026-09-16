@@ -1,6 +1,5 @@
 name: VIDIK Production Security Gate
 on:
-  pull_request:
   push:
     branches: ['main', 'feat/**']
   workflow_dispatch:

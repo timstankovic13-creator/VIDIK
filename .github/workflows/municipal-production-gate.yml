@@ -3,7 +3,6 @@ name: VIDIK Municipal Production Gate
 on:
   push:
     branches: [main, 'feat/**']
-  pull_request:
   workflow_dispatch:
 
 jobs:

@@ -1,6 +1,7 @@
 name: full-scope-learning
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - 'src/full-scope/learning-engine.js'
       - 'tests/full-scope-learning.test.js'

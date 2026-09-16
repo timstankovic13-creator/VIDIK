@@ -2,8 +2,6 @@ name: VIDIK RC2 Evidence Validation
 on:
   push:
     branches: [main, rc2-evidence-outcome-validation]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,11 +1,5 @@
 name: Intervention Relevance Scenarios
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'js/source-driven-intervention-discovery.js'
-      - 'tests/intervention-relevance-scenarios.test.js'
-      - '.github/workflows/intervention-relevance-scenarios.yml'
   push:
     branches: [main]
     paths:

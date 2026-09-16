@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main, intelligence-completion-v1]
+concurrency:
+  group: vidik-intelligence-completion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   intelligence-completion:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: PR trigger architecture lock
+        run: node --test tests/pr-ci-trigger-architecture.test.js
       - name: Intervention universe hardening
         run: node --test tests/intelligence-completion-intervention-universe.test.js tests/intelligence-completion-arbitrary-problem.integration.test.js tests/intelligence-generalization-blind-tournament.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
       - name: Intervention relevance scenario battery
@@ -23,6 +28,14 @@ jobs:
         run: node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js
       - name: Production intelligence 1-7 certification
         run: node --test tests/production-intelligence-certification.test.js
+      - name: Canonical production integration
+        run: node --test tests/canonical-production-intelligence-integration.test.js
+      - name: Open-world production closed loop
+        run: node tests/open-world-production-closed-loop.test.js
+      - name: Blind open-world tournament
+        run: node tests/blind-open-world-tournament.test.js
+      - name: Production boundary hardening
+        run: node tests/production-boundary-hardening.test.js
       - name: Core discovery regression
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
       - name: Full scope regression
