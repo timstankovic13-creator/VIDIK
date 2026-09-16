@@ -1,0 +1,84 @@
+name: VIDIK CI Trigger Migration
+
+on:
+  push:
+    branches: [production-intelligence-integration-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Collapse PR CI to canonical gate
+        shell: python
+        run: |
+          import pathlib, re
+
+          root = pathlib.Path('.github/workflows')
+          keep_pr = {'intelligence-completion-v1.yml', 'pr-ci-orchestrator.yml'}
+          changed = []
+
+          for path in sorted(root.glob('*.yml')):
+              if path.name in keep_pr or path.name == 'ci-trigger-migration.yml':
+                  continue
+              text = path.read_text()
+              if not re.search(r'(?m)^\s*pull_request\s*:', text) and not re.search(r'(?m)^\s*on:\s*\[[^\]]*pull_request', text):
+                  continue
+
+              lines = text.splitlines(keepends=True)
+              on_idx = next((i for i, line in enumerate(lines) if re.match(r'^on:\s*(?:$|\[)', line)), None)
+              jobs_idx = next((i for i, line in enumerate(lines) if re.match(r'^jobs:\s*$', line)), len(lines))
+              if on_idx is None or jobs_idx <= on_idx:
+                  continue
+
+              on_block = ''.join(lines[on_idx:jobs_idx])
+              on_block = re.sub(r'(?m)^  pull_request:\s*\n(?:    .*\n|\s*\n)*', '', on_block)
+              on_block = re.sub(r'(?m)^on:\s*\[([^\]]*)\]\s*$', lambda m: 'on: [' + ', '.join(x.strip() for x in m.group(1).split(',') if x.strip() not in {'pull_request', 'pull_request_target'}) + ']', on_block)
+              if re.search(r'(?m)^on:\s*\[\s*\]\s*$', on_block) or re.match(r'^on:\s*\n\s*$', on_block):
+                  on_block = 'on:\n  workflow_dispatch:\n'
+              elif 'workflow_dispatch:' not in on_block:
+                  on_block = re.sub(r'(?m)^on:\s*$', 'on:\n  workflow_dispatch:', on_block, count=1)
+
+              new_text = ''.join(lines[:on_idx]) + on_block + ''.join(lines[jobs_idx:])
+              if new_text != text:
+                  path.write_text(new_text)
+                  changed.append(str(path))
+
+          print('Changed workflows:')
+          for item in changed:
+              print(item)
+          print(f'Total changed: {len(changed)}')
+      - name: Verify only canonical PR workflows remain
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+          for f in .github/workflows/*.yml; do
+            case "$f" in
+              .github/workflows/intelligence-completion-v1.yml|.github/workflows/pr-ci-orchestrator.yml|.github/workflows/ci-trigger-migration.yml) continue ;;
+            esac
+            if grep -Eq '^  pull_request:' "$f" || grep -Eq '^on: \[[^]]*pull_request' "$f"; then
+              echo "PR trigger remains: $f"
+              bad=1
+            fi
+          done
+          test "$bad" -eq 0
+      - name: Commit trigger architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows
+          git rm .github/workflows/ci-trigger-migration.yml
+          if git diff --cached --quiet; then
+            echo "No trigger changes required"
+            exit 0
+          fi
+          git commit -m "ci: collapse PR triggers to canonical gate"
+          git push origin HEAD:production-intelligence-integration-hardening
