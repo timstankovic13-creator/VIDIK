@@ -42,3 +42,7 @@ jobs:
         run: node --test tests/vidik-full-scope-functional.test.js
       - name: Live arbitrary-problem finish-line validation
         run: npm run test:production-finish-line
+      - name: Decision artifact integrity and persistence
+        run: npm run test:decision-artifact-store
+      - name: Outcome learning and drift persistence
+        run: npm run test:outcome-learning
