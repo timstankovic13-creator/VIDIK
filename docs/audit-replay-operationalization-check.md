@@ -1,0 +1,1 @@
+Audit replay/export is intentionally validated directly in the intelligence-completion workflow so package.json remains untouched.
