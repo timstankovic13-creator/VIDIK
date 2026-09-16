@@ -1,19 +1,25 @@
 'use strict';
-
 const assert = require('node:assert/strict');
+const SourceDriven = require('../js/source-driven-intervention-discovery');
 const { canonicalCandidate, discoverOpenWorldInterventions, acquireEvidenceForCandidates, buildVerifiedParameters } = require('../js/vidik-open-world-intelligence');
 const { executeProductionDecision } = require('../js/vidik-production-closed-loop');
-
 const candidate = { id: 'candidate-1', name: 'Candidate 1', domains: ['municipal'], problemTags: ['test'], requiredEvidence: ['causal', 'implementation', 'cost', 'equity'], provenance: [{ source: 'catalogue', externalId: 'c1' }] };
 const discoverySource = { id: 'source-1', async search() { return [candidate]; } };
 const evidenceSource = { id: 'evidence-1', async search({ candidate: c }) { return [{ id: `lead-${c.id}`, candidateId: c.id, provenance: { externalId: `study-${c.id}` }, evidenceLeadOnly: true, causalEffectImported: false, evidenceType: 'causal' }]; } };
 const verification = { verificationId: 'v1', verified: true, sourceId: 'evidence-1', externalId: 'study-candidate-1', evidenceType: 'causal', targetJurisdiction: 'TEST', sourceJurisdiction: 'TEST', transportability: { admissible: true }, localEvidenceBoundary: 'explicit', verifiedEvidence: ['causal', 'implementation', 'cost', 'equity'], parameter: { estimate: 2, unit: 'outcome/CAD', uncertainty: { low: 1, high: 3 } } };
-
 async function main() {
   assert.throws(() => canonicalCandidate({ ...candidate, metadata: { estimate: 2 } }, 'source-1'), /discovery-effect-leak/);
   assert.throws(() => canonicalCandidate({ ...candidate, provenance: [] }, 'source-1'), /candidate-provenance-missing/);
 
-  const noSources = await discoverOpenWorldInterventions({ problem: 'arbitrary problem' });
+  const originalDiscovery = SourceDriven.discoverSourceDrivenInterventions;
+  SourceDriven.discoverSourceDrivenInterventions = async () => ({ candidates: [{ ...candidate, discovery: { source: 'stub-source', provenance: [{ sourceId: 'stub-source', externalId: 'c1' }] } }], sourceSearches: [{ sourceId: 'stub-source', status: 'candidates-found' }], interventionUniverse: { discoveryComplete: true } });
+  const automatic = await discoverOpenWorldInterventions({ problem: 'arbitrary problem' });
+  SourceDriven.discoverSourceDrivenInterventions = originalDiscovery;
+  assert.equal(automatic.complete, true);
+  assert.equal(automatic.sourceDriven, true);
+  assert.equal(automatic.candidateCount, 1);
+
+  const noSources = await discoverOpenWorldInterventions({ problem: 'arbitrary problem', discoverySources: [], fallbackRegistry: ['not-used'] });
   assert.equal(noSources.complete, false);
   assert.equal(noSources.failureState, 'no-discovery-sources');
 
@@ -23,7 +29,7 @@ async function main() {
   assert.equal(verified.complete, false);
   assert.deepEqual(verified.missingCandidates, ['candidate-1']);
 
-  const blocked = await executeProductionDecision({ problem: 'arbitrary problem', objective: 'reduce harm', discoverySources: [discoverySource], evidenceSources: [evidenceSource], verifications: {}, targetJurisdiction: 'TEST', resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } }, objectiveMetric: 'outcome/CAD', statusQuo: { explicit: true, expectedOutcome: 10 } });
+  const blocked = await executeProductionDecision({ problem: 'arbitrary problem', objective: 'reduce harm', discoverySources: [discoverySource], evidenceSources: [evidenceSource], verifications: {}, targetJurisdiction: 'TEST', resourceEnvelope: { marginalUnit: { amount: 100, unit: 'CAD' } }, objectiveMetric: 'outcome/CAD', statusQuo: { explicit: true, expectedOutcome: 0 }, baseline: { STATUS_QUO: 0 }, scoreFn: () => ({ recommendation: 'STATUS_QUO', score: 0 }) });
   assert.equal(blocked.status, 'BLOCKED');
   assert.ok(blocked.reasons.includes('independent-verification-incomplete'));
 
@@ -31,5 +37,4 @@ async function main() {
   assert.equal(noStatusQuo.status, 'BLOCKED');
   assert.ok(noStatusQuo.reasons.includes('status-quo-required-and-must-be-quantified'));
 }
-
 main().catch(error => { console.error(error); process.exitCode = 1; });
