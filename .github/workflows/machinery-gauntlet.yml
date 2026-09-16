@@ -1,6 +1,5 @@
 name: VIDIK Machinery Gauntlet
 on:
-  pull_request:
   push:
     branches: [main]
 jobs:
