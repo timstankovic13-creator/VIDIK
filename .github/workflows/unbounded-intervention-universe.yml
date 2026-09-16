@@ -1,14 +1,6 @@
 name: Unbounded Intervention Universe Validation
 
 on:
-  pull_request:
-    paths:
-      - 'tests/unbounded-intervention-universe.test.js'
-      - 'js/decision-discovery-execution.js'
-      - 'js/decision-discovery-orchestrator.js'
-      - 'js/intervention-discovery.js'
-      - 'js/discovery-transfer-intelligence.js'
-      - '.github/workflows/unbounded-intervention-universe.yml'
   push:
     paths:
       - 'tests/unbounded-intervention-universe.test.js'
