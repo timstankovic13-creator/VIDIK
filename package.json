@@ -35,6 +35,7 @@
     "test:outcome-learning": "node tests/outcome-learning.test.js",
     "test:decision-artifact-store": "node --test tests/decision-artifact-store.test.js",
     "test:decision-lifecycle-closure": "node --test tests/decision-lifecycle-closure.test.js",
+    "test:operational-governance": "node --test tests/operational-governance.test.js",
     "test:production-config": "node tests/production-config.test.js",
     "test:hostile-readiness": "node tests/hostile-engine-and-production-readiness-15.test.js",
     "test:production-release-gate": "node tests/production-release-gate.test.js",
