@@ -23,7 +23,7 @@ function mockResponse(problem) {
   ];
   if (normalized.includes('crime')) {
     candidates[0].title = 'Violence prevention program';
-    candidates[1].title = 'Community safety support service';
+    candidates[1].title = 'Violence prevention support service';
   } else if (normalized.includes('overdose')) {
     candidates[0].title = 'Overdose prevention program';
     candidates[1].title = 'Addiction treatment support service';
