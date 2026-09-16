@@ -3,8 +3,6 @@ name: VIDIK Intelligence Generalization
 on:
   push:
     branches: [main, intelligence-generalization-v1, blind-jurisdiction-discovery-v1]
-  pull_request:
-    branches: [main]
 
 jobs:
   intelligence-generalization:
