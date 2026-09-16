@@ -1,6 +1,7 @@
 name: full-scope-optimizer
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - 'src/full-scope/optimizer.js'
       - 'tests/full-scope-optimizer.test.js'
