@@ -22,10 +22,30 @@ test('outcomes survive a new store instance and preserve audit history', () => {
   assert.equal(recorded.drift.flagged, true);
   const second = createOutcomeLearningStore({ filePath });
   const state = second.snapshot();
+  assert.equal(state.schema, 'VIDIK.OutcomeLearning.v2');
   assert.equal(state.outcomes.length, 1);
   assert.equal(state.outcomes[0].id, recorded.id);
   assert.equal(state.audit.some(event => event.type === 'OUTCOME_RECORDED'), true);
   assert.equal(state.audit.some(event => event.type === 'DRIFT_SIGNAL'), true);
+  assert.equal(second.verifyIntegrity().ok, true);
+});
+
+test('persisted learning state fails closed when a stored outcome is altered', () => {
+  const { filePath } = tempStore();
+  const store = createOutcomeLearningStore({ filePath });
+  store.recordOutcome({ ...decision, predicted: 100, observed: 100, checkpoint: '6-month', outcomeAt: '2026-07-01T00:00:00.000Z' });
+  const state = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  state.outcomes[0].observed = 999;
+  fs.writeFileSync(filePath, JSON.stringify(state));
+  assert.throws(() => createOutcomeLearningStore({ filePath }).snapshot(), /learning-store-integrity-mismatch/);
+});
+
+test('duplicate decision checkpoint is rejected without mutating the store', () => {
+  const { filePath } = tempStore();
+  const store = createOutcomeLearningStore({ filePath });
+  store.recordOutcome({ ...decision, predicted: 100, observed: 99, checkpoint: '6-month', outcomeAt: '2026-07-01T00:00:00.000Z' });
+  assert.throws(() => store.recordOutcome({ ...decision, predicted: 100, observed: 98, checkpoint: '6-month', outcomeAt: '2026-07-02T00:00:00.000Z' }), /duplicate-outcome-checkpoint/);
+  assert.equal(store.snapshot().outcomes.length, 1);
 });
 
 test('all lifecycle checkpoints are represented and become due by elapsed time', () => {
@@ -40,15 +60,17 @@ test('all lifecycle checkpoints are represented and become due by elapsed time',
   assert.equal(lifecycle[1].recorded, false);
 });
 
-test('recalibration is persisted and never auto-applies a parameter change', () => {
+test('recalibration requires at least two observations and never auto-applies a parameter change', () => {
   const { filePath } = tempStore();
   const store = createOutcomeLearningStore({ filePath });
   store.recordOutcome({ ...decision, predicted: 100, observed: 80, checkpoint: '6-month', outcomeAt: '2026-07-01T00:00:00.000Z' });
+  assert.throws(() => store.recalibrationSignal({ decisionId: decision.decisionId, parameterName: decision.parameterName, currentValue: 100, learningRate: 0.5 }), /insufficient-observations-for-recalibration/);
   store.recordOutcome({ ...decision, predicted: 100, observed: 90, checkpoint: '1-year', outcomeAt: '2027-01-01T00:00:00.000Z' });
   const signal = store.recalibrationSignal({ decisionId: decision.decisionId, parameterName: decision.parameterName, currentValue: 100, learningRate: 0.5 });
   assert.equal(signal.meanError, -15);
   assert.equal(signal.suggestedDelta, -7.5);
   assert.equal(signal.suggestedValue, 92.5);
+  assert.equal(signal.observations, 2);
   assert.equal(signal.automaticApply, false);
   const persisted = createOutcomeLearningStore({ filePath }).snapshot();
   assert.equal(persisted.recalibrations.length, 1);
@@ -67,7 +89,7 @@ test('malformed outcomes fail closed before persistence', () => {
 test('recalibration requires an outcome for the exact decision and parameter', () => {
   const { filePath } = tempStore();
   const store = createOutcomeLearningStore({ filePath });
-  assert.throws(() => store.recalibrationSignal({ decisionId: decision.decisionId, parameterName: decision.parameterName, currentValue: 1 }), /no-outcomes-for-recalibration/);
+  assert.throws(() => store.recalibrationSignal({ decisionId: decision.decisionId, parameterName: decision.parameterName, currentValue: 1 }), /insufficient-observations-for-recalibration/);
 });
 
 test('concurrent outcome writers do not lose updates', async () => {
