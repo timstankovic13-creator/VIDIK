@@ -38,6 +38,8 @@ jobs:
         run: node tests/production-boundary-hardening.test.js
       - name: Core discovery regression
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
+      - name: Broad arbitrary-problem battery
+        run: node --test tests/open-world-problem-battery.test.js
       - name: Full scope regression
         run: node --test tests/vidik-full-scope-functional.test.js
       - name: Live arbitrary-problem finish-line validation
@@ -50,5 +52,9 @@ jobs:
         run: npm run test:decision-lifecycle-closure
       - name: Operational review and governance lifecycle
         run: npm run test:operational-governance
+      - name: Operational learning loop certification
+        run: node --test tests/operational-learning-loop.test.js
       - name: Audit replay and export integrity
         run: node --test tests/audit-replay-export.test.js
+      - name: Production readiness certification
+        run: node --test tests/production-readiness.test.js
