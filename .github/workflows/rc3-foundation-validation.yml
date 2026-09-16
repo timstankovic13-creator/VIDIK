@@ -1,8 +1,6 @@
 name: VIDIK RC3 Foundation Validation
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
