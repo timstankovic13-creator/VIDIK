@@ -58,3 +58,5 @@ jobs:
         run: node --test tests/audit-replay-export.test.js
       - name: Production readiness certification
         run: node --test tests/production-readiness.test.js
+      - name: Production deployment evidence contract
+        run: node --test tests/production-deployment-evidence.test.js
