@@ -3,8 +3,6 @@ name: VIDIK Intelligence Foundation Certification
 on:
   push:
     branches: [main, vidik-complete-intelligence-v1]
-  pull_request:
-    branches: [main]
 
 jobs:
   intelligence-foundation:
