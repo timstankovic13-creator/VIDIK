@@ -3,8 +3,6 @@ name: VIDIK Cases 001-012 Blind Temporal Batch
 on:
   push:
     branches: ['dev-case004-012-temporal-batch']
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
