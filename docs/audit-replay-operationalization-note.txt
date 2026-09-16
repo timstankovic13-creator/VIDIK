@@ -1,1 +1,0 @@
-Implementation is gated by the intelligence-completion workflow.
