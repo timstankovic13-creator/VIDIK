@@ -1,0 +1,35 @@
+name: VIDIK Browser Regression Diagnostic
+on:
+  push:
+    branches: ['prep/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --ignore-scripts
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+      - name: Run browser suite with diagnostics
+        shell: bash
+        run: |
+          set +e
+          npx playwright test --reporter=line 2>&1 | tee playwright-diagnostic.log
+          rc=${PIPESTATUS[0]}
+          echo "PLAYWRIGHT_EXIT_CODE=$rc" | tee -a playwright-diagnostic.log
+          exit $rc
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostic
+          path: playwright-diagnostic.log
+          if-no-files-found: warn
