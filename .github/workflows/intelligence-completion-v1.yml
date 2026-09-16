@@ -54,3 +54,5 @@ jobs:
         run: node --test tests/operational-learning-loop.test.js
       - name: Audit replay and export integrity
         run: node --test tests/audit-replay-export.test.js
+      - name: Production readiness certification
+        run: node --test tests/production-readiness.test.js
