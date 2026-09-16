@@ -2,23 +2,6 @@ name: VIDIK Engine 1-6 Validation
 
 # Engine certification only. GUI/browser work is intentionally parked until the engine is fully caught up.
 on:
-  pull_request:
-    paths:
-      - 'js/production-decision-pipeline.js'
-      - 'js/source-driven-intervention-discovery.js'
-      - 'js/source-driven-evidence-discovery.js'
-      - 'js/decision-discovery-execution.js'
-      - 'js/evidence-promotion-gate.js'
-      - 'js/decision-discovery-orchestrator.js'
-      - 'js/decision-artifact-store.js'
-      - 'js/config.js'
-      - 'tests/production-decision-pipeline.test.js'
-      - 'tests/decision-discovery-execution.test.js'
-      - 'tests/source-driven-intervention-discovery.test.js'
-      - 'tests/source-driven-evidence-discovery.test.js'
-      - 'tests/intervention-relevance-scenarios.test.js'
-      - 'tests/intervention-relevance-novel-problems.test.js'
-      - '.github/workflows/engine6-gui7-validation.yml'
   push:
     branches: [main]
     paths:
