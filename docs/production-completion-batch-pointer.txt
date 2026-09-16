@@ -1,1 +1,0 @@
-Production completion batch is intentionally grouped for one bounded CI run. Rollback point: baseline/production-completion-2026-09-16-post-170.
