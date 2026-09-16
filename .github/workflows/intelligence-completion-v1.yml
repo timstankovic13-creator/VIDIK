@@ -48,3 +48,5 @@ jobs:
         run: npm run test:outcome-learning
       - name: Decision-to-outcome lifecycle closure
         run: npm run test:decision-lifecycle-closure
+      - name: Operational review and governance lifecycle
+        run: npm run test:operational-governance
