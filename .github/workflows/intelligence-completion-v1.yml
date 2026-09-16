@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main, intelligence-completion-v1]
+concurrency:
+  group: vidik-intelligence-completion-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   intelligence-completion:
     runs-on: ubuntu-latest
