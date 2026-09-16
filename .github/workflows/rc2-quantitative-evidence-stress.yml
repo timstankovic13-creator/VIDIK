@@ -3,8 +3,6 @@ name: VIDIK RC2 Quantitative Evidence Stress
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   quantitative-evidence-stress:
