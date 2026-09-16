@@ -17,7 +17,15 @@ const CASES = [
   ['reduce urban heat', 'UK'],
   ['reduce traffic injuries', 'UK'],
   ['reduce housing construction delays', 'AU'],
-  ['reduce youth unemployment', 'AU']
+  ['reduce youth unemployment', 'AU'],
+  ['reduce municipal water contamination', 'CA'],
+  ['reduce construction permitting delays', 'CA'],
+  ['improve public library wait times', 'CA'],
+  ['reduce coastal flood damage', 'US'],
+  ['improve small business survival', 'US'],
+  ['reduce digital access gaps', 'UK'],
+  ['reduce food price volatility', 'AU'],
+  ['reduce urban noise pollution', 'UK']
 ];
 
 function assertDiscoveryBoundary(result, problem, jurisdiction) {
