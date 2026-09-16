@@ -1,7 +1,6 @@
 name: VIDIK Open-World Production Certification
 
 on:
-  pull_request:
   push:
     branches: [main]
 
