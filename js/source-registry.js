@@ -24,7 +24,7 @@ const SOURCE_REGISTRY = Object.freeze([
   },
   {
     sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
-    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-api',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://catalog.data.gov/api/3/action/package_search?q=',
     discoveryTags: ['municipal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
@@ -39,6 +39,18 @@ const SOURCE_REGISTRY = Object.freeze([
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://data.gov.au/data/api/3/action/package_search?q=',
     discoveryTags: ['municipal','state','programs','services','health','safety','transport','housing','environment','crime','employment','education','business']
+  },
+  {
+    sourceId: 'nz-open-data-program-discovery', provider: 'New Zealand Government Data Service', jurisdiction: 'NZ',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://catalogue.data.govt.nz/api/3/action/package_search?q=',
+    discoveryTags: ['municipal','local-government','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
+  },
+  {
+    sourceId: 'ie-open-data-program-discovery', provider: 'Ireland Open Data Portal', jurisdiction: 'IE',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://data.gov.ie/api/3/action/package_search?q=',
+    discoveryTags: ['municipal','local-government','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
   {
     sourceId: 'ca-procurement-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
