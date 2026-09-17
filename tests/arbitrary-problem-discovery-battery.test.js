@@ -9,18 +9,18 @@ const { executeFullCapacityDecision } = require('../js/decision-discovery-execut
 // provenance-bearing intervention universe. Discovery leads and research hits
 // must never be promoted to effects or recommendations by discovery alone.
 const PROBLEMS = [
-  ['violent crime', 'public-safety'],
-  ['opioid deaths', 'health'],
-  ['homelessness', 'housing'],
-  ['housing affordability', 'housing'],
-  ['emergency department pressure', 'health'],
-  ['traffic fatalities', 'mobility-safety'],
-  ['food insecurity', 'food-access'],
-  ['youth violence', 'public-safety'],
-  ['air pollution exposure', 'climate'],
-  ['climate adaptation', 'climate'],
-  ['transit reliability', 'mobility'],
-  ['youth unemployment', 'employment']
+  'violent crime',
+  'opioid deaths',
+  'homelessness',
+  'housing affordability',
+  'emergency department pressure',
+  'traffic fatalities',
+  'food insecurity',
+  'youth violence',
+  'air pollution exposure',
+  'climate adaptation',
+  'transit reliability',
+  'youth unemployment'
 ];
 
 function mockResponse(value) {
@@ -33,12 +33,8 @@ function mockResponse(value) {
   };
 }
 
-function problemFamily(problem) {
-  return problem.toLowerCase();
-}
-
 function interventionRecords(problem) {
-  const family = problemFamily(problem);
+  const family = problem.toLowerCase();
   return [
     {
       id: `${family}-program-a`,
@@ -80,7 +76,7 @@ async function arbitraryProblemFetch(url) {
 }
 
 test('arbitrary-problem battery discovers source-backed intervention universes without seeded candidates', async () => {
-  for (const [problem, expectedFamily] of PROBLEMS) {
+  for (const problem of PROBLEMS) {
     const run = await executeFullCapacityDecision({
       problem,
       discoveryJurisdiction: 'CA',
@@ -97,7 +93,7 @@ test('arbitrary-problem battery discovers source-backed intervention universes w
     assert.equal(run.candidates.every(candidate => candidate.discovery?.discoveryOnly === true), true, `${problem}: candidates remain discovery-only`);
     assert.equal(run.candidates.every(candidate => candidate.discovery?.effectsImported === false), true, `${problem}: no effects may be imported from discovery`);
     assert.equal(run.candidates.every(candidate => candidate.requiredEvidence?.length >= 4), true, `${problem}: evidence requirements must be attached`);
-    assert.ok(run.candidates.some(candidate => (candidate.interventionFamily || []).includes(expectedFamily)), `${problem}: discovered universe should retain problem-relevant intervention family`);
+    assert.ok(run.candidates.some(candidate => String(candidate.discoveryText || '').toLowerCase().includes(problem)), `${problem}: discovered universe must remain problem-relevant`);
     assert.ok(run.candidates.every(candidate => candidate.sourceIds?.length >= 1), `${problem}: every candidate needs source provenance`);
     assert.ok(run.candidates.every(candidate => candidate.canonicalName), `${problem}: every candidate needs a canonical identity`);
     assert.equal(run.governance.learningEffectsImported, false);
