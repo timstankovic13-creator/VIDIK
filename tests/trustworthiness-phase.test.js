@@ -52,19 +52,9 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   const result = Discovery.discoverInterventions({ problem, candidates: [] });
   const coverage = Discovery.evidenceCoverage(result);
   assert.deepEqual(coverage, { total: 0, complete: 0, withEvidenceGaps: 0, coverageRate: 0 });
-  const audit = Discovery.discoveryAudit({
-    problem,
-    candidates: [],
-    sourceSearches: [
-      { sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 },
-      { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }
-    ]
-  });
+  const audit = Discovery.discoveryAudit({ problem, candidates: [], sourceSearches: [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 }, { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }] });
   assert.deepEqual(audit.sourcesSearched, []);
-  assert.deepEqual(audit.sourceSearches, [
-    { sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 },
-    { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }
-  ]);
+  assert.deepEqual(audit.sourceSearches, [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 0 }, { sourceId: 'municipal-programs', sourceType: 'local-program', status: 'searched', candidatesReturned: 0 }]);
   assert.equal(audit.candidatesConsidered, 0);
   assert.equal(audit.candidatesMatched, 0);
   assert.equal(audit.candidatesUnmatched, 0);
@@ -73,12 +63,7 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
   assert.equal(typeof audit.candidateUniverseHash, 'string');
   assert.equal(audit.candidateUniverseHash.length, 64);
   assert.deepEqual(audit.evidenceCoverage, coverage);
-
-  const searchedButUnmatched = Discovery.discoveryAudit({
-    problem,
-    candidates: [{ id: 'fleet-replacement', name: 'Municipal fleet replacement', domains: ['public-works'], problemTags: ['fleet'], requiredEvidence: ['causal'] }],
-    sourceSearches: [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 1 }]
-  });
+  const searchedButUnmatched = Discovery.discoveryAudit({ problem, candidates: [{ id: 'fleet-replacement', name: 'Municipal fleet replacement', domains: ['public-works'], problemTags: ['fleet'], requiredEvidence: ['causal'] }], sourceSearches: [{ sourceId: 'research-discovery', sourceType: 'research', status: 'searched', candidatesReturned: 1 }] });
   assert.equal(searchedButUnmatched.candidatesConsidered, 1);
   assert.equal(searchedButUnmatched.candidatesMatched, 0);
   assert.equal(searchedButUnmatched.candidatesUnmatched, 1);
@@ -86,11 +71,7 @@ test('2 discovery records coverage and an auditable empty-result state', () => {
 });
 
 test('3 contradiction and incompleteness gates remain fail-closed', () => {
-  const result = Discovery.discoverInterventions({
-    problem: 'emergency department overcrowding',
-    acquiredCandidates: [{ id: 'candidate-a', name: 'ED diversion', domains: ['health'], problemTags: ['overcrowding'], requiredEvidence: ['causal', 'cost'] }],
-    evidenceIndex: { 'candidate-a': { causal: { status: 'blocked' }, cost: { status: 'supported' } } }
-  });
+  const result = Discovery.discoverInterventions({ problem: 'emergency department overcrowding', acquiredCandidates: [{ id: 'candidate-a', name: 'ED diversion', domains: ['health'], problemTags: ['overcrowding'], requiredEvidence: ['causal', 'cost'] }], evidenceIndex: { 'candidate-a': { causal: { status: 'blocked' }, cost: { status: 'supported' } } } });
   assert.equal(result[0].evidenceState, 'evidence-gap');
   assert.ok(result[0].missingEvidence.includes('causal'));
   assertFailClosed(result[0].evidenceState === 'evidence-complete', 'blocked causal evidence must not become admissible');
@@ -112,10 +93,7 @@ test('5 historical replay signature is deterministic and input-sensitive', () =>
 });
 
 test('6 sensitivity produces a visible recommendation flip', () => {
-  const scenarios = [
-    { id: 'a', estimate: 0.41, uncertainty: { low: 0.20, high: 0.60 } },
-    { id: 'b', estimate: 0.40, uncertainty: { low: 0.30, high: 0.50 } }
-  ];
+  const scenarios = [{ id: 'a', estimate: 0.41, uncertainty: { low: 0.20, high: 0.60 } }, { id: 'b', estimate: 0.40, uncertainty: { low: 0.30, high: 0.50 } }];
   const winner = scenarios.slice().sort((a, b) => b.estimate - a.estimate)[0].id;
   const lowWinner = scenarios.slice().sort((a, b) => b.uncertainty.low - a.uncertainty.low)[0].id;
   assert.equal(winner, 'a');
@@ -132,20 +110,16 @@ test('8 drift signal is observable and learning remains non-automatic', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vidik-trust-'));
   const store = createOutcomeLearningStore({ filePath: path.join(dir, 'outcomes.json') });
   store.recordOutcome({ decisionId: 'TRUST-008', parameterName: 'effect', city: 'Ottawa', predicted: 100, observed: 80, checkpoint: '6-month', decisionAt: '2026-01-01T00:00:00.000Z', outcomeAt: '2026-07-01T00:00:00.000Z' });
+  store.recordOutcome({ decisionId: 'TRUST-008', parameterName: 'effect', city: 'Ottawa', predicted: 100, observed: 85, checkpoint: '1-year', decisionAt: '2026-01-01T00:00:00.000Z', outcomeAt: '2027-01-01T00:00:00.000Z' });
   const state = store.snapshot();
   assert.equal(state.audit.some(event => event.type === 'DRIFT_SIGNAL'), true);
   const signal = store.recalibrationSignal({ decisionId: 'TRUST-008', parameterName: 'effect', currentValue: 100, learningRate: 0.5 });
+  assert.equal(signal.observations, 2);
   assert.equal(signal.automaticApply, false);
 });
 
 test('9 arbitrary problems never become a fabricated recommendation', () => {
-  const unseen = [
-    'reduce construction permitting delays',
-    'reduce coastal flood damage',
-    'improve public library wait times',
-    'reduce industrial water contamination',
-    'improve small business survival'
-  ];
+  const unseen = ['reduce construction permitting delays', 'reduce coastal flood damage', 'improve public library wait times', 'reduce industrial water contamination', 'improve small business survival'];
   for (const problem of unseen) {
     const result = Discovery.discoverInterventions({ problem, candidates: [] });
     assert.equal(result.length, 0);
@@ -157,11 +131,7 @@ test('9 arbitrary problems never become a fabricated recommendation', () => {
 });
 
 test('10 comparable-city learning surfaces solutions without importing their effects', () => {
-  const comparable = [
-    { city: 'Toronto', problem: 'emergency department overcrowding', interventions: 'community paramedicine' },
-    { city: 'Melbourne', problem: 'emergency department overcrowding', interventions: 'hospital-at-home' },
-    { city: 'Ottawa', problem: 'road safety', interventions: 'speed management' }
-  ];
+  const comparable = [{ city: 'Toronto', problem: 'emergency department overcrowding', interventions: 'community paramedicine' }, { city: 'Melbourne', problem: 'emergency department overcrowding', interventions: 'hospital-at-home' }, { city: 'Ottawa', problem: 'road safety', interventions: 'speed management' }];
   const matches = comparableCityMatch('reduce emergency department overcrowding', comparable);
   assert.equal(matches.length, 2);
   assert.deepEqual(matches.map(item => item.city).sort(), ['Melbourne', 'Toronto']);
