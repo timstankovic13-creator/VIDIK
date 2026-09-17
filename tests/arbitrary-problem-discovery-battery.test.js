@@ -95,7 +95,7 @@ test('arbitrary-problem battery discovers source-backed intervention universes w
     assert.equal(run.candidates.every(candidate => candidate.requiredEvidence?.length >= 4), true, `${problem}: evidence requirements must be attached`);
     assert.ok(run.candidates.some(candidate => (candidate.problemTags || []).some(tag => String(tag).toLowerCase() === problem)), `${problem}: discovered universe must retain the requested problem tag`);
     assert.ok(run.candidates.every(candidate => candidate.discovery?.provenance?.length >= 1), `${problem}: every candidate needs source provenance`);
-    assert.ok(run.candidates.every(candidate => candidate.canonicalName), `${problem}: every candidate needs a canonical identity`);
+    assert.ok(run.candidates.every(candidate => candidate.id && candidate.name), `${problem}: every candidate needs a stable canonical identity`);
     assert.equal(run.governance.learningEffectsImported, false);
     assert.equal(run.governance.learningDiscoveryLeadOnly, true);
     assert.equal(run.governance.transferEffectsImported, false);
