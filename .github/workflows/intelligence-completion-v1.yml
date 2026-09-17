@@ -64,3 +64,31 @@ jobs:
         run: npm run test:managed-persistence
       - name: Production deployment verifier
         run: node --test tests/production-deployment-verifier.test.js
+
+  production-postgres-acceptance:
+    name: Real PostgreSQL production acceptance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install runtime dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Real PostgreSQL lifecycle, tenant isolation, and audit acceptance
+        run: timeout --foreground --kill-after=10s 45s node --test tests/production-postgres-integration.test.js
+        env:
+          VIDIK_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
