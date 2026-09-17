@@ -53,17 +53,17 @@ async function setupDatabase(admin) {
 }
 
 async function cleanupDatabase(admin) {
-  // Audit rows are intentionally immutable through UPDATE/DELETE. This acceptance
-  // test uses a disposable PostgreSQL container, so TRUNCATE is the correct
-  // privileged teardown primitive and does not weaken the production trigger.
-  await admin.query('TRUNCATE TABLE vidik_audit_events, vidik_outcomes, vidik_decisions, vidik_tenants RESTART IDENTITY CASCADE');
+  // Teardown must remain safe even when setup aborts before all tables are created.
+  // This matters because the cleanup path must report the real setup failure rather
+  // than replacing it with a misleading "relation does not exist" error.
+  await admin.query('DROP TABLE IF EXISTS vidik_audit_events, vidik_outcomes, vidik_decisions, vidik_tenants CASCADE');
   // Remove all privileges owned by the acceptance role before dropping it.
   // PostgreSQL otherwise refuses DROP ROLE when table/schema ACL entries remain.
   await admin.query(`DROP OWNED BY ${APP_ROLE}`);
   await admin.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
 }
 
-test('real PostgreSQL acceptance proves tenant binding, RLS, lifecycle persistence, and audit integrity', { timeout: 30000 }, async t => {
+test('real PostgreSQL acceptance proves tenant binding, RLS, lifecycle persistence, and audit integrity', { timeout: 30000 }, async () => {
   requireDatabase();
   const admin = await adminClient();
   let pool;
@@ -96,9 +96,6 @@ test('real PostgreSQL acceptance proves tenant binding, RLS, lifecycle persisten
 
     const audit1 = await a.appendAudit({ eventType: 'decision-created', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: 'acceptance-1' } });
     const audit2 = await a.appendAudit({ eventType: 'outcome-recorded', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: '6-month', observed: 8 } });
-    // PostgreSQL bigint values are returned by node-postgres as strings by default.
-    // Compare as BigInt so the acceptance test preserves bigint semantics without
-    // introducing an unsafe Number conversion.
     assert.equal(BigInt(audit1.event_sequence), 1n);
     assert.equal(audit1.previous_hash, null);
     assert.equal(BigInt(audit2.event_sequence), 2n);
