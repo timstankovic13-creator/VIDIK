@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('VIDIK 9.5 decision lifecycle', () => {
   async function ready(page) {
     await page.goto('/');
+    await page.locator('#decisionProblem').fill('Improve housing stability');
     await page.locator('#seeAnalysis').click();
     await page.locator('details.advanced').filter({hasText:'Decision lifecycle & governance'}).locator('summary').click();
     await page.evaluate(() => {
