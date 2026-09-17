@@ -53,10 +53,10 @@ async function setupDatabase(admin) {
 }
 
 async function cleanupDatabase(admin) {
-  await admin.query('DELETE FROM vidik_audit_events WHERE tenant_id IN ($1, $2)', [TENANT_A, TENANT_B]);
-  await admin.query('DELETE FROM vidik_outcomes WHERE tenant_id IN ($1, $2)', [TENANT_A, TENANT_B]);
-  await admin.query('DELETE FROM vidik_decisions WHERE tenant_id IN ($1, $2)', [TENANT_A, TENANT_B]);
-  await admin.query('DELETE FROM vidik_tenants WHERE id IN ($1, $2)', [TENANT_A, TENANT_B]);
+  // Audit rows are intentionally immutable through UPDATE/DELETE. This acceptance
+  // test uses a disposable PostgreSQL container, so TRUNCATE is the correct
+  // privileged teardown primitive and does not weaken the production trigger.
+  await admin.query('TRUNCATE TABLE vidik_audit_events, vidik_outcomes, vidik_decisions, vidik_tenants RESTART IDENTITY CASCADE');
   // Remove all privileges owned by the acceptance role before dropping it.
   // PostgreSQL otherwise refuses DROP ROLE when table/schema ACL entries remain.
   await admin.query(`DROP OWNED BY ${APP_ROLE}`);
