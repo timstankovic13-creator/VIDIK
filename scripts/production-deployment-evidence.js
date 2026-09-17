@@ -29,6 +29,15 @@ function validateEvidence(input) {
   if (!input || input.schema !== SCHEMA || input.version !== 1) return { ok: false, code: 'invalid-evidence-envelope' };
   if (!input.environment || typeof input.environment !== 'string') return { ok: false, code: 'missing-environment' };
   if (!Array.isArray(input.controls)) return { ok: false, code: 'missing-controls' };
+
+  // Integrity must be checked before semantic control validation so any mutation of
+  // a sealed evidence record is reported as tampering, not as a different semantic state.
+  if (!input.integrity?.contentHash) return { ok: false, code: 'missing-evidence-integrity' };
+  const copy = JSON.parse(JSON.stringify(input));
+  delete copy.integrity;
+  const actual = hash(copy);
+  if (actual !== input.integrity.contentHash) return { ok: false, code: 'deployment-evidence-integrity-mismatch', expected: input.integrity.contentHash, actual };
+
   const controls = new Map(input.controls.map(control => [control.name, control]));
   const missing = REQUIRED_CONTROLS.filter(name => !controls.has(name));
   if (missing.length) return { ok: false, code: 'missing-deployment-controls', missing };
@@ -37,11 +46,6 @@ function validateEvidence(input) {
     return control.status !== 'verified' || typeof control.evidence !== 'string' || control.evidence.trim() === '' || typeof control.verifiedAt !== 'string' || typeof control.verifiedBy !== 'string';
   });
   if (incomplete.length) return { ok: false, code: 'unverified-deployment-controls', incomplete };
-  if (!input.integrity?.contentHash) return { ok: false, code: 'missing-evidence-integrity' };
-  const copy = JSON.parse(JSON.stringify(input));
-  delete copy.integrity;
-  const actual = hash(copy);
-  if (actual !== input.integrity.contentHash) return { ok: false, code: 'deployment-evidence-integrity-mismatch', expected: input.integrity.contentHash, actual };
   return { ok: true, environment: input.environment, controls: REQUIRED_CONTROLS };
 }
 
