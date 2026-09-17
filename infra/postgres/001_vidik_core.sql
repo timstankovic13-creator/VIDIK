@@ -29,8 +29,14 @@ CREATE TABLE IF NOT EXISTS vidik_outcomes (
   decision_id uuid NOT NULL,
   parameter_name text NOT NULL,
   checkpoint text NOT NULL CHECK (checkpoint IN ('6-month','1-year','2-year','5-year')),
-  predicted double precision NOT NULL CHECK (isfinite(predicted)),
-  observed double precision NOT NULL CHECK (isfinite(observed)),
+  predicted double precision NOT NULL CHECK (
+    predicted BETWEEN '-1.7976931348623157e+308'::double precision
+                  AND '1.7976931348623157e+308'::double precision
+  ),
+  observed double precision NOT NULL CHECK (
+    observed BETWEEN '-1.7976931348623157e+308'::double precision
+                 AND '1.7976931348623157e+308'::double precision
+  ),
   error double precision GENERATED ALWAYS AS (observed - predicted) STORED,
   decision_at timestamptz NOT NULL,
   outcome_at timestamptz NOT NULL,
