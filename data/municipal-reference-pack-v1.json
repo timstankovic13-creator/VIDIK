@@ -1,0 +1,78 @@
+{
+  "schema_version": "municipal-reference-pack.v1",
+  "status": "reference-pack-manifest",
+  "purpose": "Fast local municipal context while preserving live evidence as authoritative for volatile facts.",
+  "baseline": {
+    "census": {
+      "id": "wup-2025-population-ge50k",
+      "expected_records": 12138,
+      "role": "stable city identity/population baseline"
+    }
+  },
+  "reference_domains": [
+    {
+      "id": "population-geography",
+      "priority": 1,
+      "cache": true,
+      "update_policy": "annual-or-source-release",
+      "fields": ["population", "land_area", "density", "municipality_identity", "urban_area", "cma_relationships"]
+    },
+    {
+      "id": "demographic-socioeconomic",
+      "priority": 2,
+      "cache": true,
+      "update_policy": "annual-or-census-release",
+      "fields": ["age_structure", "income", "employment", "housing", "households", "population_change"]
+    },
+    {
+      "id": "municipal-public-safety",
+      "priority": 3,
+      "cache": true,
+      "update_policy": "annual",
+      "official_sources": ["Statistics Canada Table 35-10-0077-01", "Statistics Canada Table 35-10-0079-01"],
+      "fields": ["police_personnel", "authorized_strength", "officers_per_100k", "hirings_departures", "retirement_eligibility", "selected_crime_statistics"]
+    },
+    {
+      "id": "municipal-finance",
+      "priority": 4,
+      "cache": true,
+      "update_policy": "annual-budget-cycle",
+      "fields": ["operating_budget", "capital_budget", "program_spend", "staffing", "relevant_service_costs"]
+    },
+    {
+      "id": "transport-road-safety",
+      "priority": 5,
+      "cache": true,
+      "update_policy": "annual-or-source-release",
+      "fields": ["road_safety_baselines", "traffic_context", "speed_enforcement_context", "transport_network_context"]
+    },
+    {
+      "id": "emergency-health",
+      "priority": 6,
+      "cache": true,
+      "update_policy": "annual-or-source-release",
+      "fields": ["paramedic_capacity", "response_context", "emergency_service_baselines"]
+    }
+  ],
+  "live_authoritative_domains": [
+    "current_budget_decisions",
+    "active_incidents",
+    "current_service_capacity",
+    "current_program_costs",
+    "current_policy_and_legislation",
+    "rapidly-changing_operational_data"
+  ],
+  "provenance_required": [
+    "publisher",
+    "source_url",
+    "retrieved_at",
+    "reference_period",
+    "geography_definition",
+    "dataset_version",
+    "schema_version",
+    "content_hash",
+    "freshness_policy",
+    "transformation_history"
+  ],
+  "rule": "Cached data is reference evidence, never silently substituted for fresher live evidence. Every cached record remains timestamped and provenance-bound."
+}
