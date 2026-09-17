@@ -89,6 +89,6 @@ jobs:
       - name: Install runtime dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Real PostgreSQL lifecycle, tenant isolation, and audit acceptance
-        run: node --test tests/production-postgres-integration.test.js
+        run: timeout --foreground --kill-after=10s 45s node --test tests/production-postgres-integration.test.js
         env:
           VIDIK_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
