@@ -35,7 +35,7 @@
     "test:outcome-learning": "node tests/outcome-learning.test.js",
     "test:decision-artifact-store": "node --test tests/decision-artifact-store.test.js",
     "test:decision-lifecycle-closure": "node --test tests/decision-lifecycle-closure.test.js",
-    "test:operational-governance": "node --test tests/operational-governance.test.js",
+    "test:operational-governance": "node tests/operational-governance.test.js",
     "test:production-config": "node tests/production-config.test.js",
     "test:hostile-readiness": "node tests/hostile-engine-and-production-readiness-15.test.js",
     "test:production-release-gate": "node tests/production-release-gate.test.js",
@@ -60,8 +60,9 @@
     "test:vidik-next-eight": "node --test tests/vidik-next-eight.test.js",
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node tests/trustworthiness-phase.test.js",
-    "test:production-finish-line": "node --test tests/production-finish-line-live-generalization.test.js"
+    "test:production-finish-line": "node --test tests/production-finish-line-live-generalization.test.js",
+    "test:managed-persistence": "node --test tests/managed-persistence.test.js"
   },
   "devDependencies": { "@playwright/test": "^1.55.0" },
-  "dependencies": { "pdf-parse": "^1.1.1" }
+  "dependencies": { "pdf-parse": "^1.1.1", "pg": "^8.16.3" }
 }
