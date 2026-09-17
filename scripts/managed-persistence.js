@@ -45,7 +45,10 @@ async function withTenantTransaction(pool, identityInput, operation) {
 
 function createManagedPersistence(options = {}) {
   const pool = requirePool(options.pool);
-  const identity = normalizeVerifiedIdentity(options.identity);
+  // Keep the verified input as the authorization source. The normalized identity is
+  // returned for consumers, but is not treated as a new authentication assertion.
+  const identityInput = options.identity;
+  const identity = normalizeVerifiedIdentity(identityInput);
 
   return {
     identity,
@@ -53,7 +56,7 @@ function createManagedPersistence(options = {}) {
     async createDecision(input = {}) {
       if (!input.decisionKey || typeof input.decisionKey !== 'string') fail('invalid-decision-key');
       if (input.payload === undefined) fail('decision-payload-required');
-      return withTenantTransaction(pool, identity, async client => {
+      return withTenantTransaction(pool, identityInput, async client => {
         const result = await client.query(
           `INSERT INTO vidik_decisions (tenant_id, decision_key, payload)
            VALUES (current_setting('app.tenant_id', true)::uuid, $1, $2::jsonb)
@@ -66,7 +69,7 @@ function createManagedPersistence(options = {}) {
 
     async getDecision(decisionKey) {
       if (!decisionKey || typeof decisionKey !== 'string') fail('invalid-decision-key');
-      return withTenantTransaction(pool, identity, async client => {
+      return withTenantTransaction(pool, identityInput, async client => {
         const result = await client.query(
           `SELECT id, tenant_id, decision_key, payload, created_at, updated_at
              FROM vidik_decisions
@@ -78,11 +81,11 @@ function createManagedPersistence(options = {}) {
     },
 
     async recordOutcome(input = {}) {
-      assertRole(identity, ['admin', 'operator', 'reviewer']);
+      assertRole(identityInput, ['admin', 'operator', 'reviewer']);
       const required = ['decisionId', 'parameterName', 'checkpoint', 'predicted', 'observed', 'decisionAt', 'outcomeAt'];
       for (const key of required) if (input[key] === undefined || input[key] === null) fail(`missing-outcome-field:${key}`);
       if (!Number.isFinite(input.predicted) || !Number.isFinite(input.observed)) fail('invalid-outcome-value');
-      return withTenantTransaction(pool, identity, async client => {
+      return withTenantTransaction(pool, identityInput, async client => {
         const result = await client.query(
           `INSERT INTO vidik_outcomes
              (tenant_id, decision_id, parameter_name, checkpoint, predicted, observed, decision_at, outcome_at)
@@ -96,9 +99,9 @@ function createManagedPersistence(options = {}) {
     },
 
     async appendAudit(input = {}) {
-      assertRole(identity, ['admin', 'operator', 'reviewer']);
+      assertRole(identityInput, ['admin', 'operator', 'reviewer']);
       for (const key of ['eventType', 'aggregateType', 'aggregateId']) if (!input[key]) fail(`missing-audit-field:${key}`);
-      return withTenantTransaction(pool, identity, async client => {
+      return withTenantTransaction(pool, identityInput, async client => {
         const previous = await client.query(
           `SELECT event_sequence, event_hash
              FROM vidik_audit_events
