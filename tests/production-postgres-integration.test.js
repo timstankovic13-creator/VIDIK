@@ -96,9 +96,12 @@ test('real PostgreSQL acceptance proves tenant binding, RLS, lifecycle persisten
 
     const audit1 = await a.appendAudit({ eventType: 'decision-created', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: 'acceptance-1' } });
     const audit2 = await a.appendAudit({ eventType: 'outcome-recorded', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: '6-month', observed: 8 } });
-    assert.equal(audit1.event_sequence, 1);
+    // PostgreSQL bigint values are returned by node-postgres as strings by default.
+    // Compare as BigInt so the acceptance test preserves bigint semantics without
+    // introducing an unsafe Number conversion.
+    assert.equal(BigInt(audit1.event_sequence), 1n);
     assert.equal(audit1.previous_hash, null);
-    assert.equal(audit2.event_sequence, 2);
+    assert.equal(BigInt(audit2.event_sequence), 2n);
     assert.equal(audit2.previous_hash, audit1.event_hash);
     assert.equal((await b.getDecision('acceptance-lifecycle-b')).tenant_id, TENANT_B);
 
