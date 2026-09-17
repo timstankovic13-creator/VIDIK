@@ -58,6 +58,8 @@ jobs:
       - run: npm install
       - name: Transportability and drift
         run: node --test --test-name-pattern='^(7|8) ' tests/trustworthiness-phase.test.js
+      - name: Full trustworthiness regression after drift gate
+        run: node --test tests/trustworthiness-phase.test.js
 
   arbitrary-problems:
     runs-on: ubuntu-latest
