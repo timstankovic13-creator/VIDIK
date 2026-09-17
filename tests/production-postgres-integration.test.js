@@ -43,7 +43,11 @@ async function setupDatabase(admin) {
   await admin.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`);
   await admin.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await admin.query(`GRANT SELECT, INSERT ON vidik_tenants TO ${APP_ROLE}`);
-  await admin.query(`GRANT SELECT, INSERT ON vidik_decisions, vidik_outcomes, vidik_audit_events TO ${APP_ROLE}`);
+  await admin.query(`GRANT SELECT, INSERT ON vidik_decisions, vidik_outcomes TO ${APP_ROLE}`);
+  // appendAudit uses SELECT ... FOR UPDATE to serialize the per-tenant hash chain.
+  // UPDATE is required for that row-locking operation; the database trigger still
+  // rejects every actual UPDATE, preserving append-only semantics.
+  await admin.query(`GRANT SELECT, INSERT, UPDATE ON vidik_audit_events TO ${APP_ROLE}`);
   await admin.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`);
   await admin.query('INSERT INTO vidik_tenants (id, name) VALUES ($1, $2), ($3, $4) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name', [TENANT_A, 'Acceptance Tenant A', TENANT_B, 'Acceptance Tenant B']);
 }
@@ -53,6 +57,9 @@ async function cleanupDatabase(admin) {
   await admin.query('DELETE FROM vidik_outcomes WHERE tenant_id IN ($1, $2)', [TENANT_A, TENANT_B]);
   await admin.query('DELETE FROM vidik_decisions WHERE tenant_id IN ($1, $2)', [TENANT_A, TENANT_B]);
   await admin.query('DELETE FROM vidik_tenants WHERE id IN ($1, $2)', [TENANT_A, TENANT_B]);
+  // Remove all privileges owned by the acceptance role before dropping it.
+  // PostgreSQL otherwise refuses DROP ROLE when table/schema ACL entries remain.
+  await admin.query(`DROP OWNED BY ${APP_ROLE}`);
   await admin.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
 }
 
