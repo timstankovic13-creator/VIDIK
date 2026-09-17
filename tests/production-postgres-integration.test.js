@@ -12,29 +12,26 @@ const TENANT_A = '11111111-1111-4111-8111-111111111111';
 const TENANT_B = '22222222-2222-4222-8222-222222222222';
 const APP_ROLE = 'vidik_app_acceptance';
 const APP_PASSWORD = 'vidik_acceptance_password';
-const IDENTITY_A = Object.freeze({
-  verified: true,
-  sub: 'acceptance-user-a',
-  tenant_id: TENANT_A,
-  role: 'operator',
-  iss: 'https://issuer.example.test',
-  aud: 'vidik',
-});
-const IDENTITY_B = Object.freeze({
-  verified: true,
-  sub: 'acceptance-user-b',
-  tenant_id: TENANT_B,
-  role: 'operator',
-  iss: 'https://issuer.example.test',
-  aud: 'vidik',
-});
+const IDENTITY_A = Object.freeze({ verified: true, sub: 'acceptance-user-a', tenant_id: TENANT_A, role: 'operator', iss: 'https://issuer.example.test', aud: 'vidik' });
+const IDENTITY_B = Object.freeze({ verified: true, sub: 'acceptance-user-b', tenant_id: TENANT_B, role: 'operator', iss: 'https://issuer.example.test', aud: 'vidik' });
+
+const PG_QUERY_TIMEOUT_MS = 5000;
+const PG_CONNECTION_TIMEOUT_MS = 5000;
 
 function requireDatabase() {
   if (!DATABASE_URL) throw new Error('VIDIK_TEST_DATABASE_URL is required for real PostgreSQL acceptance');
 }
 
+function pgOptions(connectionString) {
+  return {
+    connectionString,
+    connectionTimeoutMillis: PG_CONNECTION_TIMEOUT_MS,
+    statement_timeout: PG_QUERY_TIMEOUT_MS,
+  };
+}
+
 async function adminClient() {
-  const client = new Client({ connectionString: DATABASE_URL });
+  const client = new Client(pgOptions(DATABASE_URL));
   await client.connect();
   return client;
 }
@@ -65,95 +62,47 @@ test('real PostgreSQL acceptance proves tenant binding, RLS, lifecycle persisten
   let pool;
   try {
     await setupDatabase(admin);
-    pool = new Pool({ connectionString: `postgresql://${APP_ROLE}:${APP_PASSWORD}@${new URL(DATABASE_URL).hostname}:${new URL(DATABASE_URL).port || 5432}/${new URL(DATABASE_URL).pathname.slice(1)}` });
+    const parsed = new URL(DATABASE_URL);
+    const appDatabaseUrl = `postgresql://${APP_ROLE}:${APP_PASSWORD}@${parsed.hostname}:${parsed.port || 5432}${parsed.pathname}`;
+    pool = new Pool(pgOptions(appDatabaseUrl));
 
     const a = createManagedPersistence({ pool, identity: IDENTITY_A });
     const b = createManagedPersistence({ pool, identity: IDENTITY_B });
 
-    const decisionA = await a.createDecision({
-      decisionKey: 'acceptance-lifecycle-a',
-      payload: { recommendation: 'option-a', tenant_id: TENANT_B },
-    });
+    const decisionA = await a.createDecision({ decisionKey: 'acceptance-lifecycle-a', payload: { recommendation: 'option-a', tenant_id: TENANT_B } });
     assert.equal(decisionA.tenant_id, TENANT_A, 'tenant must come from verified identity, never the payload');
-
     assert.equal((await a.getDecision('acceptance-lifecycle-a')).tenant_id, TENANT_A);
     assert.equal(await b.getDecision('acceptance-lifecycle-a'), null, 'tenant B must not read tenant A decisions');
 
-    const decisionB = await b.createDecision({
-      decisionKey: 'acceptance-lifecycle-b',
-      payload: { recommendation: 'option-b' },
-    });
+    const decisionB = await b.createDecision({ decisionKey: 'acceptance-lifecycle-b', payload: { recommendation: 'option-b' } });
     assert.equal(decisionB.tenant_id, TENANT_B);
 
-    const outcomeA = await a.recordOutcome({
-      decisionId: decisionA.id,
-      parameterName: 'expected-effect',
-      checkpoint: '6-month',
-      predicted: 10,
-      observed: 8,
-      decisionAt: '2026-01-01T00:00:00Z',
-      outcomeAt: '2026-07-01T00:00:00Z',
-    });
+    const outcomeA = await a.recordOutcome({ decisionId: decisionA.id, parameterName: 'expected-effect', checkpoint: '6-month', predicted: 10, observed: 8, decisionAt: '2026-01-01T00:00:00Z', outcomeAt: '2026-07-01T00:00:00Z' });
     assert.equal(outcomeA.tenant_id, TENANT_A);
     assert.equal(outcomeA.error, -2);
 
     await assert.rejects(
-      () => b.recordOutcome({
-        decisionId: decisionA.id,
-        parameterName: 'cross-tenant-attempt',
-        checkpoint: '6-month',
-        predicted: 1,
-        observed: 1,
-        decisionAt: '2026-01-01T00:00:00Z',
-        outcomeAt: '2026-07-01T00:00:00Z',
-      }),
+      () => b.recordOutcome({ decisionId: decisionA.id, parameterName: 'cross-tenant-attempt', checkpoint: '6-month', predicted: 1, observed: 1, decisionAt: '2026-01-01T00:00:00Z', outcomeAt: '2026-07-01T00:00:00Z' }),
       error => error && error.code === '23503',
       'cross-tenant outcome reference must be rejected by the composite tenant FK'
     );
 
-    const audit1 = await a.appendAudit({
-      eventType: 'decision-created',
-      aggregateType: 'decision',
-      aggregateId: decisionA.id,
-      payload: { checkpoint: 'acceptance-1' },
-    });
-    const audit2 = await a.appendAudit({
-      eventType: 'outcome-recorded',
-      aggregateType: 'decision',
-      aggregateId: decisionA.id,
-      payload: { checkpoint: '6-month', observed: 8 },
-    });
+    const audit1 = await a.appendAudit({ eventType: 'decision-created', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: 'acceptance-1' } });
+    const audit2 = await a.appendAudit({ eventType: 'outcome-recorded', aggregateType: 'decision', aggregateId: decisionA.id, payload: { checkpoint: '6-month', observed: 8 } });
     assert.equal(audit1.event_sequence, 1);
     assert.equal(audit1.previous_hash, null);
     assert.equal(audit2.event_sequence, 2);
     assert.equal(audit2.previous_hash, audit1.event_hash);
-    assert.equal((await b.getDecision('acceptance-lifecycle-a')).tenant_id, TENANT_B === decisionB.tenant_id ? TENANT_B : null);
+    assert.equal((await b.getDecision('acceptance-lifecycle-b')).tenant_id, TENANT_B);
 
-    await assert.rejects(
-      () => admin.query('UPDATE vidik_audit_events SET payload = $1 WHERE id = $2', ['{}', audit1.id]),
-      /append-only/
-    );
-    await assert.rejects(
-      () => admin.query('DELETE FROM vidik_audit_events WHERE id = $1', [audit1.id]),
-      /append-only/
-    );
+    await assert.rejects(() => admin.query('UPDATE vidik_audit_events SET payload = $1 WHERE id = $2', ['{}', audit1.id]), /append-only/);
+    await assert.rejects(() => admin.query('DELETE FROM vidik_audit_events WHERE id = $1', [audit1.id]), /append-only/);
 
-    const chain = await admin.query(
-      'SELECT tenant_id, event_sequence, event_type, aggregate_type, aggregate_id, payload, previous_hash, event_hash FROM vidik_audit_events WHERE tenant_id = $1 ORDER BY event_sequence',
-      [TENANT_A]
-    );
+    const chain = await admin.query('SELECT tenant_id, event_sequence, event_type, aggregate_type, aggregate_id, payload, previous_hash, event_hash FROM vidik_audit_events WHERE tenant_id = $1 ORDER BY event_sequence', [TENANT_A]);
     assert.equal(chain.rows.length, 2);
     let previousHash = '';
     for (const row of chain.rows) {
-      const expectedHash = sha256({
-        tenantId: row.tenant_id,
-        eventSequence: Number(row.event_sequence),
-        eventType: row.event_type,
-        aggregateType: row.aggregate_type,
-        aggregateId: row.aggregate_id,
-        payload: row.payload,
-        previousHash,
-      });
+      const expectedHash = sha256({ tenantId: row.tenant_id, eventSequence: Number(row.event_sequence), eventType: row.event_type, aggregateType: row.aggregate_type, aggregateId: row.aggregate_id, payload: row.payload, previousHash });
       assert.equal(row.event_hash, expectedHash);
       assert.equal(row.previous_hash, previousHash || null);
       previousHash = row.event_hash;
