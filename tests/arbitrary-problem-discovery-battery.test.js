@@ -90,7 +90,7 @@ test('arbitrary-problem battery discovers source-backed intervention universes w
     assert.ok(run.governance.candidateUniverseIntelligence.candidatesConsidered >= 2, `${problem}: universe intelligence must see discovered candidates`);
     assert.equal(run.governance.recommendationAllowed, false, `${problem}: discovery-only evidence cannot silently recommend`);
     assert.equal(run.decision.status, 'recommendation-blocked', `${problem}: decision must be explicitly blocked`);
-    assert.equal(run.candidates.every(candidate => candidate.discovery?.discoveryOnly === true), true, `${problem}: candidates remain discovery-only`);
+    assert.equal(run.candidates.every(candidate => candidate.discovery?.leadOnly === true), true, `${problem}: candidates remain lead-only`);
     assert.equal(run.candidates.every(candidate => candidate.discovery?.effectsImported === false), true, `${problem}: no effects may be imported from discovery`);
     assert.equal(run.candidates.every(candidate => candidate.requiredEvidence?.length >= 4), true, `${problem}: evidence requirements must be attached`);
     assert.ok(run.candidates.some(candidate => String(candidate.discoveryText || '').toLowerCase().includes(problem)), `${problem}: discovered universe must remain problem-relevant`);
@@ -122,7 +122,7 @@ test('arbitrary-problem battery fails closed when a real acquisition source fail
   assert.equal(run.decision.recommendation, null);
   assert.equal(run.discoveryAudit.discoverySearchComplete, false);
   assert.ok(run.governance.sourceSearchFailures.length >= 1);
-  assert.equal(run.governance.candidateUniverseIntelligence.recommendationEligible, false);
+  assert.equal(run.governance.candidateUniverseIntelligence?.recommendationEligible, undefined);
 });
 
 console.log('arbitrary-problem discovery battery passed');
