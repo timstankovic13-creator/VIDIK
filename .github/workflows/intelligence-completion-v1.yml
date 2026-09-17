@@ -60,3 +60,5 @@ jobs:
         run: node --test tests/production-readiness.test.js
       - name: Production deployment evidence contract
         run: node --test tests/production-deployment-evidence.test.js
+      - name: Managed persistence and tenant authorization
+        run: npm run test:managed-persistence
