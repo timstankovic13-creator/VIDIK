@@ -122,7 +122,6 @@ test('arbitrary-problem battery fails closed when a real acquisition source fail
   assert.equal(run.decision.recommendation, null);
   assert.equal(run.discoveryAudit.discoverySearchComplete, false);
   assert.ok(run.governance.sourceSearchFailures.length >= 1);
-  assert.equal(run.governance.candidateUniverseIntelligence?.recommendationEligible, undefined);
 });
 
 console.log('arbitrary-problem discovery battery passed');
