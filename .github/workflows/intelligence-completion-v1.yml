@@ -39,7 +39,7 @@ jobs:
       - name: Core discovery regression
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
       - name: Broad arbitrary-problem battery
-        run: node --test tests/open-world-problem-battery.test.js
+        run: node --test tests/open-world-problem-battery.test.js tests/arbitrary-problem-discovery-battery.test.js tests/unseen-problem-discovery-certification.test.js
       - name: Full scope regression
         run: node --test tests/vidik-full-scope-functional.test.js
       - name: Live arbitrary-problem finish-line validation
