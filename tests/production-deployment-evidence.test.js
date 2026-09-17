@@ -30,7 +30,7 @@ function evidence() {
 test('deployment acceptance requires every environment-level control and integrity seal', () => {
   const valid = evidence();
   assert.equal(validateEvidence(valid).ok, true);
-  const missing = { ...valid, controls: valid.controls.slice(1) };
+  const missing = seal({ ...valid, controls: valid.controls.slice(1) });
   assert.equal(validateEvidence(missing).code, 'missing-deployment-controls');
   const unverified = JSON.parse(JSON.stringify(valid));
   unverified.controls[0].status = 'pending';
