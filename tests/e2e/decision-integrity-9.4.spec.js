@@ -22,6 +22,7 @@ test.describe('VIDIK 9.4 decision integrity', () => {
 
   async function ready(page) {
     await page.goto('/');
+    await page.locator('#decisionProblem').fill('Improve housing stability');
     await supplyVerifiedOttawaReconciliation(page);
     await expect.poll(async () => await page.evaluate(() => window.VIDIK_92_INTEGRATION?.status)).toBe('READY');
     await expect.poll(async () => await page.evaluate(() => window.VIDIK_92_INTEGRATION?.decisionContextStatus)).toBe('READY');

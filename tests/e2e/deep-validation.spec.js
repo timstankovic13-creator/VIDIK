@@ -8,13 +8,13 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
       const response = await request.get(`/data/${chunk}`);
       expect(response.ok(), `${chunk} should be retrievable`).toBeTruthy();
     }
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#censusStatus')).toContainText('LOADED', { timeout: 15000 });
     await expect(page.locator('#censusCount')).toHaveText('12,138');
   });
 
   test('negative resource input is rejected and cannot produce an admissible decision', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     const pool = page.locator('#pool');
     await pool.evaluate(el => { el.value = '-1'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
     await expect(page.locator('#gate')).toContainText('BLOCKED', { timeout: 3000 });
@@ -24,7 +24,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('hostile mutation invalidates an already generated decision and prevents stale state', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     expect((await page.locator('#recommendation').textContent())?.trim()).not.toBe('NO RECOMMENDATION');
     expect(Number((await page.locator('#admissible').textContent())?.trim())).toBeGreaterThan(0);
@@ -39,7 +39,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('hostile risk mutation invalidates an already generated decision', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     expect(Number(await page.locator('#admissible').textContent())).toBeGreaterThan(0);
     const risk = page.locator('#risk');
@@ -53,7 +53,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('hostile non-numeric resource mutation invalidates an already generated decision', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     expect(Number(await page.locator('#admissible').textContent())).toBeGreaterThan(0);
     const pool = page.locator('#pool');
@@ -66,7 +66,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('city mutation updates the decision identity and audit state', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     const city = page.locator('#city');
     const beforeCity = await city.inputValue();
@@ -81,7 +81,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('priority mutation is not falsely exposed when no priority control exists', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     await expect(page.locator('input,select,button')).not.toHaveCount(0);
     const priorityControls = page.locator('#priority, [data-priority], input[name="priority"], select[name="priority"]');
@@ -90,14 +90,14 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
 
   test('corrupted census chunk fails closed without substitute data', async ({ page }) => {
     await page.route('**/data/census-01.b64', route => route.fulfill({ status: 200, contentType: 'text/plain', body: 'corrupt-census-payload' }));
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#censusStatus')).toContainText('BLOCKED — census unavailable', { timeout: 15000 });
     await expect(page.locator('#censusCount')).toHaveText('—');
     await expect(page.locator('#readinessResults')).toContainText('No substitute data is used.');
   });
 
   test('same inputs produce a reproducible decision identity and recommendation', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     const first = { id: await page.locator('#did').textContent(), rec: await page.locator('#recommendation').textContent(), admissible: await page.locator('#admissible').textContent() };
     await page.reload();
@@ -108,7 +108,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
   });
 
   test('city control remains constrained to the canonical supported cities', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
     const values = await page.locator('#city option').evaluateAll(opts => opts.map(o => (o.value || o.textContent || '').trim()));
     expect(values.sort()).toEqual(['Melbourne', 'Ottawa', 'Toronto'].sort());
   });

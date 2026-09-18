@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 test.describe('VIDIK 9.6.1 hardened decision lifecycle',()=>{
   async function ready(page){
     await page.goto('/');
+    await page.locator('#decisionProblem').fill('Improve housing stability');
     await page.evaluate(()=>{window.VIDIK_MUNICIPAL_RECONCILIATIONS={Ottawa:{status:'verified',schemaVersion:'geography-reconciliation.v1',identity:{geonameid:'100',name:'Ottawa',latitude:45.42,longitude:-75.69},enrichment:{provider:'WorldPop',geonameid:'100',population:100000},provenance:{identity:{provider:'GeoNames',asset:'cities500',record_id:'100'},enrichment:{provider:'WorldPop',record_id:'100'}},match:{method:'exact-or-normalized-name',score:1}}};return window.VIDIK_92_INTEGRATION.recompute()});
     await expect.poll(()=>page.evaluate(()=>window.VIDIK_DECISION_9_4?.runtimeStatus)).toBe('READY');
     await expect.poll(()=>page.evaluate(()=>!!window.VIDIK_DECISION_LIFECYCLE_9_5&&!!window.VIDIK_DECISION_LIFECYCLE_9_6)).toBe(true);

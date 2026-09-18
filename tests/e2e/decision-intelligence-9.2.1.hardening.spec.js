@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('VIDIK 9.2.1 hardening',()=>{
-  test.beforeEach(async({page})=>{await page.goto('/');await page.waitForFunction(()=>window.VIDIK_92_INTEGRATION?.status==='READY');});
+  test.beforeEach(async({page})=>{await page.goto('/');await page.locator('#decisionProblem').fill('Improve housing stability');await page.waitForFunction(()=>window.VIDIK_92_INTEGRATION?.status==='READY');});
   test('strict transportability rejects out-of-range and non-numeric similarity',async({page})=>{
     const r=await page.evaluate(()=>{const d=window.VIDIK_DECISION_INTELLIGENCE_92;const out=[];for(const x of [-.01,1.01,NaN,'0.8']){try{d.transportability({sourceGeography:'Ottawa',targetGeography:'Toronto',similarity:x});out.push('accepted')}catch(e){out.push(e.message)}}return out;});
     expect(r).toEqual(['invalid-transportability-similarity','invalid-transportability-similarity','invalid-transportability-similarity','invalid-transportability-similarity']);
