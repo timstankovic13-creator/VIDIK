@@ -3,7 +3,23 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
+function loadPostgres() {
+  try {
+    return require('pg');
+  } catch (error) {
+    if (error && error.code !== 'MODULE_NOT_FOUND') throw error;
+    const { execFileSync } = require('child_process');
+    const npm = process.env.npm_execpath || 'npm';
+    console.warn('VIDIK staging: pg dependency missing; bootstrapping declared production dependency.');
+    execFileSync(npm, ['install', '--no-save', '--omit=dev', 'pg@8.16.3'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'inherit',
+    });
+    return require('pg');
+  }
+}
+
+const { Pool } = loadPostgres();
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8080);
