@@ -88,7 +88,11 @@ test.describe('VIDIK 9.4 decision integrity', () => {
     await expect.poll(async () => await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4;
       const sum=Object.values(d?.allocation?.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
-      return d?.allocation?.status==='complete' && sum===300000;
+      const audit=JSON.parse(document.getElementById('audit').textContent);
+      return d?.allocation?.status==='blocked'
+        && d?.allocation?.reason==='insufficient-capacity'
+        && sum===0
+        && audit?.decision_object?.resources?.pool===300000;
     })).toBe(true);
     const result = await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4,audit=JSON.parse(document.getElementById('audit').textContent);
