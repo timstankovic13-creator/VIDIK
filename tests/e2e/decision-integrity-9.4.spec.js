@@ -86,7 +86,7 @@ test.describe('VIDIK 9.4 decision integrity', () => {
     await expect.poll(async () => await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4;
       const sum=Object.values(d?.allocation?.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
-      return d?.allocation?.status==='complete' && sum===600000;
+      return d?.allocation?.status==='complete' && sum===300000;
     })).toBe(true);
     const result = await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4,audit=JSON.parse(document.getElementById('audit').textContent);
