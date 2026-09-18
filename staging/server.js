@@ -158,4 +158,11 @@ function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-server.listen(port, '0.0.0.0', () => console.log(`VIDIK staging listening on ${port}`));
+server.listen(port, '0.0.0.0', async () => {
+  console.log(`VIDIK staging listening on ${port}`);
+  try {
+    console.log('VIDIK startup health:', JSON.stringify(await healthPayload()));
+  } catch (error) {
+    console.error('VIDIK startup health check failed:', error && error.message ? error.message : error);
+  }
+});
