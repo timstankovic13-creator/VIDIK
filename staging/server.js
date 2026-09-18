@@ -6,7 +6,7 @@ const port = Number(process.env.PORT || 8080);
 let ready = true;
 const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8'};
 const server = http.createServer((req,res)=>{
-  if(req.url === '/health'){res.writeHead(ready?200:503,{'content-type':'application/json'});return res.end(JSON.stringify({status:ready?'ok':'degraded',service:'vidik',version:'9.3-prep'}));}
+  if(req.url === '/health'){res.writeHead(ready?200:503,{'content-type':'application/json'});return res.end(JSON.stringify({status:ready?'ok':'degraded',service:'vidik',version:'9.2.0'}));}
   if(req.url === '/ready'){res.writeHead(ready?200:503);return res.end(ready?'ready':'not-ready');}
   const clean = decodeURIComponent((req.url||'/').split('?')[0]);
   const rel = clean === '/' ? 'index.html' : clean.replace(/^\/+/, '');
