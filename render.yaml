@@ -1,13 +1,12 @@
 services:
   - type: web
-    name: vidik-staging-app
+    name: vidik-staging
     runtime: node
     region: ohio
     plan: free
     branch: main
     buildCommand: echo 'VIDIK staging: no build step'
     startCommand: node staging/server.js
-    healthCheckPath: /health
     autoDeployTrigger: off
     envVars:
       - key: VIDIK_DATABASE_URL
