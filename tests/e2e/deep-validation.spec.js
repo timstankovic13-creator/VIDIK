@@ -120,6 +120,8 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     const first = { id: await page.locator('#did').textContent(), rec: await page.locator('#recommendation').textContent(), admissible: await page.locator('#admissible').textContent() };
     await page.reload();
+    await page.locator('#decisionProblem').fill('Improve housing stability');
+    await supplyVerifiedOttawaReconciliation(page);
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     expect(await page.locator('#did').textContent()).toBe(first.id);
     expect(await page.locator('#recommendation').textContent()).toBe(first.rec);
