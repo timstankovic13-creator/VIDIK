@@ -19,6 +19,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           KEEP_WORKFLOW: VIDIK Intelligence Completion v1
+          KEEP_VALIDATION: VIDIK Production Validation 1-7
         shell: bash
         run: |
           set -euo pipefail
@@ -32,7 +33,7 @@ jobs:
             --jq '.workflow_runs[] | select(.pull_requests | any(.[]; .number == ('"${PR_NUMBER}"'))) | [.id,.status,.name] | @tsv')
           while IFS=$'\t' read -r id status name; do
             [[ -z "${id:-}" ]] && continue
-            if [[ "$name" == "$KEEP_WORKFLOW" || "$name" == "VIDIK PR CI Orchestrator" ]]; then
+            if [[ "$name" == "$KEEP_WORKFLOW" || "$name" == "$KEEP_VALIDATION" || "$name" == "VIDIK PR CI Orchestrator" ]]; then
               continue
             fi
             if [[ "$status" == "queued" || "$status" == "in_progress" || "$status" == "waiting" || "$status" == "pending" ]]; then
