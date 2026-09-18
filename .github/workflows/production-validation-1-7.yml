@@ -1,6 +1,9 @@
 name: VIDIK Production Validation 1-7
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - validation/baseline-1-7
