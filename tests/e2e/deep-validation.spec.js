@@ -3,6 +3,24 @@ import { test, expect } from '@playwright/test';
 const CHUNKS = Array.from({ length: 10 }, (_, i) => `census-${String(i + 1).padStart(2, '0')}.b64`);
 
 test.describe('VIDIK 9.1.3 hostile production validation', () => {
+  async function supplyVerifiedOttawaReconciliation(page) {
+    await page.evaluate(() => {
+      window.VIDIK_MUNICIPAL_RECONCILIATIONS = {
+        Ottawa: {
+          status:'verified',
+          schemaVersion:'geography-reconciliation.v1',
+          identity:{geonameid:'100',name:'Ottawa',latitude:45.42,longitude:-75.69},
+          enrichment:{provider:'WorldPop',geonameid:'100',population:100000},
+          provenance:{identity:{provider:'GeoNames',asset:'cities500',record_id:'100'},enrichment:{provider:'WorldPop',record_id:'100'}},
+          match:{method:'exact-or-normalized-name',score:1}
+        }
+      };
+    });
+    await page.evaluate(async () => {
+      await window.VIDIK_92_INTEGRATION.recompute();
+      document.getElementById('city')?.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  }
   test('all census chunks are retrievable and the browser loads 12,138 records', async ({ page, request }) => {
     for (const chunk of CHUNKS) {
       const response = await request.get(`/data/${chunk}`);
@@ -98,6 +116,7 @@ test.describe('VIDIK 9.1.3 hostile production validation', () => {
 
   test('same inputs produce a reproducible decision identity and recommendation', async ({ page }) => {
     await page.goto('/'); await page.locator('#decisionProblem').fill('Improve housing stability');
+    await supplyVerifiedOttawaReconciliation(page);
     await expect(page.locator('#gate')).not.toContainText('BLOCKED', { timeout: 5000 });
     const first = { id: await page.locator('#did').textContent(), rec: await page.locator('#recommendation').textContent(), admissible: await page.locator('#admissible').textContent() };
     await page.reload();
