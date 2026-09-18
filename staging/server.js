@@ -16,12 +16,23 @@ function databaseConfigured() {
   return typeof process.env.VIDIK_DATABASE_URL === 'string' && /^postgres(?:ql)?:\/\//i.test(process.env.VIDIK_DATABASE_URL);
 }
 
+function databaseSslConfig() {
+  if (!databaseConfigured()) return false;
+  const url = process.env.VIDIK_DATABASE_URL;
+  const match = url.match(/[?&]sslmode=([^&]+)/i);
+  if (!match) return false;
+  const mode = decodeURIComponent(match[1]).toLowerCase();
+  if (mode === 'disable') return false;
+  if (mode === 'verify-ca' || mode === 'verify-full') return { rejectUnauthorized: true };
+  return { rejectUnauthorized: false };
+}
+
 function getPool() {
   if (!databaseConfigured()) return null;
   if (!pool) {
     pool = new Pool({
       connectionString: process.env.VIDIK_DATABASE_URL,
-      ssl: { rejectUnauthorized: true },
+      ssl: databaseSslConfig(),
       connectionTimeoutMillis: 5000,
       statement_timeout: 5000,
       max: 2,
@@ -49,6 +60,7 @@ async function databaseStatus() {
       configured: true,
       reachable: true,
       tlsActive: row.tls_active,
+      connectionMode: row.tls_active ? 'tls' : 'render-private-network',
       postgresqlMajor: Math.floor(row.server_version_num / 10000),
       schemaReady,
       requiredTables: {
