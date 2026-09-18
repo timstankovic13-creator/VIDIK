@@ -60,9 +60,9 @@ test.describe('VIDIK 9.4 decision integrity', () => {
 
   test('allocation, recommendation, and audit update together when resources change', async ({ page }) => {
     await ready(page);
-    await page.locator('#pool').fill('750000');
+    await page.locator('#pool').fill('350000');
     await page.locator('#pool').dispatchEvent('input');
-    await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.resources?.pool)).toBe(750000);
+    await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.resources?.pool)).toBe(350000);
     await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.runtimeStatus)).toBe('READY');
     const result = await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4, audit=JSON.parse(document.getElementById('audit').textContent);
@@ -71,18 +71,18 @@ test.describe('VIDIK 9.4 decision integrity', () => {
     });
     expect(result.d.allocation.status).toBe('complete');
     expect(result.d.allocation.conserved).toBe(true);
-    expect(result.sum).toBe(750000);
-    expect(result.audit.decision_object.resources.pool).toBe(750000);
+    expect(result.sum).toBe(350000);
+    expect(result.audit.decision_object.resources.pool).toBe(350000);
     expect(result.audit.decision_object.recommendation).toBe(result.d.recommendation);
   });
 
   test('delayed integration sync cannot restore allocations from an older pool revision', async ({ page }) => {
     await ready(page);
-    await page.locator('#pool').fill('750000');
+    await page.locator('#pool').fill('350000');
     await page.locator('#pool').dispatchEvent('input');
-    await page.locator('#pool').fill('600000');
+    await page.locator('#pool').fill('300000');
     await page.locator('#pool').dispatchEvent('input');
-    await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.resources?.pool)).toBe(600000);
+    await expect.poll(async () => await page.evaluate(() => window.VIDIK_DECISION_9_4?.resources?.pool)).toBe(300000);
     await expect.poll(async () => await page.evaluate(() => {
       const d=window.VIDIK_DECISION_9_4;
       const sum=Object.values(d?.allocation?.allocations||{}).reduce((a,b)=>a+Number(b||0),0);
