@@ -5,7 +5,7 @@ services:
     region: ohio
     plan: free
     branch: main
-    buildCommand: echo 'VIDIK staging: no build step'
+    buildCommand: npm install --omit=dev
     startCommand: node staging/server.js
     autoDeployTrigger: off
     envVars:
