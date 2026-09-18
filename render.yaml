@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vidik-staging
+    name: vidik-staging-app
     runtime: node
     region: ohio
     plan: free
@@ -14,11 +14,3 @@ services:
         fromDatabase:
           name: vidik-staging-db
           property: connectionString
-
-databases:
-  - name: vidik-staging-db
-    plan: free
-    region: ohio
-    postgresMajorVersion: "15"
-    databaseName: vidik_staging_db
-    user: vidik_staging_db_user
