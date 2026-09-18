@@ -1,0 +1,164 @@
+name: VIDIK Production Validation 1-7
+
+on:
+  push:
+    branches:
+      - validation/baseline-1-7
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vidik-production-validation-1-7
+  cancel-in-progress: false
+
+jobs:
+  gate-1-baseline:
+    name: "1 Baseline + readiness"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Architecture and production controls
+        run: |
+          set -euo pipefail
+          npm run test:architecture-completeness
+          npm run test:production-config
+          npm run test:production-hardening-a-d
+          npm run test:nine-gaps-hardening
+          npm run test:hostile-readiness
+          npm run test:production-release-gate
+          npm run test:managed-persistence
+
+  gate-2-municipal:
+    name: "2 Municipal + three-city"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Municipal validation
+        run: |
+          set -euo pipefail
+          npm run test:municipal-contracts
+          npm run test:municipal-ingestion
+          npm run test:municipal-evidence-pipeline
+          npm run test:municipal-semantic-gates
+          npm run test:municipal-decision-run
+          npm run test:municipal-decision-integrity
+          npm run test:three-city-architecture
+          npm run test:real-three-city-evidence
+          npm run test:independent-evidence-verification
+          npm run test:evidence-promotion-gate
+
+  gate-3-discovery:
+    name: "3 Open-world discovery"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Discovery and generalization
+        run: |
+          set -euo pipefail
+          npm run test:data-acquisition
+          npm run test:intervention-discovery
+          npm run test:acquisition-canonical-integration
+          npm run test:source-acquisition-runner
+          npm run test:evidence-acquisition-orchestrator
+          npm run test:source-registry
+          npm run test:research-discovery
+          npm run test:decision-discovery-orchestration
+          npm run test:decision-discovery-execution
+          npm run test:decision-discovery-internal-battery
+          npm run test:discovery-transfer-intelligence
+          npm run test:unseen-problem-discovery
+          npm run test:source-driven-discovery
+          npm run test:source-driven-evidence
+          npm run test:arbitrary-decision-governance
+          npm run test:arbitrary-decision-execution
+          npm run test:full-scope-functional
+
+  gate-4-intelligence:
+    name: "4 Decision intelligence + uncertainty"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Quantitative and intelligence validation
+        run: |
+          set -euo pipefail
+          npm run test:canonical-production-integration
+          npm run test:resource-optimization
+          npm run test:decision-quantification-bridge
+          npm run test:real-evidence-quantitative-campaign
+          npm run test:decision-intelligence
+          npm run test:production-finish-line
+
+  gate-5-lifecycle:
+    name: "5 Lifecycle + audit + learning"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lifecycle and governance validation
+        run: |
+          set -euo pipefail
+          npm run test:outcome-learning
+          npm run test:decision-artifact-store
+          npm run test:decision-lifecycle-closure
+          npm run test:operational-governance
+          npm run test:municipal-operational-lifecycle
+          npm run test:municipal-retrospective-shadow
+          npm run test:vidik-next-eight
+          npm run test:trustworthiness-phase
+
+  gate-6-hostile-regression:
+    name: "6 Hostile + regression"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Hostile and regression batteries
+        run: |
+          set -euo pipefail
+          npm run test:monster
+          npm run test:monster-v5
+          npm run test:hostile-full-scope
+          npm run test:bug-bash-107
+
+  gate-7-browser:
+    name: "7 Browser acceptance"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
