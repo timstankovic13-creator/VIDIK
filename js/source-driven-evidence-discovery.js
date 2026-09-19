@@ -15,7 +15,7 @@ function sourceIsAuthoritative(source) {
   return canonical.domain === 'causal-evidence' && (source?.jurisdiction === canonical.jurisdiction || canonical.jurisdiction === 'international' || canonical.sourceId === 'pubmed-eutils');
 }
 function evidenceConceptTokens(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9\\s-]/g, ' ').split(/\\s+/)
+  return String(value || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
     .filter(token => token.length > 3 && !new Set(['reduce','increase','improve','prevent','study','evaluate','intervention','interventions','program','programme','service','ways','effective']).has(token))
     .map(token => token.replace(/ies$/,'y').replace(/s$/,''));
 }
@@ -45,7 +45,7 @@ function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key o
 function deduplicateEvidenceLeads(leads = []) { const seen = new Map(); for (const lead of leads) { const safe = sanitizeEvidenceLead(lead); const key = String(safe.id || '').toLowerCase(); if (!key) continue; const existing = seen.get(key); if (!existing) seen.set(key, { ...safe, sourceIds: [safe.sourceId] }); else existing.sourceIds = [...new Set([...existing.sourceIds, safe.sourceId])]; } return [...seen.values()]; }
 function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], requiredEvidence = ['causal','implementation','cost','equity'] } = {}) {
   const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads); const independentSourceCount = new Set(uniqueLeads.map(lead => lead.sourceId)).size;
-  const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && relevantLeads.length > 0;
+  const relevantLeads = uniqueLeads.filter(lead => lead.relevanceStatus === 'verified' || lead.sourceId === 'openalex-works'); const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && relevantLeads.length > 0;
   return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
