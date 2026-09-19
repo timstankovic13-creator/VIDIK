@@ -92,6 +92,56 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
 function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); const notes = normalizeText(row?.notes || row?.description); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => text.includes(term)); const positive = INTERVENTION_TERMS.filter(term => text.includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => text.includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title, notes)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
 function extractCkanInterventionLeads(payload, source, problem, workspace = 'municipal') { const results = Array.isArray(payload?.result?.results) ? payload.result.results : []; return results.map((row, index) => { const classification = classifyCkanRecord(row);
     if (classification.accepted && !isActionableInterventionTitle(normalizeText(row?.title || row?.name), normalizeText(row?.notes || row?.description))) return null; if (!classification.accepted) return null; if (!interventionMatchesProblem(problem, { name: normalizeText(row?.title || row?.name), discoveryText: normalizeText((row?.notes || row?.description || '') + ' ' + (Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).join(' ') : '')) }, workspace)) return null; const id = row.id || row.name || `${source.sourceId}-${index + 1}`; const title = normalizeText(row.title || row.name); const notes = normalizeText(row.notes || row.description); const tags = Array.isArray(row.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const family = classification.families; const canonicalName = normalizeInterventionName(title); return { id: `source:${source.sourceId}:${id}`, name: title, canonicalName, interventionFamily: family, problemTags: [String(problem).toLowerCase(), ...tags].filter(Boolean).slice(0, 13), domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${notes} ${tags.join(' ')}`, evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, datasetId: row.id || row.name || null, classification: { basis: classification.reason, positiveSignals: classification.positiveSignals, negativeSignals: classification.negativeSignals, families: family }, provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, evidenceStatus: 'potential' }] } }; }).filter(Boolean); }
+function buildOpenAlexInterventionSearchUrl(source, query, { rows = 10 } = {}) {
+  if (!source || source.sourceId !== 'openalex-works') throw new Error('unsupported-openalex-intervention-source');
+  const url = new URL(source.url);
+  url.searchParams.set('search', String(query || '').trim());
+  url.searchParams.set('per-page', String(rows));
+  return url.toString();
+}
+function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal') {
+  const rows = Array.isArray(payload?.results) ? payload.results : [];
+  const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const explicit = INTERVENTION_TERMS.map(term => String(term).toLowerCase()).filter(term => term.length > 5);
+  const terms = [...new Set([...taxonomy, ...explicit])];
+  const leads = [];
+  for (const row of rows.slice(0, 20)) {
+    const title = normalizeText(row?.display_name || '');
+    if (!title || !isActionableInterventionTitle(title)) continue;
+    const lower = title.toLowerCase();
+    const matched = terms.filter(term => lower.includes(term)).sort((a,b)=>b.length-a.length).slice(0, 2);
+    for (const term of matched) {
+      const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
+      const candidate = { name, discoveryText: title };
+      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
+      leads.push({
+        id: `source:${source.sourceId}:${row.id || row.doi || canonicalName}`,
+        name,
+        canonicalName,
+        interventionFamily: inferInterventionFamily(name),
+        problemTags: [String(problem).toLowerCase()],
+        domains: [source.domain],
+        requiredEvidence: ['causal','implementation','cost','equity'],
+        discoveryText: title,
+        evidenceStatus: 'potential',
+        discovery: {
+          source: source.sourceId,
+          sourceType: 'intervention-literature',
+          jurisdiction: source.jurisdiction,
+          leadOnly: true,
+          effectsImported: false,
+          discoveryOnly: true,
+          externalId: row.id || row.doi || null,
+          extraction: 'taxonomy-term-from-literature-title',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null }]
+        }
+      });
+    }
+  }
+  return leads;
+}
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
 function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => CKAN_SOURCE_IDS.has(source.sourceId) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); return matched.length ? matched : eligible; }
@@ -156,7 +206,35 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
     sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
-  const candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates),universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length});
+  let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
+  if (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5)) {
+    const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
+    if (literatureSource) {
+      const literatureQueries = [...new Set([problem, ...taxonomyTerms(problem, workspace).slice(0, 8).map(term => `${problem} ${term}`)]).slice(0, 8);
+      const attempts = [];
+      for (const query of literatureQueries) {
+        try {
+          const snapshot = await retrieve({...literatureSource, url:buildOpenAlexInterventionSearchUrl(literatureSource, query, { rows })},{fetchImpl,now});
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
+          const leads = extractOpenAlexInterventionLeads(payload.value, literatureSource, problem, workspace);
+          rawCandidates.push(...leads);
+          const interim = deduplicateInterventionLeads(rawCandidates);
+          const interimCoverage = discoveryCoverage(problem, workspace, interim);
+          attempts.push({query,status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.results)?payload.value.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:interimCoverage.expectedFamilies,observedFamilies:interimCoverage.observedFamilies,missingFamilies:interimCoverage.missingFamilies});
+          if (interim.length >= 3 && (!interimCoverage.expectedFamilies.length || interimCoverage.coverageRatio >= 0.5)) break;
+        } catch (error) {
+          attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        }
+      }
+      const literatureCandidates = deduplicateInterventionLeads(rawCandidates).filter(candidate => candidate.discovery?.source === 'openalex-works');
+      const literatureCoverage = discoveryCoverage(problem, workspace, literatureCandidates);
+      sourceSearches.push({sourceId:literatureSource.sourceId,sourceType:'intervention-literature',jurisdiction:literatureSource.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:literatureCandidates.length?(literatureCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:literatureCoverage.expectedFamilies,observedFamilies:literatureCoverage.observedFamilies,missingFamilies:literatureCoverage.missingFamilies,failureReason:literatureCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
+      candidates=deduplicateInterventionLeads(rawCandidates);
+      coverage=discoveryCoverage(problem,workspace,candidates);
+    }
+  }
+  const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
   universe.expectedInterventionFamilies=coverage.expectedFamilies;universe.observedInterventionFamilies=coverage.observedFamilies;universe.missingInterventionFamilies=coverage.missingFamilies;universe.coverageRatio=coverage.coverageRatio;universe.discoveryExpandedWhenWeak=sourceSearches.some(s=>s.queriesAttempted>1);
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v8',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
