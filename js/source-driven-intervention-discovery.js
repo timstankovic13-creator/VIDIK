@@ -107,16 +107,21 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
   const leads = [];
   for (const row of rows.slice(0, 20)) {
     const title = normalizeText(row?.display_name || '');
-    if (!title || !isActionableInterventionTitle(title)) continue;
+    if (!title) continue;
     const lower = title.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((a,b)=>b.length-a.length).slice(0, 2);
     // Literature discovery is a lead-generation source, not causal verification.
-    // When a literature search returns usable records for an explicit taxonomy term,
-    // retain that term as a source-backed discovery lead even when the paper title does
-    // not literally contain the intervention phrase. The search query itself is recorded
-    // in provenance so the lead is auditable and remains recommendation-ineligible.
+    // A paper title does not need to contain the intervention label verbatim, but it
+    // must be demonstrably about the problem domain before a taxonomy term from the
+    // explicit search query can be retained as a discovery lead. This prevents an
+    // arbitrary literature hit from manufacturing an intervention while still allowing
+    // genuine intervention literature to surface known intervention classes expressed
+    // with different wording.
+    const problemDomains = inferWorkspaceDomains(problem, workspace);
+    const titleDomains = [...new Set([...discoveryDomains(title), ...inferWorkspaceDomains(title, workspace)])];
+    const domainRelevant = !problemDomains.length || problemDomains.some(domain => titleDomains.includes(domain));
     const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 2);
-    const fallbackTerms = matched.length ? [] : queryTerms;
+    const fallbackTerms = matched.length ? [] : (domainRelevant ? queryTerms : []);
     for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 2)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: title };
