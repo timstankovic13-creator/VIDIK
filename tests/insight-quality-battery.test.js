@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
 const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
@@ -102,13 +102,16 @@ function candidateRelevant(problem, candidate) {
 test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = [];
   for (const [workspace, jurisdiction, problem] of CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5 });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
 
     const candidates = discovery.candidates || [];
     const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
+    const actionable = candidates.filter(candidate => isActionableInterventionTitle(candidate.name, candidate.discoveryText));
+    const expectedTerms = taxonomyTerms(problem, workspace).map(term => term.toLowerCase());
+    const expectedClassHits = candidates.filter(candidate => expectedTerms.some(term => String(candidate.name + ' ' + candidate.discoveryText).toLowerCase().includes(term))).length;
     const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
 
     // Discovery must remain discovery: no causal effects or recommendation can leak in here.
@@ -131,7 +134,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     const evidenceLeads = evidence?.evidenceLeads?.length || 0;
 
     let grade = 'BLOCKED';
-    if (candidates.length > 0 && relevanceRatio >= 0.5 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
+    if (candidates.length > 0 && actionable.length === candidates.length && relevanceRatio >= 0.5 && expectedClassHits > 0 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
       grade = 'STRONG';
     } else if (candidates.length > 0 && relevant.length > 0) {
       grade = 'USEFUL-INCOMPLETE';
@@ -140,6 +143,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     results.push({
       workspace, jurisdiction, problem,
       candidateCount: candidates.length,
+      actionableCount: actionable.length,
+      expectedClassHits,
       relevantCount: relevant.length,
       relevanceRatio: Number(relevanceRatio.toFixed(2)),
       interventionFamilies: [...families],
@@ -165,6 +170,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     cases: results.length,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
+    averageActionableRatio: Number((results.reduce((n,r) => n + (r.candidateCount ? r.actionableCount/r.candidateCount : 0),0)/results.length).toFixed(2)),
+    casesWithExpectedInterventionClassHit: results.filter(r => r.expectedClassHits > 0).length,
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
     casesWithNoCandidates: counts.BLOCKED,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
