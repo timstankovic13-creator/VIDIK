@@ -2,6 +2,7 @@
 
 const { validateMarginalResourceEvidence } = require('./marginal-resource-evidence');
 const { evaluateResourceOptimization } = require('./vidik-resource-optimization');
+const { buildSensitivityAnalysis } = require('./decision-sensitivity');
 
 function finite(value) { return Number.isFinite(Number(value)); }
 function text(value) { return String(value ?? '').trim(); }
@@ -98,6 +99,7 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     };
   }
 
+  const sensitivity = buildSensitivityAnalysis(rows);
   const quantitativeSubsetReady = rows.length > 0 && optimization.status === 'OPTIMIZED';
   const allAdmissibleHaveVoi = rows.length > 0 && rows.every(row => analysis[row.id].voi.defined);
   const recommendationReady = quantitativeSubsetReady && allAdmissibleHaveVoi && statusQuo?.explicit === true;
@@ -115,6 +117,7 @@ function buildDecisionAnalysisInputs({ candidates = [], evidence = {}, marginalR
     blocked,
     analysisInputs: analysis,
     optimization,
+    sensitivity,
     statusQuo,
     recommendationReady,
     evidenceCoverage: { admissible: rows.length, blocked: blocked.length, mixed: rows.length > 0 && blocked.length > 0 },

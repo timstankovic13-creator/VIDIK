@@ -61,8 +61,14 @@
     "test:bug-bash-107": "node tests/bug-bash-107-regression.test.js",
     "test:trustworthiness-phase": "node tests/trustworthiness-phase.test.js",
     "test:production-finish-line": "node --test tests/production-finish-line-live-generalization.test.js",
-    "test:managed-persistence": "node --test tests/managed-persistence.test.js"
+    "test:managed-persistence": "node --test tests/managed-persistence.test.js",
+    "test:decision-sensitivity": "node --test tests/decision-sensitivity.test.js"
   },
-  "devDependencies": { "@playwright/test": "^1.55.0" },
-  "dependencies": { "pdf-parse": "^1.1.1", "pg": "^8.16.3" }
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  },
+  "dependencies": {
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3"
+  }
 }
