@@ -1,0 +1,63 @@
+name: VIDIK Weekend Finish-Line Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  finish-line:
+    name: Release finish-line
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --omit=dev
+
+      - name: Core decision closure
+        run: |
+          node --test tests/vidik-full-scope-functional.test.js
+          node --test tests/hostile-full-scope-functional.test.js
+          node --test tests/decision-lifecycle-closure.test.js
+          node --test tests/decision-artifact-store.test.js
+          node --test tests/managed-persistence.test.js
+          node --test tests/decision-sensitivity.test.js
+
+      - name: Discovery and generalization
+        run: |
+          node --test tests/unseen-problem-discovery-certification.test.js
+          node --test tests/source-driven-intervention-discovery.test.js
+          node --test tests/source-driven-evidence-discovery.test.js
+          node --test tests/production-finish-line-live-generalization.test.js
+
+      - name: Product and persona coverage
+        run: |
+          node --test tests/product-usage-gamut.test.js
+          node --test tests/nonmunicipal-workspace-contract.test.js
+          node --test tests/domain-workspaces.test.js
+          node --test tests/vidik-arbitrary-decision-execution.integration.test.js
+
+      - name: Production gates
+        run: |
+          npm run test:production-release-gate
+          npm run test:production-hardening-a-d
+          npm run test:nine-gaps-hardening
+          npm run test:hostile-readiness
+
+      - name: Browser acceptance
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
