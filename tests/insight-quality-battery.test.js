@@ -1,0 +1,174 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
+
+const CASES = [
+  // Municipal / public sector
+  ['municipal','CA','reduce violent crime'],
+  ['municipal','CA','reduce pedestrian injuries'],
+  ['municipal','CA','reduce emergency department overcrowding'],
+  ['municipal','CA','reduce homelessness'],
+  ['municipal','CA','reduce food insecurity'],
+  ['municipal','CA','reduce extreme heat illness'],
+  ['municipal','CA','reduce wildfire smoke exposure'],
+  ['municipal','CA','reduce traffic congestion'],
+  ['municipal','CA','reduce construction permitting delays'],
+  ['municipal','CA','reduce residential energy burden'],
+  ['municipal','CA','reduce opioid overdose deaths'],
+  ['municipal','CA','improve access to affordable childcare'],
+  ['municipal','US','reduce gun violence'],
+  ['municipal','US','reduce school absenteeism'],
+  ['municipal','US','reduce flood damage'],
+  ['municipal','US','improve transit reliability'],
+  ['municipal','US','reduce eviction filings'],
+  ['municipal','UK','reduce rough sleeping'],
+  ['municipal','UK','reduce air pollution'],
+  ['municipal','AU','reduce bushfire smoke exposure'],
+  // Business
+  ['business','US','improve small business survival'],
+  ['business','US','reduce customer churn'],
+  ['business','US','reduce employee turnover'],
+  ['business','US','reduce workplace injuries'],
+  ['business','CA','reduce supply chain disruption'],
+  ['business','CA','reduce energy costs'],
+  ['business','UK','improve hiring success'],
+  ['business','AU','reduce delivery delays'],
+  ['business','US','increase employee training completion'],
+  ['business','CA','improve accessibility for customers with disabilities'],
+  // Community
+  ['community','CA','improve food access'],
+  ['community','CA','reduce social isolation among seniors'],
+  ['community','CA','improve newcomer employment'],
+  ['community','CA','increase access to affordable housing'],
+  ['community','US','reduce youth violence'],
+  ['community','US','improve disaster preparedness'],
+  ['community','US','reduce heat exposure'],
+  ['community','UK','improve mental health service access'],
+  ['community','AU','reduce wildfire evacuation barriers'],
+  ['community','AU','improve rural healthcare access'],
+  // Research
+  ['research','UK','evaluate interventions to reduce homelessness'],
+  ['research','UK','evaluate ways to reduce hospital waiting times'],
+  ['research','UK','evaluate interventions for food insecurity'],
+  ['research','UK','study effective heat-health interventions'],
+  ['research','US','study interventions to reduce pedestrian injuries'],
+  ['research','US','study workforce displacement from automation'],
+  ['research','CA','study interventions for opioid overdose prevention'],
+  ['research','CA','study energy poverty interventions'],
+  ['research','AU','study wildfire smoke mitigation'],
+  ['research','AU','study interventions to improve rural mobility'],
+  // Enterprise
+  ['enterprise','US','reduce digital access gaps'],
+  ['enterprise','US','reduce cybersecurity incident risk'],
+  ['enterprise','US','reduce procurement cycle time'],
+  ['enterprise','CA','reduce employee burnout'],
+  ['enterprise','CA','improve remote service delivery'],
+  ['enterprise','UK','reduce regulatory compliance delays'],
+  ['enterprise','UK','improve data governance'],
+  ['enterprise','AU','reduce infrastructure maintenance backlog'],
+  ['enterprise','AU','improve emergency response coordination'],
+  ['enterprise','CA','reduce accessibility barriers in digital services'],
+];
+
+const DOMAIN_TERMS = {
+  safety: ['crime','violence','injur','overdose','safety','firearm','emergency'],
+  housing: ['homeless','housing','eviction','shelter','rough sleeping'],
+  health: ['health','hospital','clinic','overdose','mental','heat','illness'],
+  food: ['food','hunger','nutrition'],
+  climate: ['heat','wildfire','smoke','flood','climate','bushfire','disaster'],
+  mobility: ['transit','traffic','pedestrian','mobility','delivery','congestion'],
+  economic: ['business','cost','supply','procurement','economic','churn'],
+  employment: ['employee','worker','workforce','hiring','training','burnout','automation'],
+  accessibility: ['access','accessible','disabilit','newcomer','digital'],
+  infrastructure: ['infrastructure','maintenance','delivery','cycle','backlog'],
+  governance: ['regulatory','compliance','governance','data'],
+};
+
+function termsFor(problem) {
+  const p = problem.toLowerCase();
+  return Object.entries(DOMAIN_TERMS).filter(([, terms]) => terms.some(t => p.includes(t))).map(([d]) => d);
+}
+
+function candidateRelevant(problem, candidate) {
+  const text = String(candidate?.name || '') + ' ' + String(candidate?.discoveryText || '');
+  const p = problem.toLowerCase();
+  const wanted = termsFor(problem);
+  return wanted.length === 0 || wanted.some(domain => DOMAIN_TERMS[domain].some(term => text.toLowerCase().includes(term)));
+}
+
+test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
+  const results = [];
+  for (const [workspace, jurisdiction, problem] of CASES) {
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5 });
+    assert.equal(discovery.problem, problem);
+    assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
+    assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
+
+    const candidates = discovery.candidates || [];
+    const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
+    const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
+
+    // Discovery must remain discovery: no causal effects or recommendation can leak in here.
+    assert.ok(candidates.every(candidate => candidate.discovery?.leadOnly === true));
+    assert.ok(candidates.every(candidate => candidate.discovery?.effectsImported === false));
+    assert.equal(discovery.interventionUniverse.recommendationEligible, false);
+
+    let evidence = null;
+    if (candidates[0]) {
+      evidence = await discoverCandidateEvidence({ problem, candidate: candidates[0], rows: 5 });
+      assert.equal(evidence.recommendationEligible, false);
+      assert.equal(evidence.effectsImported, false);
+      assert.ok(evidence.sourceSearches.length >= 2);
+      assert.ok(evidence.evidenceLeads.every(lead => lead.evidenceLeadOnly === true));
+      assert.ok(evidence.evidenceLeads.every(lead => lead.causalEffectImported === false));
+    }
+
+    const relevanceRatio = candidates.length ? relevant.length / candidates.length : 0;
+    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.map(x => x.sourceId)).size : 0;
+    const evidenceLeads = evidence?.evidenceLeads?.length || 0;
+
+    let grade = 'BLOCKED';
+    if (candidates.length > 0 && relevanceRatio >= 0.5 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
+      grade = 'STRONG';
+    } else if (candidates.length > 0 && relevant.length > 0) {
+      grade = 'USEFUL-INCOMPLETE';
+    }
+
+    results.push({
+      workspace, jurisdiction, problem,
+      candidateCount: candidates.length,
+      relevantCount: relevant.length,
+      relevanceRatio: Number(relevanceRatio.toFixed(2)),
+      interventionFamilies: [...families],
+      topCandidates: candidates.slice(0, 5).map(c => c.name),
+      evidenceLeads,
+      independentEvidenceSources,
+      evidenceComplete: evidence?.evidenceComplete ?? false,
+      grade,
+      discoveryState: discovery.interventionUniverse.stoppingReason
+    });
+  }
+
+  const counts = Object.fromEntries(['STRONG','USEFUL-INCOMPLETE','BLOCKED'].map(g => [g, results.filter(r => r.grade === g).length]));
+  const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);
+  const avgCandidates = totalCandidates / results.length;
+  const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
+
+  assert.equal(results.length, CASES.length);
+  assert.ok(results.every(r => r.grade !== undefined));
+  assert.ok(results.some(r => r.grade === 'STRONG'), 'battery found no strong cases at all');
+  assert.ok(results.some(r => r.grade === 'USEFUL-INCOMPLETE'), 'battery did not expose any incomplete cases');
+  console.log(JSON.stringify({
+    battery: 'VIDIK Insight Quality Battery v1',
+    cases: results.length,
+    gradeCounts: counts,
+    averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
+    casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
+    casesWithNoCandidates: counts.BLOCKED,
+    note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
+  }, null, 2));
+  console.log(JSON.stringify(results, null, 2));
+});
