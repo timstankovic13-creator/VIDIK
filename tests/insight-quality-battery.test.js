@@ -182,3 +182,5 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
 // Insight-quality battery remains intentionally diagnostic: weak semantic results are findings, not masked pass conditions.
 
 // rerun after discovery syntax correction
+
+// trigger after extraction syntax fix
