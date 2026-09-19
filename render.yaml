@@ -6,7 +6,7 @@ services:
     plan: free
     branch: main
     buildCommand: npm install --omit=dev
-    startCommand: node staging/server.js
+    startCommand: node staging/migrate.js && node staging/server.js
     autoDeployTrigger: off
     envVars:
       - key: VIDIK_DATABASE_URL
