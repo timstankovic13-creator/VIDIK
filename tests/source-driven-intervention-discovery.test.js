@@ -2,8 +2,14 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { buildCkanSearchUrl, extractCkanInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
+
+const GOVUK_SOURCE = {
+  sourceId: 'uk-gov-program-discovery', provider: 'GOV.UK Search API', jurisdiction: 'UK',
+  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'govuk-search-api',
+  url: 'https://www.gov.uk/api/search.json'
+};
 
 const SOURCE = {
   sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
@@ -15,6 +21,25 @@ function mockResponse(value) {
   const bytes = Buffer.from(JSON.stringify(value));
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
+
+test('GOV.UK discovery extracts official intervention-program leads without importing effects', () => {
+  const leads = extractGovUkInterventionLeads({ results: [
+    { title: 'Digital Inclusion Innovation Fund', description: 'Funding for local digital inclusion interventions and projects.', link: '/government/publications/digital-inclusion-innovation-fund', format: 'guidance' }
+  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].name, 'Digital Inclusion Innovation Fund');
+  assert.equal(leads[0].discovery.leadOnly, true);
+  assert.equal(leads[0].discovery.effectsImported, false);
+  assert.equal(leads[0].discovery.provenance[0].sourceId, GOVUK_SOURCE.sourceId);
+});
+
+test('GOV.UK query construction remains HTTPS and bounded', () => {
+  const url = new URL(buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 10 }));
+  assert.equal(url.protocol, 'https:');
+  assert.equal(url.searchParams.get('q'), 'digital inclusion');
+  assert.equal(url.searchParams.get('count'), '10');
+  assert.throws(() => buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 101 }), /page-size-invalid/);
+});
 
 test('CKAN discovery creates potential leads with provenance and no imported effects', async () => {
   const result = await discoverSourceDrivenInterventions({
