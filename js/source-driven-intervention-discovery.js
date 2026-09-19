@@ -20,7 +20,9 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     climate: ['cooling centre','clean air shelter','home cooling','tree canopy','smoke filtration','flood mitigation','stormwater management'],
     mobility: ['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing'],
     economic: ['small business grant','job training','wage subsidy','utility assistance','cash transfer'],
-    governance: ['permit modernization','one stop permitting','digital permitting','inspection reform']
+    governance: ['permit modernization','one stop permitting','digital permitting','inspection reform'],
+    publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion'],
+    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection']
   },
   business: {
     employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
@@ -111,7 +113,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   return problemDomains.some(a=>candidateDomains.some(b=>CROSS_DOMAIN_COMPATIBILITY[a]?.has(b)));
 }
 function expectedInterventionFamilies(problem,workspace='municipal'){
-  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility']};
+  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],publicService:['public-service'],environment:['environmental'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility']};
   return [...new Set(domains.flatMap(domain=>map[domain]||[]))];
 }
 function discoveryCoverage(problem,workspace,candidates){
