@@ -207,7 +207,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
-  if (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5)) {
+  const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => source?.sourceId === 'openalex-works');
+  if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
     if (literatureSource) {
       const literatureQueries = [...new Set([problem, ...taxonomyTerms(problem, workspace).slice(0, 8).map(term => `${problem} ${term}`)])].slice(0, 8);
