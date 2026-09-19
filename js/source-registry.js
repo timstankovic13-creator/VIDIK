@@ -29,6 +29,12 @@ const SOURCE_REGISTRY = Object.freeze([
     discoveryTags: ['municipal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
   {
+    sourceId: 'uk-gov-program-discovery', provider: 'GOV.UK Search API', jurisdiction: 'UK',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'govuk-search-api',
+    url: 'https://www.gov.uk/api/search.json',
+    discoveryTags: ['programs','services','health','safety','transport','housing','environment','crime','employment','education','business','digital','digital-access','internet','broadband','device','digital-inclusion','small-business','business']
+  },
+  {
     sourceId: 'uk-open-data-program-discovery', provider: 'UK Government Data Service', jurisdiction: 'UK',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://ckan.publishing.service.gov.uk/api/3/action/package_search?q=',
