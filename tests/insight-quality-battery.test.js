@@ -115,8 +115,8 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.notDeepEqual(businessChurn,enterpriseCyber);
 
   const coverage=discoveryCoverage('reduce violent crime','municipal',[
-    {interventionFamily:['public-safety']},
-    {interventionFamily:['housing']}
+    {interventionFamily:['housing']},
+    {interventionFamily:['health-service']}
   ]);
   assert.ok(coverage.missingFamilies.length>0,'missing intervention classes must remain visible instead of being treated as complete');
   assert.ok(coverage.coverageRatio<1);
