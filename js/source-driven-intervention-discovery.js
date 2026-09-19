@@ -19,7 +19,7 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     food: ['food voucher','community food hub','school meal program','mobile market','grocery subsidy'],
     climate: ['cooling centre','clean air shelter','home cooling','tree canopy','smoke filtration','flood mitigation','stormwater management'],
     mobility: ['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing'],
-    economic: ['small business grant','job training','wage subsidy','utility assistance','cash transfer','home energy assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit','weatherization assistance'],
+    economic: ['small business grant','small business loan','small business financing','working capital support','business continuity support','business retention program','business advisory service','procurement support','customer retention program','job training','wage subsidy','utility assistance','cash transfer','home energy assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit','weatherization assistance'],
     governance: ['permit modernization','one stop permitting','digital permitting','inspection reform'],
     publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion','digital inclusion program','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','community technology centre','digital literacy training','computer access'],
     environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection']
