@@ -99,7 +99,7 @@ function buildOpenAlexInterventionSearchUrl(source, query, { rows = 10 } = {}) {
   url.searchParams.set('per-page', String(rows));
   return url.toString();
 }
-function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal') {
+function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
   const rows = Array.isArray(payload?.results) ? payload.results : [];
   const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
   const explicit = INTERVENTION_TERMS.map(term => String(term).toLowerCase()).filter(term => term.length > 5);
@@ -110,7 +110,14 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     if (!title || !isActionableInterventionTitle(title)) continue;
     const lower = title.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((a,b)=>b.length-a.length).slice(0, 2);
-    for (const term of matched) {
+    // Literature discovery is a lead-generation source, not causal verification.
+    // When a literature search returns usable records for an explicit taxonomy term,
+    // retain that term as a source-backed discovery lead even when the paper title does
+    // not literally contain the intervention phrase. The search query itself is recorded
+    // in provenance so the lead is auditable and remains recommendation-ineligible.
+    const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 2);
+    const fallbackTerms = matched.length ? [] : queryTerms;
+    for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 2)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: title };
       if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
@@ -134,8 +141,8 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
           effectsImported: false,
           discoveryOnly: true,
           externalId: row.id || row.doi || null,
-          extraction: 'taxonomy-term-from-literature-title',
-          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null }]
+          extraction: matched.includes(term) ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-query',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: matched.includes(term) ? 'title-match' : 'query-match' }]
         }
       });
     }
@@ -218,7 +225,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const snapshot = await retrieve({...literatureSource, url:buildOpenAlexInterventionSearchUrl(literatureSource, query, { rows })},{fetchImpl,now});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
-          const leads = extractOpenAlexInterventionLeads(payload.value, literatureSource, problem, workspace);
+          const leads = extractOpenAlexInterventionLeads(payload.value, literatureSource, problem, workspace, query);
           rawCandidates.push(...leads);
           const interim = deduplicateInterventionLeads(rawCandidates);
           const interimCoverage = discoveryCoverage(problem, workspace, interim);
