@@ -35,18 +35,29 @@ test('business workspace can actually submit a decision to the production discov
       problem: 'improve small business survival',
       jurisdiction: 'US',
       audience: 'business',
-      statusQuo: 'Continue current practice'
+      statusQuo: 'Continue current practice',
+      workspace: { decisionType: 'market entry', market: 'US Midwest', capital: '500000', horizon: '24 months', constraints: 'regulatory and staffing' }
     })
   });
   const result = await response.json();
   assert.equal(response.status, 200);
   assert.equal(result.problem, 'improve small business survival');
+  assert.equal(result.workspace.workspace, 'business');
+  assert.ok(result.workspace.fields.market);
+  assert.ok(Array.isArray(result.workspaceOutputs));
   assert.ok(['recommendation-ready', 'recommendation-blocked'].includes(result.status));
   assert.ok(result.runHash);
   assert.equal(result.governance.recommendationAllowed, false);
   assert.ok(Array.isArray(result.candidates));
   assert.ok(Array.isArray(result.evidenceSearches));
   assert.equal(result.governance.learningLeadOnly ?? true, true);
+});
+
+test('unsupported workspace is rejected instead of falling back to a generic structure', async () => {
+  const response = await fetch(`${base}/api/decision/discover`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ problem: 'test', audience: 'investor' }) });
+  const result = await response.json();
+  assert.equal(response.status, 400);
+  assert.equal(result.error, 'unsupported-workspace');
 });
 
 test('general decision endpoint rejects malformed requests instead of guessing', async () => {
