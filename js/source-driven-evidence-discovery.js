@@ -12,7 +12,7 @@ function sourceIsAuthoritative(source) {
   if (!canonical || !EVIDENCE_SOURCE_IDS.has(canonical.sourceId)) return false;
   // Causal research is independent of the user's jurisdiction. Jurisdiction belongs to the applicability
   // layer; it must not collapse the evidence universe to a single provider.
-  return canonical.domain === 'causal-evidence' && (source?.jurisdiction === canonical.jurisdiction || canonical.jurisdiction === 'international' || canonical.sourceId === 'pubmed-eutils');
+  return canonical.domain === 'causal-evidence' && (source?.jurisdiction === canonical.jurisdiction || canonical.sourceId === 'pubmed-eutils');
 }
 function evidenceConceptTokens(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
