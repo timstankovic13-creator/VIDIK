@@ -104,6 +104,9 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Rottnest Island Temperature Observations','Hourly temperature measurements'), false);
   assert.equal(isActionableInterventionTitle('Community Violence Intervention Program','A service delivering violence interruption and outreach'), true);
   assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
+  assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
+  assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
+  assert.ok(expectedInterventionFamilies('reduce digital access gaps','municipal').includes('digital-access'));
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
