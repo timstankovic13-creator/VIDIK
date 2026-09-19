@@ -14,7 +14,7 @@ test('arbitrary problem produces a bounded candidate universe then evidence lead
     { id: 'data', title: 'Extreme Heat Statistics Dataset', notes: 'Observed heat illness counts.' },
     { id: 'shade', title: 'Neighbourhood shade infrastructure project', notes: 'Public cooling infrastructure.' }
   ] } }) });
-  assert.equal(discovery.candidates.length, 2, JSON.stringify(discovery.sourceSearches));
+  console.error('DISCOVERY_DEBUG', JSON.stringify(discovery)); assert.equal(discovery.candidates.length, 2);
   assert.ok(discovery.candidates.every(c => c.discovery.leadOnly && !c.discovery.effectsImported));
   assert.ok(discovery.interventionUniverse.interventionFamilies.length >= 1);
   assert.equal(discovery.recommendationEligible, false);
