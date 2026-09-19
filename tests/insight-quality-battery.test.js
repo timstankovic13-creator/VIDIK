@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage } = require('../js/source-driven-intervention-discovery');
 const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
@@ -98,6 +98,29 @@ function candidateRelevant(problem, candidate) {
   const wanted = termsFor(problem);
   return wanted.length === 0 || wanted.some(domain => DOMAIN_TERMS[domain].some(term => text.toLowerCase().includes(term)));
 }
+
+test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
+  assert.equal(isActionableInterventionTitle('Crime Statistics Dataset','Annual crime counts by neighbourhood'), false);
+  assert.equal(isActionableInterventionTitle('Rottnest Island Temperature Observations','Hourly temperature measurements'), false);
+  assert.equal(isActionableInterventionTitle('Community Violence Intervention Program','A service delivering violence interruption and outreach'), true);
+  assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
+
+  const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
+  const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
+  const enterpriseCyber=expectedInterventionFamilies('reduce cybersecurity incident risk','enterprise');
+  assert.ok(municipalSafety.includes('public-safety'));
+  assert.ok(businessChurn.includes('economic-support'));
+  assert.ok(enterpriseCyber.includes('cybersecurity'));
+  assert.notDeepEqual(municipalSafety,businessChurn);
+  assert.notDeepEqual(businessChurn,enterpriseCyber);
+
+  const coverage=discoveryCoverage('reduce violent crime','municipal',[
+    {interventionFamily:['public-safety']},
+    {interventionFamily:['housing']}
+  ]);
+  assert.ok(coverage.missingFamilies.length>0,'missing intervention classes must remain visible instead of being treated as complete');
+  assert.ok(coverage.coverageRatio<1);
+});
 
 test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = [];
