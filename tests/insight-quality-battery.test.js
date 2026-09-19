@@ -178,3 +178,5 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
 });
+
+// Insight-quality battery remains intentionally diagnostic: weak semantic results are findings, not masked pass conditions.
