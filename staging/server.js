@@ -20,6 +20,7 @@ function loadPostgres() {
 }
 
 const { Pool } = loadPostgres();
+const { executeFullCapacityDecision } = require('../js/decision-discovery-execution');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8080);
@@ -113,6 +114,47 @@ const mime = {
 };
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === 'POST' && req.url === '/api/decision/discover') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+      if (body.length > 1000000) req.destroy();
+    });
+    req.on('end', async () => {
+      try {
+        const input = JSON.parse(body || '{}');
+        if (typeof input.problem !== 'string' || !input.problem.trim()) throw new Error('decision-problem-required');
+        const result = await executeFullCapacityDecision({
+          problem: input.problem.trim(),
+          discoveryJurisdiction: input.jurisdiction || 'international',
+          statusQuo: { explicit: true, id: 'status-quo', description: input.statusQuo || 'Continue current practice' },
+          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience: input.audience || 'general' }
+        });
+        res.writeHead(200, {'content-type':'application/json'});
+        return res.end(JSON.stringify({
+          status: result.governance?.recommendationAllowed ? 'recommendation-ready' : 'recommendation-blocked',
+          problem: result.problem,
+          decision: result.decision,
+          candidates: result.candidates,
+          evidenceSearches: result.evidenceSearches,
+          evidenceDiscovery: result.evidenceDiscovery,
+          governance: {
+            recommendationAllowed: result.governance?.recommendationAllowed === true,
+            decisionStatus: result.governance?.decisionStatus || null,
+            candidateUniverseIntelligence: result.governance?.candidateUniverseIntelligence || null,
+            whyNotAvailable: result.governance?.whyNotAvailable === true,
+            learningDiscoveryLeadOnly: result.governance?.learningDiscoveryLeadOnly === true
+          },
+          runHash: result.runHash
+        }));
+      } catch (error) {
+        res.writeHead(400, {'content-type':'application/json'});
+        return res.end(JSON.stringify({status:'error', error:error.message || 'decision-discovery-failed'}));
+      }
+    });
+    return;
+  }
+
   if (req.url === '/health') {
     const payload = await healthPayload();
     res.writeHead(payload.status === 'ok' ? 200 : 503, {'content-type': 'application/json'});

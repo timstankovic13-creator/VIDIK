@@ -66,7 +66,17 @@
     <details class="advanced card wide"><summary>Hostile validation</summary><div id="tests" class="status hold"></div><pre id="testlog"></pre></details>
   </section>
 </section>
-<section id="nonMunicipal" class="nonmunicipal card" hidden><div class="eyebrow">WORKSPACE</div><h2 id="nonMunicipalTitle">Business decision intelligence</h2><p id="nonMunicipalText">The VIDIK decision framework is designed to be portable across decision contexts. This demo currently has the municipal evidence adapters enabled; this workspace is intentionally not presenting fabricated business, community or research data.</p><div class="framework-preview"><span>Problem</span><span>→</span><span>Status Quo</span><span>→</span><span>Options</span><span>→</span><span>Evidence</span><span>→</span><span>Optimize</span><span>→</span><span>Audit</span></div><button class="primary" data-audience="municipal">Open municipal workspace</button></section>
+<section id="nonMunicipal" class="nonmunicipal card" hidden>
+<div class="eyebrow">GENERAL DECISION WORKSPACE</div><h2 id="nonMunicipalTitle">Decision intelligence</h2>
+<p id="nonMunicipalText">VIDIK can run the same governed discovery and evidence process for business, community, research and enterprise decisions. It recommends only when the evidence chain is complete; otherwise it shows the intervention universe and what is missing.</p>
+<div class="field problem-field"><label for="generalProblem">Problem / decision to address</label><input id="generalProblem" placeholder="e.g. improve small business survival, reduce employee turnover"></div>
+<div class="controls"><div class="field"><label for="generalJurisdiction">Jurisdiction</label><select id="generalJurisdiction"><option value="CA">Canada</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="international">International</option></select></div><div class="field"><label for="generalStatusQuo">Status quo</label><input id="generalStatusQuo" value="Continue current practice"></div></div>
+<button id="runGeneralDecision" class="primary">Run VIDIK decision analysis</button><div id="generalDecisionStatus" class="status hold">Ready</div>
+<section class="card wide"><h3>Decision answer</h3><div id="generalDecisionAnswer">Enter a problem and run VIDIK.</div></section>
+<section class="card wide"><h3>Candidate intervention universe</h3><div id="generalCandidates"></div></section>
+<section class="card wide"><h3>Evidence acquisition</h3><div id="generalEvidence"></div></section>
+<section class="card wide"><h3>Governance / why not</h3><pre id="generalGovernance"></pre></section>
+</section>
 </main>
 <footer><strong>VIDIK</strong><span>Decision intelligence with an auditable chain from problem to evidence to outcome.</span></footer>
 </div>
@@ -80,9 +90,9 @@
  const text=document.getElementById('nonMunicipalText');
  const problem=document.getElementById('decisionProblem');
  const labels={
-  business:['Business decision intelligence','Business-specific adapters and evidence sources are not enabled in this demo yet. The production framework is portable, but VIDIK will not invent evidence where a live adapter is absent.'],
-  community:['Public / Community decision intelligence','Community decision surfaces are part of the VIDIK product model. This demo keeps the municipal evidence slice live rather than presenting placeholder recommendations.'],
-  research:['Research / Enterprise decision intelligence','Research and enterprise analysis will use the same auditable decision chain with their own evidence and parameter adapters. No unsupported results are fabricated here.']
+  business:['Business decision intelligence','Use VIDIK for strategy, resource allocation and operating decisions; recommendations remain evidence-gated.'],
+  community:['Public / Community decision intelligence','Use VIDIK for public-interest decisions with the same governed discovery and evidence boundaries.'],
+  research:['Research / Enterprise decision intelligence','Use VIDIK for evidence and decision analysis across enterprise or research contexts.']
  };
  function selectAudience(a){
   document.querySelectorAll('[data-audience]').forEach(x=>x.classList.toggle('selected',x.dataset.audience===a));
@@ -96,6 +106,19 @@
    nonMunicipal.scrollIntoView({behavior:'smooth',block:'start'});
   }
  }
+
+ const generalProblem=document.getElementById('generalProblem'), generalJurisdiction=document.getElementById('generalJurisdiction'), generalStatusQuo=document.getElementById('generalStatusQuo'), generalRun=document.getElementById('runGeneralDecision'), generalStatus=document.getElementById('generalDecisionStatus'), generalAnswer=document.getElementById('generalDecisionAnswer'), generalCandidates=document.getElementById('generalCandidates'), generalEvidence=document.getElementById('generalEvidence'), generalGovernance=document.getElementById('generalGovernance');
+ generalRun.addEventListener('click',async function(){
+  const problemValue=generalProblem.value.trim(); if(!problemValue){generalStatus.textContent='Enter a problem first.';return;}
+  generalStatus.textContent='VIDIK is searching sources and acquiring evidence…'; generalRun.disabled=true;
+  try{const response=await fetch('/api/decision/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({problem:problemValue,jurisdiction:generalJurisdiction.value,statusQuo:generalStatusQuo.value,audience:document.querySelector('.audience-card.selected')?.dataset.audience||'general'})}); const result=await response.json(); if(!response.ok)throw new Error(result.error||'decision-analysis-failed');
+   generalStatus.textContent=result.status==='recommendation-ready'?'Recommendation ready':'Recommendation blocked — evidence boundary preserved';
+   const rec=result.decision?.recommendation; generalAnswer.innerHTML='<strong>'+(rec?'Recommendation: '+String(rec):'No recommendation yet')+'</strong><p>'+(result.decision?.status||result.governance?.decisionStatus||'')+'</p>';
+   generalCandidates.innerHTML=(result.candidates||[]).map(x=>'<div class="row"><span>'+String(x.name||x.id)+'</span><b>'+String(x.evidenceState||x.discovery?.sourceType||'discovered')+'</b></div>').join('')||'<p>No intervention candidates were found. VIDIK recorded the empty/failed source state rather than inventing options.</p>';
+   generalEvidence.innerHTML=(result.evidenceSearches||[]).map(x=>'<div class="row"><span>'+String(x.candidateId)+'</span><b>'+String(x.status)+'</b></div>').join('')||'<p>No evidence searches were completed.</p>';
+   generalGovernance.textContent=JSON.stringify({recommendationAllowed:result.governance?.recommendationAllowed,candidateUniverseIntelligence:result.governance?.candidateUniverseIntelligence,whyNotAvailable:result.governance?.whyNotAvailable,runHash:result.runHash},null,2);
+  }catch(error){generalStatus.textContent='VIDIK could not complete the analysis: '+error.message;} finally{generalRun.disabled=false;}
+ });
  document.querySelectorAll('[data-audience]').forEach(x=>x.addEventListener('click',function(){selectAudience(x.dataset.audience);}));
  document.querySelectorAll('.tab').forEach(x=>x.addEventListener('click',function(){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));x.classList.add('active');document.getElementById(x.dataset.scroll)?.scrollIntoView({behavior:'smooth',block:'start'});}));
  document.querySelectorAll('.example-chip').forEach(x=>x.addEventListener('click',function(){problem.value=x.dataset.problem;problem.focus();}));
