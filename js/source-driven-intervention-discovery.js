@@ -115,7 +115,11 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
-  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText);
+  // For genuinely novel problems with no inferred domain, retain an explicitly actionable
+  // lead rather than silently converting an unknown problem into a zero-candidate result.
+  // The lead remains discovery-only and cannot become recommendation-eligible without
+  // candidate-specific evidence. Data/report records are already rejected upstream.
+  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText) || isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '');
   if(tokenHit) return true;
   if(!candidateDomains.length) return false;
   if(candidateDomains.some(domain=>problemDomains.includes(domain))) return true;
