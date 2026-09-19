@@ -42,12 +42,36 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
   return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
-  if (!candidate?.id) throw new Error('candidate-required'); const supplied = Array.isArray(sources) ? sources : null; const selected = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId))).filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source));
-  const query = queryFor(candidate, problem); const searches = [], rawLeads = [];\n  const diversifiedQueries = [...new Set([query, `${problem} ${candidate?.name || ''}`, `${candidate?.name || ''} causal`, `${candidate?.name || ''} systematic review`, `${problem} implementation`].map(value => value.replace(/\\s+/g, ' ').trim()).filter(Boolean))].slice(0, 5);
+  if (!candidate?.id) throw new Error('candidate-required');
+  const supplied = Array.isArray(sources) ? sources : null;
+  const selected = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
+    .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source));
+  const query = queryFor(candidate, problem);
+  const diversifiedQueries = [...new Set([
+    query,
+    `${problem} ${candidate?.name || ''}`,
+    `${candidate?.name || ''} causal`,
+    `${candidate?.name || ''} systematic review`,
+    `${problem} implementation`
+  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(Boolean))].slice(0, 5);
+  const searches = [], rawLeads = [];
   for (const source of selected) {
-    try { const url = buildEvidenceSearchUrl(source, query); const snapshot = await retrieve({ ...source, url }, { fetchImpl, now }); const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType); if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json'); const found = extractEvidenceLeads(payload.value, source, candidate, problem); rawLeads.push(...found); searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null }); } catch (error) { searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' }); }
+    for (const searchQuery of diversifiedQueries) {
+      try {
+        const url = buildEvidenceSearchUrl(source, searchQuery);
+        const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
+        const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+        if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
+        const found = extractEvidenceLeads(payload.value, source, candidate, problem);
+        rawLeads.push(...found);
+        searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
+      } catch (error) {
+        searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
+      }
+    }
   }
-  const evidenceLeads = deduplicateEvidenceLeads(rawLeads); const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
-  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
+  const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
+  const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
+  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
 module.exports = { EVIDENCE_SOURCE_IDS, queryFor, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence };
