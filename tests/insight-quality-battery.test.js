@@ -129,6 +129,10 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
+    assert.ok(Array.isArray(discovery.interventionUniverse.expectedInterventionFamilies));
+    assert.ok(Array.isArray(discovery.interventionUniverse.observedInterventionFamilies));
+    assert.ok(Array.isArray(discovery.interventionUniverse.missingInterventionFamilies));
+    assert.equal(typeof discovery.interventionUniverse.coverageRatio, 'number');
 
     const candidates = discovery.candidates || [];
     const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
