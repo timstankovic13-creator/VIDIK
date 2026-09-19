@@ -64,6 +64,8 @@ jobs:
         run: npm run test:managed-persistence
       - name: Production deployment verifier
         run: node --test tests/production-deployment-verifier.test.js
+      - name: Product usage gamut
+        run: npm run test:product-usage-gamut
 
   production-postgres-acceptance:
     name: Real PostgreSQL production acceptance
