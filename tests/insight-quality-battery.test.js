@@ -210,6 +210,23 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
   console.log(JSON.stringify(results, null, 2));
 });
 
+
+// Literature discovery may legitimately surface a taxonomy intervention term through an exact
+// source query even when the paper title uses different wording. The lead must remain auditable
+// and discovery-only; this guards against the UK digital-access live failure without weakening
+// the candidate/effect authority boundary.
+test('literature query-backed intervention leads retain auditable source provenance', async () => {
+  const { extractOpenAlexInterventionLeads } = require('../js/source-driven-intervention-discovery');
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W1', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
+  assert.ok(leads.length > 0);
+  assert.equal(leads[0].name, 'broadband subsidy');
+  assert.equal(leads[0].discovery.leadOnly, true);
+  assert.equal(leads[0].discovery.effectsImported, false);
+  assert.equal(leads[0].discovery.provenance[0].discoveryQuery, 'reduce digital access gaps broadband subsidy');
+  assert.equal(leads[0].discovery.provenance[0].relevanceStatus, 'query-match');
+});
+
 // Insight-quality battery remains intentionally diagnostic: weak semantic results are findings, not masked pass conditions.
 
 // rerun after discovery syntax correction
