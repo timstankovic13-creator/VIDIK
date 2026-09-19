@@ -15,7 +15,11 @@ test.describe('VIDIK production decision-chain GUI', () => {
     const state = await page.evaluate(() => window.VIDIK_GUI_STATE);
     expect(state.problem).toBe('Reduce violent crime');
     expect(state.blocked).toBe(true);
-    expect(state.recommendation).toMatch(/NO RECOMMENDATION|cannot establish|blocked/i);\n    await expect(page.locator('#answerFirst')).toContainText('Intervention universe identified');\n    await expect(page.locator('#answerFirst')).toContainText('Hot-spots policing');\n    await expect(page.locator('#answerFirst')).toContainText('Focused deterrence');\n    await expect(page.locator('#answerFirst')).toContainText('Community violence intervention');
+    expect(state.recommendation).toMatch(/NO RECOMMENDATION|cannot establish|blocked/i);
+    await expect(page.locator('#answerFirst')).toContainText('Intervention universe identified');
+    await expect(page.locator('#answerFirst')).toContainText('Hot-spots policing');
+    await expect(page.locator('#answerFirst')).toContainText('Focused deterrence');
+    await expect(page.locator('#answerFirst')).toContainText('Community violence intervention');
   });
 
   test('keeps navigation attached to real Options, Evidence, Uncertainty and Audit surfaces', async ({ page }) => {
