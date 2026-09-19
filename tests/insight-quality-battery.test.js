@@ -107,6 +107,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
   assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
   assert.ok(expectedInterventionFamilies('reduce digital access gaps','municipal').includes('digital-access'));
+  assert.ok(taxonomyTerms('reduce residential energy burden','municipal').some(term => /energy|utility|weatherization/i.test(term)));
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
