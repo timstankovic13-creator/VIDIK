@@ -221,6 +221,14 @@ test('literature query-backed intervention leads retain auditable source provena
   const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W1', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
   assert.ok(leads.length > 0);
   assert.equal(leads[0].name, 'broadband subsidy');
+  const unrelated = extractOpenAlexInterventionLeads(
+    { results: [{ id: 'https://openalex.org/W2', display_name: 'Quantum materials characterization methods' }] },
+    source,
+    'reduce digital access gaps',
+    'municipal',
+    'reduce digital access gaps broadband subsidy'
+  );
+  assert.equal(unrelated.length, 0, 'unrelated literature must not manufacture an intervention lead');
   assert.equal(leads[0].discovery.leadOnly, true);
   assert.equal(leads[0].discovery.effectsImported, false);
   assert.equal(leads[0].discovery.provenance[0].discoveryQuery, 'reduce digital access gaps broadband subsidy');
