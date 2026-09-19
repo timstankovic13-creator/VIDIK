@@ -6,7 +6,7 @@ const { buildSensitivityAnalysis } = require('../js/decision-sensitivity');
 const { buildDecisionAnalysisInputs } = require('../js/decision-quantification');
 
 const baseRows = [
-  { id: 'a', effect: 10, resource: 10, uncertainty: { low: 8, high: 12 } },
+  { id: 'a', effect: 10, resource: 10, uncertainty: { low: 7, high: 12 } },
   { id: 'b', effect: 8, resource: 10, uncertainty: { low: 7, high: 11 } },
 ];
 
@@ -34,8 +34,8 @@ test('quantitative decision output exposes sensitivity instead of hiding uncerta
   const result = buildDecisionAnalysisInputs({
     candidates: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
     evidence: {
-      a: { causal: { verified: true, evidenceType: 'causal', estimate: 20, unit: 'outcomes', uncertainty: { low: 18, high: 22 }, transportability: { admissible: true }, sourceId: 'ca' }, marginalResource: { resourceAmount: 10, resourceUnit: 'CAD', incrementalCapacity: 1, incrementalActivity: 1, incrementalOutcome: 20, capacityUnit: 'capacity', activityUnit: 'activity', evidenceIds: ['m1','m2','m3'], uncertainty: { low: 18, high: 22 } } },
-      b: { causal: { verified: true, evidenceType: 'causal', estimate: 8, unit: 'outcomes', uncertainty: { low: 7, high: 9 }, transportability: { admissible: true }, sourceId: 'cb' }, marginalResource: { resourceAmount: 10, resourceUnit: 'CAD', incrementalCapacity: 1, incrementalActivity: 1, incrementalOutcome: 8, capacityUnit: 'capacity', activityUnit: 'activity', evidenceIds: ['n1','n2','n3'], uncertainty: { low: 7, high: 9 } } }
+      a: { causal: { verified: true, evidenceType: 'causal', estimate: 20, unit: 'outcomes', uncertainty: { low: 18, high: 22 }, transportability: { admissible: true }, sourceId: 'ca' }, marginalResource: { intervention: 'a', resourceAmount: 10, resourceUnit: 'CAD', incrementalCapacity: 1, incrementalActivity: 1, incrementalOutcome: 20, capacityUnit: 'capacity', activityUnit: 'activity', unit: 'outcomes', evidenceId: 'm1', evidenceIds: ['m1','m2','m3'], provenance: { sourceId: 'ca' }, transportability: { admissible: true }, uncertainty: { low: 18, high: 22 } } },
+      b: { causal: { verified: true, evidenceType: 'causal', estimate: 8, unit: 'outcomes', uncertainty: { low: 7, high: 9 }, transportability: { admissible: true }, sourceId: 'cb' }, marginalResource: { intervention: 'b', resourceAmount: 10, resourceUnit: 'CAD', incrementalCapacity: 1, incrementalActivity: 1, incrementalOutcome: 8, capacityUnit: 'capacity', activityUnit: 'activity', unit: 'outcomes', evidenceId: 'n1', evidenceIds: ['n1','n2','n3'], provenance: { sourceId: 'cb' }, transportability: { admissible: true }, uncertainty: { low: 7, high: 9 } } }
     },
     budget: { amount: 10, unit: 'CAD' },
     voiValues: { a: 100, b: 50 }
