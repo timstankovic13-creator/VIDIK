@@ -65,7 +65,8 @@
     "test:decision-sensitivity": "node --test tests/decision-sensitivity.test.js",
     "test:product-usage-gamut": "node --test tests/product-usage-gamut.test.js",
     "test:nonmunicipal-workspace": "node --test tests/nonmunicipal-workspace-contract.test.js",
-    "test:domain-workspaces": "node --test tests/domain-workspaces.test.js"
+    "test:domain-workspaces": "node --test tests/domain-workspaces.test.js",
+    "test:insight-quality-battery": "node --test tests/insight-quality-battery.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
