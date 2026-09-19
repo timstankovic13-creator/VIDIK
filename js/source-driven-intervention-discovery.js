@@ -62,7 +62,7 @@ function inferWorkspaceDomains(problem, workspace = 'municipal') {
   for (const [domain, phrases] of Object.entries(WORKSPACE_TAXONOMIES[workspace] || WORKSPACE_TAXONOMIES.municipal)) {
     if (phrases.some(phrase => phrase.split(/\\s+/).some(token => token.length > 3 && p.includes(token)))) terms.push(domain);
   }
-  return terms.length ? terms : discoveryDomains(p);
+  return [...new Set([...terms, ...discoveryDomains(p)])];
 }
 
 function taxonomyTerms(problem, workspace = 'municipal') {
