@@ -11,7 +11,36 @@ const NON_INTERVENTION_TERMS = ['dataset','data set','census','statistics','stat
 const INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','fund','funding','scheme','action plan','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','digital inclusion','digital literacy','community technology centre','community technology center','computer access'];
 const STRONG_INTERVENTION_TERMS = INTERVENTION_TERMS.filter(term => !['prevention','intervention'].includes(term));
 const GENERIC_ACTION_TERMS = new Set(['prevention','intervention']);
-const INTERVENTION_FAMILIES = [['housing','housing','shelter','housing first','rapid rehousing'],['food-access','food','food bank','food access'],['public-safety','crime','violence','prevention','enforcement','patrol'],['mobility-safety','bike lane','protected lane','bus lane','transit','traffic'],['health-service','clinic','treatment','health','emergency response'],['climate-resilience','cooling centre','cooling center','heat','smoke','emergency response'],['employment','training','worker','employment','staffing'],['economic-support','grant','funding','subsidy','benefit','voucher','cash transfer'],['infrastructure','infrastructure','facility','project'],['digital-access','broadband','internet','wi-fi','wifi','device','digital literacy','public computer','community technology','hotspot'],['regulatory','inspection','licensing','permit','regulation']];
+const INTERVENTION_FAMILIES = [
+  ['housing','housing','shelter','housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','tenant legal assistance'],
+  ['food-access','food','food bank','food access','food voucher','community food hub','mobile market','community kitchen','school meal'],
+  ['public-safety','crime','violence','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
+  ['mobility-safety','bike lane','protected lane','bus lane','transit','traffic','traffic calming','pedestrian crossing','signal timing','bus priority'],
+  ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','mobile crisis','community health worker','overdose prevention'],
+  ['climate-resilience','cooling centre','cooling center','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
+  ['employment','training','worker','employment','staffing','job placement','career pathway','apprenticeship','reskilling','wage subsidy'],
+  ['economic-support','grant','funding','subsidy','benefit','voucher','cash transfer','working capital','business financing','utility assistance','energy assistance'],
+  ['infrastructure','infrastructure','facility','project','preventive maintenance','asset management','capacity expansion','redundancy','retrofit'],
+  ['digital-access','broadband','internet','wi-fi','wifi','device','digital literacy','public computer','community technology','hotspot','digital inclusion'],
+  ['regulatory','inspection','licensing','permit','regulation','compliance','internal controls','governance'],
+  ['accessibility','accessibility','accessible design','assistive technology','accommodation','inclusive service'],
+  ['cybersecurity','zero trust','multi factor authentication','endpoint detection','security awareness','backup and recovery','incident response']
+];
+const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
+  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','street outreach','credible messenger','safe passage','place-based crime prevention','environmental design','firearm violence prevention'],
+  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
+  'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
+  'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
+  'climate-resilience':['cooling centre','clean air shelter','home cooling','smoke filtration','tree canopy','flood mitigation','stormwater management','home weatherization','evacuation support'],
+  'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
+  employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','wage subsidy'],
+  'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
+  infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation'],
+  'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
+  regulatory:['permit modernization','one stop permitting','digital permitting','inspection reform','licensing reform','compliance automation','internal controls'],
+  accessibility:['accessible design','assistive technology','accommodation program','inclusive customer service','inclusive service design'],
+  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response']
+});
 function inferInterventionFamily(text) { const normalized = normalizeText(text).toLowerCase(); const matches = INTERVENTION_FAMILIES.filter(([, ...terms]) => terms.some(term => normalized.includes(term))); return matches.length ? matches.map(([family]) => family) : ['other']; }
 const WORKSPACE_TAXONOMIES = Object.freeze({
   municipal: {
@@ -92,8 +121,10 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   const stripped=normalized.replace(/\b(reduce|increase|improve|prevent|address|mitigate|lower|decrease|support|expand|eliminate|evaluate|study)\b/g,' ').replace(/\s+/g,' ').trim();
   if(stripped&&stripped!==normalized) queries.add(stripped);
   for(const term of taxonomyTerms(original,workspace).slice(0,8)) queries.add(term);
-  for(const family of inferInterventionFamily(normalized)){const terms=INTERVENTION_FAMILIES.find(([name])=>name===family)?.slice(1)||[];for(const term of terms.slice(0,3))queries.add(term);}
-  return [...queries].filter(Boolean).slice(0,12);
+  const families=inferInterventionFamily(normalized);
+  for(const family of families){for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,4)) queries.add(`${original} ${term}`);}
+  for(const family of expectedInterventionFamilies(original,workspace)){for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,2)) queries.add(`${original} ${term}`);}
+  return [...queries].filter(Boolean).slice(0,18);
 }
 function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); const notes = normalizeText(row?.notes || row?.description); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const positive = INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
 function extractGovUkInterventionLeads(payload, source, problem, workspace = 'municipal') { const results = Array.isArray(payload?.results) ? payload.results : []; return results.map((row, index) => { const title = normalizeText(row?.title); const description = normalizeText(row?.description); if (!title || !isActionableInterventionTitle(title, description, { allowDescriptionSignals: true })) return null; const candidate = { name: title, discoveryText: description }; if (!interventionMatchesProblem(problem, candidate, workspace)) return null; const canonicalName = normalizeInterventionName(title); if (!canonicalName) return null; return { id: `source:${source.sourceId}:${row?.link || index + 1}`, name: title, canonicalName, interventionFamily: inferInterventionFamily(title + ' ' + description), problemTags: [String(problem).toLowerCase()], domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${description}`.trim(), evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.link || null, classification: { basis: 'official-government-search-result', format: row?.format || null }, provenance: [{ sourceId: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.link || null }] } }; }).filter(Boolean); }
@@ -206,6 +237,13 @@ function expectedInterventionFamilies(problem,workspace='municipal'){
 function discoveryCoverage(problem,workspace,candidates){
   const expected=expectedInterventionFamilies(problem,workspace),observed=[...new Set(candidates.flatMap(candidate=>candidate.interventionFamily||[]))],matched=expected.filter(family=>observed.includes(family));
   return {expectedFamilies:expected,observedFamilies:observed,missingFamilies:expected.filter(family=>!observed.includes(family)),coverageRatio:expected.length?matched.length/expected.length:1};
+}
+function missingFamilySearchQueries(problem,workspace,candidates=[]){
+  const coverage=discoveryCoverage(problem,workspace,candidates),queries=[];
+  for(const family of coverage.missingFamilies){
+    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,3)) queries.push(`${normalizeText(problem)} ${term}`);
+  }
+  return [...new Set(queries)].slice(0,12);
 }
 async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
