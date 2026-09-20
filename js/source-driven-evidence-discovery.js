@@ -3,6 +3,8 @@
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
+const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
+const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
@@ -148,12 +150,29 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   // candidate has relevant evidence. Keep independent candidate anchors in the
   // query set; relevance is still decided by evidenceLeadRelevance below.
   const discoveryPhrase = discoveryTerms.slice(0, 6).join(' ');
+  const mechanismTerms = {
+    'public-safety': ['violence prevention','violence interruption','focused deterrence','hot spots','community violence'],
+    housing: ['supportive housing','rapid rehousing','housing first','homeless services'],
+    'health-service': ['care navigation','community paramedicine','mobile clinic','integrated care'],
+    employment: ['wage subsidy','supported employment','job training'],
+    education: ['tutoring','mentoring','early childhood','school attendance'],
+    'mobility-safety': ['traffic calming','speed management','protected bike lanes','pedestrian safety'],
+    'climate-resilience': ['cooling centers','heat action','clean air shelters','home cooling'],
+    'economic-support': ['cash transfer','income support','food voucher','subsidy']
+  };
+  const mechanismPhrase = [...new Set((candidate.interventionFamily || []).flatMap(f => mechanismTerms[f] || []))].slice(0, 4).join(' ');
   const diversifiedQueries = [...new Set([
-    query,
     name,
+    name + ' ' + problem,
+    name + ' ' + familyTerms.join(' '),
+    name + ' ' + mechanismPhrase,
     discoveryPhrase,
-    `${problem} ${familyTerms.join(" ")}`
-  ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
+    problem + ' ' + familyTerms.join(' '),
+    problem + ' ' + mechanismPhrase,
+    problem + ' systematic review meta analysis',
+    problem + ' implementation evaluation',
+    query
+  ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE);
   const searches = [], rawLeads = [];
   for (const source of selected) {
     for (const searchQuery of diversifiedQueries) {
@@ -179,7 +198,8 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
         // Stop once this source has produced relevant leads. Independence still requires
         // a second source; extra queries after success only add external load.
-        if (found.length) break;
+        const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
+        if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
       } catch (error) {
         searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
@@ -187,7 +207,8 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
-  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
+  const sourceDiagnostics = Object.fromEntries(selected.map(source => [source.sourceId, { attempted: searches.filter(s => s.sourceId === source.sourceId).length, failed: searches.filter(s => s.sourceId === source.sourceId && s.status === 'search-failed').length, leads: evidenceLeads.filter(l => l.sourceId === source.sourceId).length, candidateMatches: evidenceLeads.filter(l => l.sourceId === source.sourceId && ['candidate-match','verified'].includes(l.relevanceStatus)).length }]));
+  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v4', problem, candidateId: candidate.id, query, diversifiedQueries, sourceDiagnostics, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
 async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
