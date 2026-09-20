@@ -122,10 +122,10 @@ function extractEvidenceLeads(payload, source, candidate, problem) {
     return rows.slice(0, 20).map(row => {
       const title = Array.isArray(row.title) ? String(row.title[0] || '').trim() : String(row.title || '').trim();
       const abstract = String(row.abstract || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      const searchable = \`${title} ${abstract}\`.trim();
+      const searchable = `${title} ${abstract}`.trim();
       const relevanceStatus = evidenceLeadRelevance(searchable, candidate, problem);
       return {
-        id: \`evidence:${source.sourceId}:${row.DOI || row.URL || title}\`,
+        id: `evidence:${source.sourceId}:${row.DOI || row.URL || title}`,
         candidateId: candidate.id, problem, sourceId: source.sourceId,
         sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId],
         sourceRole: 'supporting-literature-index',
