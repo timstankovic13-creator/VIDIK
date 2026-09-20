@@ -33,6 +33,15 @@ test('GOV.UK discovery extracts official intervention-program leads without impo
   assert.equal(leads[0].discovery.provenance[0].sourceId, GOVUK_SOURCE.sourceId);
 });
 
+test('GOV.UK extraction recognizes schemes and funds when the intervention is described by the official page', () => {
+  const leads = extractGovUkInterventionLeads({ results: [
+    { title: 'Gigabit Broadband Voucher Scheme', description: 'A voucher scheme that funds eligible broadband installation for local premises.', link: '/guidance/gigabit-broadband-voucher-scheme', format: 'guidance' },
+    { title: 'Digital Inclusion Action Plan', description: 'A government action plan for improving digital inclusion and access.', link: '/government/publications/digital-inclusion-action-plan', format: 'policy' }
+  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
+  assert.equal(leads.length, 2);
+  assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
+});
+
 test('GOV.UK query construction remains HTTPS and bounded', () => {
   const url = new URL(buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 10 }));
   assert.equal(url.protocol, 'https:');
