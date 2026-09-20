@@ -24,7 +24,11 @@ const INTERVENTION_FAMILIES = [
   ['digital-access','broadband','internet','wi-fi','wifi','device','digital literacy','public computer','community technology','hotspot','digital inclusion'],
   ['regulatory','inspection','licensing','permit','regulation','compliance','internal controls','governance'],
   ['accessibility','accessibility','accessible design','assistive technology','accommodation','inclusive service'],
-  ['cybersecurity','zero trust','multi factor authentication','endpoint detection','security awareness','backup and recovery','incident response']
+  ['cybersecurity','zero trust','multi factor authentication','endpoint detection','security awareness','backup and recovery','incident response'],
+  ['public-service','library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
+  ['environmental','noise mitigation','noise barrier','quiet pavement','water treatment','source water protection','air pollution control','waste reduction'],
+  ['energy','home energy assistance','energy bill assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+  ['education','school meal program','after-school program','student support','early childhood education','tutoring']
 ];
 const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','street outreach','credible messenger','safe passage','place-based crime prevention','environmental design','firearm violence prevention'],
@@ -35,11 +39,15 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
   employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
-  infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation'],
+  infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
   'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
   regulatory:['permit modernization','one stop permitting','digital permitting','inspection reform','licensing reform','compliance automation','internal controls'],
   accessibility:['accessible design','assistive technology','accommodation program','inclusive customer service','inclusive service design'],
-  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response']
+  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'],
+  'public-service':['library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
+  environmental:['noise mitigation','noise barrier','quiet pavement','water treatment','source water protection','air pollution control','waste reduction'],
+  energy:['home energy assistance','energy bill assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+  education:['school meal program','after-school program','student support','early childhood education','tutoring']
 });
 function inferInterventionFamily(text) { const normalized = normalizeText(text).toLowerCase(); const matches = INTERVENTION_FAMILIES.filter(([, ...terms]) => terms.some(term => normalized.includes(term))); return matches.length ? matches.map(([family]) => family) : ['other']; }
 const WORKSPACE_TAXONOMIES = Object.freeze({
@@ -54,12 +62,14 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     employment: ['job placement','career pathway','job training','skills training','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
     governance: ['permit modernization','one stop permitting','digital permitting','inspection reform'],
     publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion','digital inclusion program','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','community technology centre','digital literacy training','computer access'],
-    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection'],
+    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection','air pollution control','waste reduction'],
+    emergencyResponse: ['emergency response coordination','incident command','business continuity response','disaster response planning'],
     digitalAccess: ['digital inclusion','digital inclusion program','digital inclusion programme','broadband subsidy','broadband voucher','broadband voucher scheme','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy training','community technology centre','computer access program']
   },
   business: {
     employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
-    economic: ['customer retention program','loyalty program','pricing intervention','working capital support','supplier diversification','inventory buffer'],
+    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','emergency response coordination','incident command','business continuity response'],
     safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
     infrastructure: ['preventive maintenance','route optimization','warehouse automation','capacity expansion','redundancy'],
     accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
@@ -249,7 +259,7 @@ function evidenceConceptTokensForIntervention(value){
     .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
 }
 function expectedInterventionFamilies(problem,workspace='municipal'){
-  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],publicService:['public-service'],environment:['environmental'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility'],digitalAccess:['digital-access']};
+  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],publicService:['public-service'],environment:['environmental'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility'],digitalAccess:['digital-access'],energy:['energy'],education:['education'],emergencyResponse:['infrastructure']};
   return [...new Set(domains.flatMap(domain=>map[domain]||[]))];
 }
 function discoveryCoverage(problem,workspace,candidates){
