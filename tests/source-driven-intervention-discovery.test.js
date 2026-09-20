@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 const GOVUK_SOURCE = {
@@ -40,6 +40,15 @@ test('GOV.UK extraction recognizes schemes and funds when the intervention is de
   ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
   assert.equal(leads.length, 2);
   assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
+});
+
+test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W1', display_name: 'Youth employment outcomes', abstract_inverted_index: {
+    'We': [0], 'evaluated': [1], 'a': [2], 'job': [3], 'placement': [4], 'programme': [5], 'for': [6], 'young': [7], 'people': [8]
+  } }] }, source, 'reduce youth unemployment', 'municipal', 'reduce youth unemployment job placement');
+  assert.ok(leads.some(lead => /job placement/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
 });
 
 test('digital-access taxonomy expands into concrete intervention queries', () => {
