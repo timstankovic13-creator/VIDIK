@@ -120,10 +120,14 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   const original=normalizeText(problem),normalized=original.toLowerCase(),queries=new Set([original]);
   const stripped=normalized.replace(/\b(reduce|increase|improve|prevent|address|mitigate|lower|decrease|support|expand|eliminate|evaluate|study)\b/g,' ').replace(/\s+/g,' ').trim();
   if(stripped&&stripped!==normalized) queries.add(stripped);
-  for(const term of taxonomyTerms(original,workspace).slice(0,8)) queries.add(term);
-  const families=inferInterventionFamily(normalized);
-  for(const family of families){for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,4)) queries.add(`${original} ${term}`);}
-  for(const family of expectedInterventionFamilies(original,workspace)){for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,2)) queries.add(`${original} ${term}`);}
+  const expected=new Set(expectedInterventionFamilies(original,workspace));
+  const families=[...new Set([...expected,...inferInterventionFamily(normalized)])];
+  // Put problem-specific intervention families ahead of generic taxonomy terms so the
+  // finite query budget cannot crowd out the actual intervention classes we need to test.
+  for(const family of families){
+    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[])) queries.add(`${original} ${term}`);
+  }
+  for(const term of taxonomyTerms(original,workspace)) queries.add(term);
   return [...queries].filter(Boolean).slice(0,18);
 }
 function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); const notes = normalizeText(row?.notes || row?.description); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const positive = INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
