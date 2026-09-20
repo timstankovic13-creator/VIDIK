@@ -62,6 +62,7 @@ test('GOV.UK query construction remains HTTPS and bounded', () => {
   assert.equal(url.protocol, 'https:');
   assert.equal(url.searchParams.get('q'), 'digital inclusion');
   assert.equal(url.searchParams.get('count'), '10');
+  assert.equal(url.searchParams.get('fields'), 'title,description,link,format');
   assert.throws(() => buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 101 }), /page-size-invalid/);
 });
 
