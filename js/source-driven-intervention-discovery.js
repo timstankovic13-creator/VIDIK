@@ -24,7 +24,8 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     economic: ['small business grant','small business loan','small business financing','working capital support','business continuity support','business retention program','business advisory service','procurement support','customer retention program','job training','wage subsidy','utility assistance','cash transfer','home energy assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit','weatherization assistance'],
     governance: ['permit modernization','one stop permitting','digital permitting','inspection reform'],
     publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion','digital inclusion program','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','community technology centre','digital literacy training','computer access'],
-    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection']
+    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection'],
+    digitalAccess: ['digital inclusion','digital inclusion program','digital inclusion programme','broadband subsidy','broadband voucher','broadband voucher scheme','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy training','community technology centre','computer access program']
   },
   business: {
     employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
@@ -40,7 +41,8 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach'],
     food: ['community food hub','food voucher','mobile market','community kitchen','school meal program'],
     climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization'],
-    employment: ['job placement','bridge training','language training','apprenticeship support']
+    employment: ['job placement','bridge training','language training','apprenticeship support'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
   },
   research: {
     safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention'],
@@ -48,13 +50,15 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention'],
     climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
     mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
-    employment: ['job training','wage subsidy','career pathway','reskilling program']
+    employment: ['job training','wage subsidy','career pathway','reskilling program'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
   },
   enterprise: {
     cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
     governance: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'],
     economic: ['process automation','workflow redesign','supplier diversification','capacity planning'],
     employment: ['workforce planning','manager training','employee assistance','skills training','internal mobility'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'],
     accessibility: ['accessible design','assistive technology','service accommodation','inclusive service design'],
     infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response']
   }
