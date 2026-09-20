@@ -27,7 +27,7 @@ function queryFor(candidate, problem) {
   const name = String(candidate?.name || '').trim();
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyTerms = [...new Set(families.flatMap(family => EVIDENCE_FAMILY_TERMS[family] || []))].slice(0, 4);
-  return `${problem} ${name} ${familyTerms.join(' ')}`.replace(/\\s+/g, ' ').slice(0, 500);
+  return `${problem} ${name} ${familyTerms.join(' ')}`.replace(/\s+/g, ' ').slice(0, 500);
 }
 function buildPubmedSummaryUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-summary-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','json'); return url.toString(); }
 function buildPubmedAbstractUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-abstract-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','xml'); return url.toString(); }
@@ -149,7 +149,7 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     `${problem} ${familyTerms.join(" ")}`,
     `${name} ${familyTerms.slice(0, 2).join(" ")}`,
     discoveryTerms.slice(0, 4).join(' ')
-  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
+  ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
   const searches = [], rawLeads = [];
   for (const source of selected) {
     for (const searchQuery of diversifiedQueries) {
