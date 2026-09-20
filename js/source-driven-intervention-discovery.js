@@ -196,16 +196,29 @@ function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants
   const normalized = original.toLowerCase();
   const groups = DISCOVERY_SYNONYM_GROUPS[workspace] || DISCOVERY_SYNONYM_GROUPS.municipal;
   const variants = new Set([original]);
-  for (const [concepts, verbs] of groups) {
-    const concept = concepts.find(value => normalized.includes(value));
-    if (!concept) continue;
-    const replacementVerbs = verbs.filter(value => normalized.includes(value) || !['reduce','increase','improve','prevent','study','evaluate'].includes(value));
-    for (const replacement of concepts) {
-      if (replacement === concept) continue;
-      variants.add(normalized.replace(concept, replacement));
-      if (variants.size >= maxVariants + 1) break;
+  const verbs = new Set(['reduce','increase','improve','prevent','study','evaluate','lower','decrease','curb','cut','mitigate','close','narrow','remove','shorten','clear','strengthen']);
+  for (const [first, second] of groups) {
+    const firstVerb = first.find(value => verbs.has(value) && normalized.includes(value));
+    const secondVerb = second.find(value => verbs.has(value) && normalized.includes(value));
+    const nounList = firstVerb ? second : secondVerb ? first : (first.some(value => normalized.includes(value)) ? first : second);
+    const noun = nounList.find(value => !verbs.has(value) && normalized.includes(value));
+    if (noun) {
+      for (const replacement of nounList) {
+        if (replacement === noun || verbs.has(replacement)) continue;
+        variants.add(normalized.replace(noun, replacement));
+        if (variants.size >= maxVariants) break;
+      }
     }
-    if (variants.size >= maxVariants + 1) break;
+    const verb = firstVerb || secondVerb;
+    const verbList = firstVerb ? first : secondVerb ? second : null;
+    if (verb && verbList) {
+      for (const replacement of verbList) {
+        if (replacement === verb) continue;
+        variants.add(normalized.replace(verb, replacement));
+        if (variants.size >= maxVariants) break;
+      }
+    }
+    if (variants.size >= maxVariants) break;
   }
   return [...variants].slice(0, maxVariants);
 }
