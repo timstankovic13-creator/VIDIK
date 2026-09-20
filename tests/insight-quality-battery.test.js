@@ -107,6 +107,10 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
   assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
+  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
+  assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
+  assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
+  assert.ok(require('../js/source-driven-intervention-discovery').inferInterventionFamily('Partner Assault Response Program').includes('public-safety'));
   assert.ok(expectedInterventionFamilies('reduce digital access gaps','municipal').includes('digital-access'));
   assert.ok(taxonomyTerms('reduce residential energy burden','municipal').some(term => /energy|utility|weatherization/i.test(term)));
   assert.ok(buildDiscoveryQueries('reduce violent crime','municipal').some(query => /violence interruption|focused deterrence|hot spot policing/i.test(query)));
