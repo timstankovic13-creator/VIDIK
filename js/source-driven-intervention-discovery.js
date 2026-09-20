@@ -128,8 +128,93 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   const concreteServiceObject=/\b(housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
   return explicitProgram || concreteAction || concreteServiceObject;
 }
+const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
+  municipal: [
+    [['reduce','lower','decrease','curb','cut','mitigate'], ['crime','violent crime','serious violence','community violence','public safety']],
+    [['homelessness','rough sleeping','housing insecurity','housing instability'], ['reduce']],
+    [['food insecurity','food insecurity and hunger','limited food access','food access gaps'], ['reduce']],
+    [['emergency department overcrowding','emergency department crowding','hospital overcrowding','ED crowding'], ['reduce']],
+    [['traffic congestion','congestion','traffic delays','travel delays'], ['reduce']],
+    [['construction permitting delays','permit delays','permitting delays','planning approval delays'], ['reduce']],
+    [['energy burden','energy affordability','utility burden','energy costs'], ['reduce']],
+    [['opioid overdose deaths','overdose deaths','opioid mortality','fatal opioid overdoses'], ['reduce']],
+    [['affordable childcare','childcare affordability','child care access','early childhood care access'], ['improve','increase']],
+    [['pedestrian injuries','pedestrian crashes','walking injuries','road user injuries'], ['reduce']],
+    [['extreme heat illness','heat-related illness','heat illness','heat health impacts'], ['reduce']],
+    [['wildfire smoke exposure','bushfire smoke exposure','smoke exposure','wildfire smoke impacts'], ['reduce']],
+    [['violent crime','serious violence','community violence','crime'], ['reduce']],
+  ],
+  business: [
+    [['customer churn','customer attrition','customer loss','client attrition'], ['reduce']],
+    [['employee turnover','staff turnover','workforce attrition','employee attrition'], ['reduce']],
+    [['workplace injuries','occupational injuries','work-related injuries','workplace accidents'], ['reduce']],
+    [['supply chain disruption','supply chain interruptions','supply disruption','logistics disruption'], ['reduce']],
+    [['energy costs','energy expenses','utility costs','energy expenditure'], ['reduce']],
+    [['hiring success','recruitment success','hiring outcomes','recruitment effectiveness'], ['improve','increase']],
+    [['delivery delays','delivery lead times','fulfillment delays','shipping delays'], ['reduce']],
+    [['employee training completion','training completion','workforce training completion','learning completion'], ['increase','improve']],
+    [['accessibility for customers with disabilities','accessible customer service','disability access','customer accessibility'], ['improve','increase']],
+    [['small business survival','small business continuity','business survival','business continuity'], ['improve','increase']],
+  ],
+  community: [
+    [['social isolation among seniors','senior social isolation','social isolation in older adults','loneliness among seniors'], ['reduce']],
+    [['newcomer employment','immigrant employment','newcomer workforce integration','employment integration'], ['improve','increase']],
+    [['affordable housing access','housing affordability','access to affordable housing','affordable housing availability'], ['improve','increase']],
+    [['youth violence','youth offending','youth involvement in violence','youth safety'], ['reduce','prevent']],
+    [['disaster preparedness','emergency preparedness','community disaster readiness','disaster readiness'], ['improve','increase']],
+    [['rural healthcare access','rural health access','rural healthcare availability','access to rural health services'], ['improve','increase']],
+    [['wildfire evacuation barriers','bushfire evacuation barriers','evacuation access','evacuation constraints'], ['reduce','remove']],
+  ],
+  research: [
+    [['homelessness','rough sleeping','housing insecurity','housing instability'], ['study','evaluate']],
+    [['hospital waiting times','hospital wait times','waiting times for hospital care','care delays'], ['study','evaluate']],
+    [['food insecurity','hunger','food access gaps','limited food access'], ['study','evaluate']],
+    [['heat-health interventions','heat health interventions','heat-related health interventions','heat illness prevention'], ['study','evaluate']],
+    [['pedestrian injuries','pedestrian crashes','walking injuries','road user injuries'], ['study','evaluate']],
+    [['workforce displacement from automation','automation-related job displacement','technology-driven displacement','worker displacement'], ['study','evaluate']],
+    [['opioid overdose prevention','overdose prevention','opioid mortality prevention','overdose harm reduction'], ['study','evaluate']],
+    [['energy poverty','energy insecurity','fuel poverty','energy affordability'], ['study','evaluate']],
+    [['wildfire smoke mitigation','bushfire smoke mitigation','smoke exposure mitigation','wildfire smoke reduction'], ['study','evaluate']],
+    [['rural mobility','rural transportation access','rural transport access','rural mobility barriers'], ['study','evaluate']],
+  ],
+  enterprise: [
+    [['digital access gaps','digital divide','digital exclusion','digital access barriers'], ['reduce','close','narrow']],
+    [['cybersecurity incident risk','cyber incident risk','security incident risk','cybersecurity exposure'], ['reduce','lower']],
+    [['procurement cycle time','procurement lead time','purchasing cycle time','procurement delays'], ['reduce','shorten']],
+    [['employee burnout','workforce burnout','staff burnout','occupational burnout'], ['reduce','prevent']],
+    [['remote service delivery','remote service access','digital service delivery','remote service provision'], ['improve','increase']],
+    [['accessibility barriers in digital services','digital accessibility barriers','accessible digital services','digital inclusion barriers'], ['reduce','remove']],
+    [['regulatory compliance delays','compliance delays','regulatory processing delays','regulatory approval delays'], ['reduce','shorten']],
+    [['data governance','information governance','data management governance','data stewardship'], ['improve','strengthen']],
+    [['infrastructure maintenance backlog','asset maintenance backlog','deferred maintenance','maintenance backlog'], ['reduce','clear']],
+    [['emergency response coordination','emergency coordination','incident response coordination','disaster response coordination'], ['improve','strengthen']],
+  ]
+});
+
+function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants = 8) {
+  const original = normalizeText(problem);
+  const normalized = original.toLowerCase();
+  const groups = DISCOVERY_SYNONYM_GROUPS[workspace] || DISCOVERY_SYNONYM_GROUPS.municipal;
+  const variants = new Set([original]);
+  for (const [concepts, verbs] of groups) {
+    const concept = concepts.find(value => normalized.includes(value));
+    if (!concept) continue;
+    const replacementVerbs = verbs.filter(value => normalized.includes(value) || !['reduce','increase','improve','prevent','study','evaluate'].includes(value));
+    for (const replacement of concepts) {
+      if (replacement === concept) continue;
+      variants.add(normalized.replace(concept, replacement));
+      if (variants.size >= maxVariants + 1) break;
+    }
+    if (variants.size >= maxVariants + 1) break;
+  }
+  return [...variants].slice(0, maxVariants);
+}
+
 function buildDiscoveryQueries(problem,workspace='municipal'){
   const original=normalizeText(problem),normalized=original.toLowerCase(),queries=new Set([original]);
+  // Expand the user's problem vocabulary before family/taxonomy expansion. These are
+  // bounded alternate phrasings, not evidence: they only improve retrieval recall.
+  for (const variant of expandDiscoveryVocabulary(original, workspace, 8)) queries.add(variant);
   const stripped=normalized.replace(/\b(reduce|increase|improve|prevent|address|mitigate|lower|decrease|support|expand|eliminate|evaluate|study)\b/g,' ').replace(/\s+/g,' ').trim();
   if(stripped&&stripped!==normalized) queries.add(stripped);
   const expected=new Set(expectedInterventionFamilies(original,workspace));
@@ -391,4 +476,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v8',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { CKAN_SOURCE_IDS, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
