@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
-const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
+const { discoverCandidateEvidence, queryFor } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
   // Municipal / public sector
@@ -110,6 +110,8 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
   assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
   assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
+  assert.equal(isActionableInterventionTitle('Customer Satisfaction Feedback Initiative – Service Questionnaire Results','Questionnaire results'), false);
+  assert.equal(isActionableInterventionTitle('Housing Program Evaluation Findings','Evaluation findings'), false);
   assert.ok(require('../js/source-driven-intervention-discovery').inferInterventionFamily('Partner Assault Response Program').includes('public-safety'));
   assert.ok(expectedInterventionFamilies('reduce digital access gaps','municipal').includes('digital-access'));
   assert.ok(taxonomyTerms('reduce residential energy burden','municipal').some(term => /energy|utility|weatherization/i.test(term)));
@@ -117,6 +119,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce customer churn','business').some(query => /customer retention|loyalty|pricing intervention/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
+  assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
@@ -153,6 +156,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     const expectedTerms = taxonomyTerms(problem, workspace).map(term => term.toLowerCase());
     const expectedClassHits = candidates.filter(candidate => expectedTerms.some(term => String(candidate.name + ' ' + candidate.discoveryText).toLowerCase().includes(term))).length;
     const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
+    const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+    const expectedFamilyHits = expectedFamilies.filter(family => families.has(family));
 
     // Discovery must remain discovery: no causal effects or recommendation can leak in here.
     assert.ok(candidates.every(candidate => candidate.discovery?.leadOnly === true));
@@ -185,6 +190,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       candidateCount: candidates.length,
       actionableCount: actionable.length,
       expectedClassHits,
+      expectedFamilyHits: expectedFamilyHits.length,
+      expectedFamilyCoverage: expectedFamilies.length ? Number((expectedFamilyHits.length / expectedFamilies.length).toFixed(2)) : 1,
       relevantCount: relevant.length,
       relevanceRatio: Number(relevanceRatio.toFixed(2)),
       interventionFamilies: [...families],
@@ -212,6 +219,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
     averageActionableRatio: Number((results.reduce((n,r) => n + (r.candidateCount ? r.actionableCount/r.candidateCount : 0),0)/results.length).toFixed(2)),
     casesWithExpectedInterventionClassHit: results.filter(r => r.expectedClassHits > 0).length,
+    casesWithExpectedFamilyCoverage: results.filter(r => r.expectedFamilyHits > 0).length,
+    averageExpectedFamilyCoverage: Number((results.reduce((n,r) => n + r.expectedFamilyCoverage, 0) / results.length).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
     casesWithNoCandidates: counts.BLOCKED,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
@@ -234,10 +243,12 @@ test('literature query-backed intervention leads retain auditable source provena
     { results: [{ id: 'https://openalex.org/W2', display_name: 'Quantum materials characterization methods' }] },
     source,
     'reduce digital access gaps',
-    'municipal',
+    'research',
     'reduce digital access gaps broadband subsidy'
   );
   assert.equal(unrelated.length, 0, 'unrelated literature must not manufacture an intervention lead');
+  const municipalLiterature = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W3', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
+  assert.equal(municipalLiterature.length, 0, 'research literature must not become municipal intervention candidates');
   assert.equal(leads[0].discovery.leadOnly, true);
   assert.equal(leads[0].discovery.effectsImported, false);
   assert.equal(leads[0].discovery.provenance[0].discoveryQuery, 'reduce digital access gaps broadband subsidy');
