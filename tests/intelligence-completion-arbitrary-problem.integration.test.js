@@ -18,7 +18,7 @@ test('arbitrary problem produces a bounded candidate universe then evidence lead
   assert.ok(discovery.candidates.every(c => c.discovery.leadOnly && !c.discovery.effectsImported));
   assert.ok(discovery.interventionUniverse.interventionFamilies.length >= 1);
   assert.equal(discovery.recommendationEligible, false);
-  const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: 'Cooling interventions evaluation' }] }) : url.includes('esummary') ? response({ result: { '12345': { uid: '12345', title: 'Cooling interventions for extreme heat illness evaluation' } } }) : response({ esearchresult: { idlist: ['12345'] } }) });
+  const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: 'Community cooling centre emergency response service evaluation' }] }) : url.includes('esummary') ? response({ result: { '12345': { uid: '12345', title: 'Community cooling centre emergency response service evaluation for extreme heat illness' } } }) : response({ esearchresult: { idlist: ['12345'] } }) });
   assert.equal(evidence.evidenceLeads.length, 2);
   assert.equal(evidence.evidenceSufficiency.independentSourceCount, 2);
   assert.equal(evidence.evidenceSufficiency.recommendationEligible, false);
