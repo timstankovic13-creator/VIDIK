@@ -102,6 +102,7 @@ function candidateRelevant(problem, candidate) {
 test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
   assert.equal(isActionableInterventionTitle('Crime Statistics Dataset','Annual crime counts by neighbourhood'), false);
   assert.equal(isActionableInterventionTitle('Rottnest Island Temperature Observations','Hourly temperature measurements'), false);
+  assert.equal(isActionableInterventionTitle('Canada Structures','Infrastructure service program metadata'), false);
   assert.equal(isActionableInterventionTitle('Community Violence Intervention Program','A service delivering violence interruption and outreach'), true);
   assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
