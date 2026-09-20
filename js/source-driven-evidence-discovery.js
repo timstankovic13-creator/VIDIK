@@ -57,15 +57,15 @@ function evidenceConceptTokens(value) {
     .map(token => token.replace(/ies$/,'y').replace(/s$/,''));
 }
 function evidenceLeadRelevance(title, candidate, problem) {
-  const haystack = String(title || '').toLowerCase();
-  // Use the candidate's operational description as candidate-specific vocabulary.
-  // This catches literature that uses a synonym while keeping generic family/problem
-  // matches in their separate relevance classes.
-  const candidateText = `${candidate?.name || ''} ${candidate?.discoveryText || ''}`;
-  const candidateTokens = evidenceConceptTokens(candidateText);
-  const problemTokens = evidenceConceptTokens(problem);
+  const haystack = String(title || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
+  const candidateText = `${candidate?.name || ""} ${candidate?.discoveryText || ""}`;
+  const candidateTokens = evidenceConceptTokens(candidateText).map(token => token.replace(/^centre$/, 'center'));
+  const candidatePhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
+    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'));
+  const phraseHit = candidatePhrases.some(phrase => phrase.length >= 8 && haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
-  if (candidateHits > 0) return 'candidate-match';
+  if (phraseHit || candidateHits >= 2) return 'candidate-match';
+  const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => haystack.includes(term.toLowerCase())));
