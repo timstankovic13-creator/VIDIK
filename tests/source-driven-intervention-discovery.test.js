@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 const GOVUK_SOURCE = {
@@ -51,81 +51,20 @@ test('OpenAlex abstract-backed literature retains intervention leads when the ti
   assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
 });
 
-test('digital-access taxonomy expands into concrete intervention queries', () => {
-  const terms = taxonomyTerms('reduce digital access gaps', 'municipal');
-  assert.ok(terms.includes('digital inclusion'));
-  assert.ok(terms.includes('broadband voucher scheme'));
-  assert.ok(terms.includes('digital lifeline fund'));
+test('bounded thesaurus expansion broadens problem vocabulary before intervention-family search', () => {
+  const variants = expandDiscoveryVocabulary('reduce violent crime', 'municipal', 8);
+  assert.equal(variants[0], 'reduce violent crime');
+  assert.ok(variants.includes('reduce serious violence'));
+  assert.ok(variants.includes('reduce community violence'));
+  assert.ok(variants.length <= 8);
+  assert.ok(!variants.some(value => /dataset|statistics|report/i.test(value)));
 });
 
-test('GOV.UK extraction can use intervention signals in the official description', () => {
-  const leads = extractGovUkInterventionLeads({ results: [
-    { title: 'Digital inclusion', description: 'A government programme provides device grants and broadband vouchers to improve access.', link: '/digital-inclusion', format: 'guide' }
-  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
-  assert.equal(leads.length, 1);
-  assert.equal(leads[0].name, 'Digital inclusion');
-});
-
-test('GOV.UK query construction remains HTTPS and bounded', () => {
-  const url = new URL(buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 10 }));
-  assert.equal(url.protocol, 'https:');
-  assert.equal(url.searchParams.get('q'), 'digital inclusion');
-  assert.equal(url.searchParams.get('count'), '10');
-  assert.equal(url.searchParams.get('fields'), 'title,description,link,format');
-  assert.throws(() => buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 101 }), /page-size-invalid/);
-});
-
-e strict';
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
-const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
-
-const GOVUK_SOURCE = {
-  sourceId: 'uk-gov-program-discovery', provider: 'GOV.UK Search API', jurisdiction: 'UK',
-  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'govuk-search-api',
-  url: 'https://www.gov.uk/api/search.json'
-};
-
-const SOURCE = {
-  sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
-  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
-  url: 'https://open.canada.ca/data/en/api/3/action/package_search?q='
-};
-
-function mockResponse(value) {
-  const bytes = Buffer.from(JSON.stringify(value));
-  return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
-}
-
-test('GOV.UK discovery extracts official intervention-program leads without importing effects', () => {
-  const leads = extractGovUkInterventionLeads({ results: [
-    { title: 'Digital Inclusion Innovation Fund', description: 'Funding for local digital inclusion interventions and projects.', link: '/government/publications/digital-inclusion-innovation-fund', format: 'guidance' }
-  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
-  assert.equal(leads.length, 1);
-  assert.equal(leads[0].name, 'Digital Inclusion Innovation Fund');
-  assert.equal(leads[0].discovery.leadOnly, true);
-  assert.equal(leads[0].discovery.effectsImported, false);
-  assert.equal(leads[0].discovery.provenance[0].sourceId, GOVUK_SOURCE.sourceId);
-});
-
-test('GOV.UK extraction recognizes schemes and funds when the intervention is described by the official page', () => {
-  const leads = extractGovUkInterventionLeads({ results: [
-    { title: 'Gigabit Broadband Voucher Scheme', description: 'A voucher scheme that funds eligible broadband installation for local premises.', link: '/guidance/gigabit-broadband-voucher-scheme', format: 'guidance' },
-    { title: 'Digital Inclusion Action Plan', description: 'A government action plan for improving digital inclusion and access.', link: '/government/publications/digital-inclusion-action-plan', format: 'policy' }
-  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
-  assert.equal(leads.length, 2);
-  assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
-});
-
-test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
-  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
-  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W1', display_name: 'Youth employment outcomes', abstract_inverted_index: {
-    'We': [0], 'evaluated': [1], 'a': [2], 'job': [3], 'placement': [4], 'programme': [5], 'for': [6], 'young': [7], 'people': [8]
-  } }] }, source, 'reduce youth unemployment', 'municipal', 'reduce youth unemployment job placement');
-  assert.ok(leads.some(lead => /job placement/i.test(lead.name)));
-  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+test('workspace thesaurus uses pertinent terminology for non-municipal discovery', () => {
+  const business = expandDiscoveryVocabulary('reduce customer churn', 'business', 8);
+  const enterprise = expandDiscoveryVocabulary('reduce digital access gaps', 'enterprise', 8);
+  assert.ok(business.includes('reduce customer attrition'));
+  assert.ok(enterprise.includes('reduce digital divide'));
 });
 
 test('digital-access taxonomy expands into concrete intervention queries', () => {

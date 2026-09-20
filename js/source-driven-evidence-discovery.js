@@ -4,8 +4,8 @@ const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
-  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','street outreach','firearm violence prevention'],
-  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
+  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
+  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program'],
   'climate-resilience':['cooling centre','clean air shelter','home cooling','smoke filtration','flood mitigation'],
@@ -27,7 +27,7 @@ function queryFor(candidate, problem) {
   const name = String(candidate?.name || '').trim();
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyTerms = [...new Set(families.flatMap(family => EVIDENCE_FAMILY_TERMS[family] || []))].slice(0, 4);
-  return `${problem} ${name} ${familyTerms.join(' ')}`.replace(/\\s+/g, ' ').slice(0, 500);
+  return `${problem} ${name} ${familyTerms.join(' ')}`.replace(/\s+/g, ' ').slice(0, 500);
 }
 function buildPubmedSummaryUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-summary-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','json'); return url.toString(); }
 function buildPubmedAbstractUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-abstract-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','xml'); return url.toString(); }
@@ -56,21 +56,43 @@ function evidenceConceptTokens(value) {
     .filter(token => token.length > 3 && !new Set(['reduce','increase','improve','prevent','study','evaluate','intervention','interventions','program','programme','service','ways','effective']).has(token))
     .map(token => token.replace(/ies$/,'y').replace(/s$/,''));
 }
+function normalizeEvidenceText(value) {
+  return String(value || '').toLowerCase()
+    .replace(/\bcentres\b/g, 'centers')
+    .replace(/\bprogrammes\b/g, 'programs')
+    .replace(/\bprograms\b/g, 'program')
+    .replace(/[-_/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function evidenceLeadRelevance(title, candidate, problem) {
-  const haystack = String(title || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
-  const candidateText = `${candidate?.name || ""} ${candidate?.discoveryText || ""}`;
-  const candidateTokens = evidenceConceptTokens(candidateText).map(token => token.replace(/^centre$/, 'center'));
-  const candidatePhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
-    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'));
-  const phraseHit = candidatePhrases.some(phrase => phrase.length >= 8 && haystack.includes(phrase));
+  const haystack = normalizeEvidenceText(title);
+  const candidateName = normalizeEvidenceText(candidate?.name);
+  const candidateTokens = evidenceConceptTokens(candidate?.name).map(token => token.replace(/^centre$/, 'center'));
+  const discoveryText = normalizeEvidenceText(candidate?.discoveryText);
+  const discoveryTokens = evidenceConceptTokens(candidate?.discoveryText).map(token => token.replace(/^centre$/, 'center'));
+  const discoveryPhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
+    .map(value => normalizeEvidenceText(value))
+    .filter(phrase => phrase.length >= 8);
+  const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
+  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
-  if (phraseHit || candidateHits >= 2) return 'candidate-match';
+  const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
+  const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2;
+  if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit) return 'candidate-match';
+  const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
+  const problemPhraseHit = problemText.length >= 8 && haystack.includes(problemText);
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
-  const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => haystack.includes(term.toLowerCase())));
+  const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
+    const normalizedTerm = normalizeEvidenceText(term);
+    if (haystack.includes(normalizedTerm)) return true;
+    const termTokens = evidenceConceptTokens(normalizedTerm);
+    return termTokens.length >= 2 && termTokens.every(token => haystack.includes(token));
+  }));
   if (familyPhraseHit) return 'family-match';
-  if (problemHits >= Math.min(2, Math.max(1, problemTokens.length))) return 'problem-match';
+  if (problemPhraseHit || problemHits >= Math.min(2, Math.max(1, problemTokens.length))) return 'problem-match';
   return null;
 }
 function evidenceLeadRelevant(title, candidate, problem) { return Boolean(evidenceLeadRelevance(title, candidate, problem)); }
@@ -115,16 +137,19 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const query = queryFor(candidate, problem);
   const discoveryTerms = evidenceConceptTokens(candidate?.discoveryText).slice(0, 8);
   const name = String(candidate?.name || '').trim();
+  // Evidence retrieval is deliberately bounded. The previous fan-out issued up to
+  // 8 queries per source per candidate, creating hundreds of external requests in the
+  // 60-case battery and making availability/rate-limit failures look like semantic misses.
+  const familyTerms = [...new Set(
+    (Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [])
+      .flatMap(family => EVIDENCE_FAMILY_TERMS[family] || [])
+  )].slice(0, 3);
   const diversifiedQueries = [...new Set([
     query,
-    `${problem} ${name}`,
-    `${name} causal`,
-    `${name} systematic review`,
-    `${name} ${Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily.join(' ') : ''} evidence`,
-    `${problem} implementation`,
-    discoveryTerms.slice(0, 4).join(' '),
-    discoveryTerms.slice(0, 2).join(' ')
-  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 8);
+    `${problem} ${familyTerms.join(" ")}`,
+    `${name} ${familyTerms.slice(0, 2).join(" ")}`,
+    discoveryTerms.slice(0, 4).join(' ')
+  ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
   const searches = [], rawLeads = [];
   for (const source of selected) {
     for (const searchQuery of diversifiedQueries) {
@@ -148,6 +173,9 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
         rawLeads.push(...found);
         searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
+        // Stop once this source has produced relevant leads. Independence still requires
+        // a second source; extra queries after success only add external load.
+        if (found.length) break;
       } catch (error) {
         searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
@@ -155,7 +183,7 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
-  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
+  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
 async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
