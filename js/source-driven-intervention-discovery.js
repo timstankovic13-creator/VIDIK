@@ -14,7 +14,7 @@ const GENERIC_ACTION_TERMS = new Set(['prevention','intervention']);
 const INTERVENTION_FAMILIES = [
   ['housing','housing','shelter','housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','tenant legal assistance'],
   ['food-access','food','food bank','food access','food voucher','community food hub','mobile market','community kitchen','school meal'],
-  ['public-safety','crime','violence','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
+  ['public-safety','crime','violence','assault','domestic violence','sexual violence','partner assault','violence response','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
   ['mobility-safety','bike lane','protected lane','bus lane','transit','traffic','traffic calming','pedestrian crossing','signal timing','bus priority'],
   ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','mobile crisis','community health worker','overdose prevention'],
   ['climate-resilience','cooling centre','cooling center','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
@@ -110,7 +110,8 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
   const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
   if(!titleText) return false;
-  if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series)\b/i.test(titleText)) return false;
+  if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata)\b/i.test(titleText)) return false;
+  if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
   const explicitProgram=/\b(program|programme|service|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|assessment|governance)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain)\b/i.test(signalText);
   const concreteServiceObject=/\b(housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
@@ -166,8 +167,9 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
   const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
   const expectedFamilies = expectedInterventionFamilies(problem, workspace);
   const familyTerms = expectedFamilies.flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
-  const explicit = INTERVENTION_TERMS.map(term => String(term).toLowerCase()).filter(term => term.length > 5);
-  const terms = [...new Set([...taxonomy, ...familyTerms, ...explicit])];
+  // Literature is evidence about interventions, not an intervention registry. Do not let
+  // generic words such as "program", "service", or "intervention" manufacture candidates.
+  const terms = [...new Set([...taxonomy, ...familyTerms])];
   const leads = [];
   const problemDomains = inferWorkspaceDomains(problem, workspace);
   for (const row of rows.slice(0, 20)) {
@@ -177,11 +179,16 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     const searchable = (title + ' ' + abstract).trim();
     const lower = searchable.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((x,y)=>y.length-x.length).slice(0, 3);
+    const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
+    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
     const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
     const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 4);
-    const fallbackTerms = matched.length ? [] : (domainRelevant ? queryTerms : []);
-    for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 3)) {
+    // An abstract-only match is retained only when the paper actually describes an
+    // implemented/evaluated intervention. This prevents study/report titles from becoming
+    // intervention candidates merely because the abstract mentions a domain word.
+    const fallbackTerms = matched.length ? [] : (domainRelevant && explicitResearchCue ? queryTerms : []);
+    for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
       if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
