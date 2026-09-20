@@ -89,6 +89,12 @@ const SOURCE_REGISTRY = Object.freeze([
     discoveryTags: ['research','causal','clinical','health','mental-health','opioid','public-health','implementation','housing','violence','employment','education']
   },
   {
+    sourceId: 'crossref-works', provider: 'Crossref', jurisdiction: 'international',
+    domain: 'causal-evidence', tier: 'independent_causal_research', accessMethod: 'works-api',
+    url: 'https://api.crossref.org/v1/works',
+    discoveryTags: ['research','literature','bibliographic','causal','implementation','systematic-review','crime','violence','housing','health','environment','employment','education','business']
+  },
+  {
     sourceId: 'who-gho-odata', provider: 'World Health Organization Global Health Observatory', jurisdiction: 'international',
     domain: 'population-equity', tier: 'official_structured', accessMethod: 'odata-api',
     url: 'https://ghoapi.azureedge.net/api/',
