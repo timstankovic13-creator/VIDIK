@@ -41,7 +41,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
   infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
   'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
-  regulatory:['permit modernization','one stop permitting','digital permitting','inspection reform','licensing reform','compliance automation','internal controls'],
+  regulatory:['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform','licensing reform','compliance automation','internal controls'],
   accessibility:['accessible design','assistive technology','accommodation program','inclusive customer service','inclusive service design'],
   cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'],
   'public-service':['library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
@@ -60,7 +60,7 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     mobility: ['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing'],
     economic: ['small business grant','small business loan','small business financing','working capital support','business continuity support','business retention program','business advisory service','procurement support','customer retention program','job training','wage subsidy','utility assistance','cash transfer','home energy assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit','weatherization assistance'],
     employment: ['job placement','career pathway','job training','skills training','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
-    governance: ['permit modernization','one stop permitting','digital permitting','inspection reform'],
+    governance: ['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform'],
     publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion','digital inclusion program','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','community technology centre','digital literacy training','computer access'],
     environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection','air pollution control','waste reduction'],
     emergencyResponse: ['emergency response coordination','incident command','business continuity response','disaster response planning'],
@@ -69,7 +69,7 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
   business: {
     employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
     economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
-    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','emergency response coordination','incident command','business continuity response'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
     safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
     infrastructure: ['preventive maintenance','route optimization','warehouse automation','capacity expansion','redundancy'],
     accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
@@ -337,7 +337,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
     if (literatureSource) {
-      const literatureFamilies = expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 8); const literatureTerms = [...taxonomyTerms(problem, workspace).slice(0, 4), ...literatureFamilies].map(term => `"${term}"`); const literatureQueries = [literatureTerms.length ? `"${problem}" OR ${literatureTerms.join(' OR ')}` : problem];
+      const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+      const familyQueries = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 3).map(term => `"${problem}" "${term}"`));
+      const taxonomyQueries = taxonomyTerms(problem, workspace).slice(0, 4).map(term => `"${problem}" "${term}"`);
+      const literatureQueries = [...new Set([`"${problem}" intervention`, ...familyQueries, ...taxonomyQueries])].slice(0, 7);
       const attempts = [];
       for (const query of literatureQueries) {
         try {

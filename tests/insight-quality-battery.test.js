@@ -119,6 +119,10 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce customer churn','business').some(query => /customer retention|loyalty|pricing intervention/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
+  // Weak source libraries must trigger bounded, family-specific literature expansion rather than
+  // a single broad query; the fanout remains governed and discovery-only.
+  const discoveryModule = require('../js/source-driven-intervention-discovery');
+  assert.ok(discoveryModule.buildDiscoveryQueries('reduce violent crime','municipal').length <= 18);
   assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
   assert.equal(evidenceLeadRelevance('Housing First randomized trial for homeless adults', { name: 'Housing First', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
   assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
