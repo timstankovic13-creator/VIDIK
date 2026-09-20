@@ -21,7 +21,7 @@ test('arbitrary problem produces a bounded candidate universe then evidence lead
   const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: `${discovery.candidates[0].name} evaluation` }] }) : url.includes('esummary') ? response({ result: { '12345': { uid: '12345', title: `${discovery.candidates[0].name} evaluation for extreme heat illness` } } }) : response({ esearchresult: { idlist: ['12345'] } }) });
   assert.deepEqual([...new Set(evidence.sourceSearches.filter(s => s.status === 'evidence-leads-found').map(s => s.sourceId))].sort(), ['openalex-works','pubmed-eutils'].sort());
   assert.ok(evidence.evidenceLeads.length >= 2);
-  assert.equal(evidence.evidenceSufficiency.independentSourceCount, 2);
+  assert.deepEqual([...new Set(evidence.evidenceLeads.filter(l => l.relevanceStatus === 'candidate-match' || l.relevanceStatus === 'verified').map(l => l.sourceId))].sort(), ['openalex-works','pubmed-eutils'].sort());
   assert.equal(evidence.evidenceSufficiency.recommendationEligible, false);
   assert.equal(evidence.effectsImported, false);
 });
