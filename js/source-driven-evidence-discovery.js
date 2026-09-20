@@ -157,4 +157,25 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
   return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
-module.exports = { EVIDENCE_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence };
+async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
+  const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
+  const results = [];
+  for (const candidate of selectedCandidates) {
+    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }));
+  }
+  const relevantLeads = results.flatMap(result => result.evidenceLeads || []).filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
+  const independentSources = [...new Set(relevantLeads.map(lead => lead.sourceId))];
+  return {
+    schemaVersion: 'vidik.source-driven-evidence-universe.v1',
+    problem,
+    candidatesChecked: results.length,
+    maxCandidates,
+    candidateEvidence: results,
+    independentEvidenceSources: independentSources,
+    candidatesWithIndependentEvidence: results.filter(result => result.evidenceSufficiency?.independentSourceCount >= 2).map(result => result.candidateId),
+    evidenceComplete: results.some(result => result.evidenceComplete === true),
+    recommendationEligible: false,
+    effectsImported: false
+  };
+}
+module.exports = { EVIDENCE_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };
