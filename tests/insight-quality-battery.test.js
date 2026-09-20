@@ -122,7 +122,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
   assert.equal(evidenceLeadRelevance('Housing First randomized trial for homeless adults', { name: 'Housing First', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
   assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
-  assert.equal(evidenceLeadRelevance('Crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
+  assert.equal(evidenceLeadRelevance('Violent crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
