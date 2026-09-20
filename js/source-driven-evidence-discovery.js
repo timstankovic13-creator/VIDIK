@@ -146,8 +146,8 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   )].slice(0, 3);
   const diversifiedQueries = [...new Set([
     query,
-    \`${problem} ${familyTerms.join(" ")}\`,
-    \`${name} ${familyTerms.slice(0, 2).join(" ")}\`,
+    `${problem} ${familyTerms.join(" ")}`,
+    `${name} ${familyTerms.slice(0, 2).join(" ")}`,
     discoveryTerms.slice(0, 4).join(' ')
   ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
   const searches = [], rawLeads = [];
