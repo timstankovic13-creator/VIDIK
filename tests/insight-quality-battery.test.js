@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
-const { discoverCandidateEvidence, queryFor } = require('../js/source-driven-evidence-discovery');
+const { discoverCandidateEvidence, queryFor, evidenceLeadRelevance } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
   // Municipal / public sector
@@ -120,6 +120,9 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
   assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
+  assert.equal(evidenceLeadRelevance('Housing First randomized trial for homeless adults', { name: 'Housing First', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
+  assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
+  assert.equal(evidenceLeadRelevance('Crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
@@ -175,7 +178,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     }
 
     const relevanceRatio = candidates.length ? relevant.length / candidates.length : 0;
-    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.map(x => x.sourceId)).size : 0;
+    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.filter(x => x.relevanceStatus === 'candidate-match' || x.relevanceStatus === 'verified').map(x => x.sourceId)).size : 0;
     const evidenceLeads = evidence?.evidenceLeads?.length || 0;
 
     let grade = 'BLOCKED';
