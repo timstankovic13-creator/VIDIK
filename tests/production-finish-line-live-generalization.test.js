@@ -43,6 +43,14 @@ function assertDiscoveryBoundary(result, problem, jurisdiction) {
   return { sourceFailureClosed: false };
 }
 
+test('worker displacement expands to transition and redeployment intervention classes', async () => {
+  const { buildDiscoveryQueries, taxonomyTerms, expectedInterventionFamilies } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce worker displacement', 'research');
+  assert.ok(queries.some(query => /redeployment|worker transition|displacement support|reskilling/i.test(query)));
+  assert.ok(taxonomyTerms('reduce worker displacement', 'research').some(term => /worker|displacement|redeployment/i.test(term)));
+  assert.ok(expectedInterventionFamilies('reduce worker displacement', 'research').includes('employment'));
+});
+
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
   const summaries = [];
   for (const [problem, jurisdiction] of CASES) {

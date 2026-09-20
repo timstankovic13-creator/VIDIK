@@ -2,8 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
-const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+const { discoverCandidateEvidence, queryFor, evidenceLeadRelevance } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
   // Municipal / public sector
@@ -99,17 +99,68 @@ function candidateRelevant(problem, candidate) {
   return wanted.length === 0 || wanted.some(domain => DOMAIN_TERMS[domain].some(term => text.toLowerCase().includes(term)));
 }
 
+test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
+  assert.equal(isActionableInterventionTitle('Crime Statistics Dataset','Annual crime counts by neighbourhood'), false);
+  assert.equal(isActionableInterventionTitle('Rottnest Island Temperature Observations','Hourly temperature measurements'), false);
+  assert.equal(isActionableInterventionTitle('Canada Structures','Infrastructure service program metadata'), false);
+  assert.equal(isActionableInterventionTitle('Community Violence Intervention Program','A service delivering violence interruption and outreach'), true);
+  assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
+  assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
+  assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
+  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
+  assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
+  assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
+  assert.equal(isActionableInterventionTitle('Customer Satisfaction Feedback Initiative – Service Questionnaire Results','Questionnaire results'), false);
+  assert.equal(isActionableInterventionTitle('Housing Program Evaluation Findings','Evaluation findings'), false);
+  assert.ok(require('../js/source-driven-intervention-discovery').inferInterventionFamily('Partner Assault Response Program').includes('public-safety'));
+  assert.ok(expectedInterventionFamilies('reduce digital access gaps','municipal').includes('digital-access'));
+  assert.ok(taxonomyTerms('reduce residential energy burden','municipal').some(term => /energy|utility|weatherization/i.test(term)));
+  assert.ok(buildDiscoveryQueries('reduce violent crime','municipal').some(query => /violence interruption|focused deterrence|hot spot policing/i.test(query)));
+  assert.ok(buildDiscoveryQueries('reduce customer churn','business').some(query => /customer retention|loyalty|pricing intervention/i.test(query)));
+  assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
+  assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
+  assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
+  assert.equal(evidenceLeadRelevance('Housing First randomized trial for homeless adults', { name: 'Housing First', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
+  assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
+  assert.equal(evidenceLeadRelevance('Violent crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
+
+  const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
+  const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
+  const enterpriseCyber=expectedInterventionFamilies('reduce cybersecurity incident risk','enterprise');
+  assert.ok(municipalSafety.includes('public-safety'));
+  assert.ok(businessChurn.includes('economic-support'));
+  assert.ok(enterpriseCyber.includes('cybersecurity'));
+  assert.notDeepEqual(municipalSafety,businessChurn);
+  assert.notDeepEqual(businessChurn,enterpriseCyber);
+
+  const coverage=discoveryCoverage('reduce violent crime','municipal',[
+    {interventionFamily:['housing']},
+    {interventionFamily:['health-service']}
+  ]);
+  assert.ok(coverage.missingFamilies.length>0,'missing intervention classes must remain visible instead of being treated as complete');
+  assert.ok(coverage.coverageRatio<1);
+});
+
 test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = [];
   for (const [workspace, jurisdiction, problem] of CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5 });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
+    assert.ok(Array.isArray(discovery.interventionUniverse.expectedInterventionFamilies));
+    assert.ok(Array.isArray(discovery.interventionUniverse.observedInterventionFamilies));
+    assert.ok(Array.isArray(discovery.interventionUniverse.missingInterventionFamilies));
+    assert.equal(typeof discovery.interventionUniverse.coverageRatio, 'number');
 
     const candidates = discovery.candidates || [];
     const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
+    const actionable = candidates.filter(candidate => isActionableInterventionTitle(candidate.name, candidate.discoveryText));
+    const expectedTerms = taxonomyTerms(problem, workspace).map(term => term.toLowerCase());
+    const expectedClassHits = candidates.filter(candidate => expectedTerms.some(term => String(candidate.name + ' ' + candidate.discoveryText).toLowerCase().includes(term))).length;
     const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
+    const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+    const expectedFamilyHits = expectedFamilies.filter(family => families.has(family));
 
     // Discovery must remain discovery: no causal effects or recommendation can leak in here.
     assert.ok(candidates.every(candidate => candidate.discovery?.leadOnly === true));
@@ -127,11 +178,11 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     }
 
     const relevanceRatio = candidates.length ? relevant.length / candidates.length : 0;
-    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.map(x => x.sourceId)).size : 0;
+    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.filter(x => x.relevanceStatus === 'candidate-match' || x.relevanceStatus === 'verified').map(x => x.sourceId)).size : 0;
     const evidenceLeads = evidence?.evidenceLeads?.length || 0;
 
     let grade = 'BLOCKED';
-    if (candidates.length > 0 && relevanceRatio >= 0.5 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
+    if (candidates.length > 0 && actionable.length === candidates.length && relevanceRatio >= 0.5 && expectedClassHits > 0 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
       grade = 'STRONG';
     } else if (candidates.length > 0 && relevant.length > 0) {
       grade = 'USEFUL-INCOMPLETE';
@@ -140,6 +191,10 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     results.push({
       workspace, jurisdiction, problem,
       candidateCount: candidates.length,
+      actionableCount: actionable.length,
+      expectedClassHits,
+      expectedFamilyHits: expectedFamilyHits.length,
+      expectedFamilyCoverage: expectedFamilies.length ? Number((expectedFamilyHits.length / expectedFamilies.length).toFixed(2)) : 1,
       relevantCount: relevant.length,
       relevanceRatio: Number(relevanceRatio.toFixed(2)),
       interventionFamilies: [...families],
@@ -165,9 +220,47 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     cases: results.length,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
+    averageActionableRatio: Number((results.reduce((n,r) => n + (r.candidateCount ? r.actionableCount/r.candidateCount : 0),0)/results.length).toFixed(2)),
+    casesWithExpectedInterventionClassHit: results.filter(r => r.expectedClassHits > 0).length,
+    casesWithExpectedFamilyCoverage: results.filter(r => r.expectedFamilyHits > 0).length,
+    averageExpectedFamilyCoverage: Number((results.reduce((n,r) => n + r.expectedFamilyCoverage, 0) / results.length).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
     casesWithNoCandidates: counts.BLOCKED,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
 });
+
+
+// Literature discovery may legitimately surface a taxonomy intervention term through an exact
+// source query even when the paper title uses different wording. The lead must remain auditable
+// and discovery-only; this guards against the UK digital-access live failure without weakening
+// the candidate/effect authority boundary.
+test('literature query-backed intervention leads retain auditable source provenance', async () => {
+  const { extractOpenAlexInterventionLeads } = require('../js/source-driven-intervention-discovery');
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W1', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'research', 'reduce digital access gaps broadband subsidy');
+  assert.ok(leads.length > 0);
+  assert.equal(leads[0].name, 'broadband subsidy');
+  const unrelated = extractOpenAlexInterventionLeads(
+    { results: [{ id: 'https://openalex.org/W2', display_name: 'Quantum materials characterization methods' }] },
+    source,
+    'reduce digital access gaps',
+    'research',
+    'reduce digital access gaps broadband subsidy'
+  );
+  assert.equal(unrelated.length, 0, 'unrelated literature must not manufacture an intervention lead');
+  const municipalLiterature = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W3', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
+  assert.equal(municipalLiterature[0]?.name, 'broadband subsidy');
+  assert.notEqual(municipalLiterature[0]?.name, 'Digital divide policy evaluation', 'paper titles must never become intervention candidate names');
+  assert.equal(leads[0].discovery.leadOnly, true);
+  assert.equal(leads[0].discovery.effectsImported, false);
+  assert.equal(leads[0].discovery.provenance[0].discoveryQuery, 'reduce digital access gaps broadband subsidy');
+  assert.equal(leads[0].discovery.provenance[0].relevanceStatus, 'query-match');
+});
+
+// Insight-quality battery remains intentionally diagnostic: weak semantic results are findings, not masked pass conditions.
+
+// rerun after discovery syntax correction
+
+// trigger after extraction syntax fix

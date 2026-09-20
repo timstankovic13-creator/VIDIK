@@ -12,15 +12,16 @@ test('arbitrary problem produces a bounded candidate universe then evidence lead
   const discovery = await discoverSourceDrivenInterventions({ problem: 'reduce extreme heat illness', jurisdiction: 'CA', sources: [CA], fetchImpl: async () => response({ result: { results: [
     { id: 'cooling', title: 'Community cooling centre emergency response service', notes: 'Seasonal heat-response service.' },
     { id: 'data', title: 'Extreme Heat Statistics Dataset', notes: 'Observed heat illness counts.' },
-    { id: 'shade', title: 'Neighbourhood shade infrastructure project', notes: 'Public cooling infrastructure.' }
+    { id: 'shade', title: 'Shade infrastructure program', notes: 'Public cooling infrastructure.' }
   ] } }) });
-  assert.equal(discovery.candidates.length, 2);
+  assert.deepEqual(discovery.candidates.map(c => c.name).sort(), ['Community cooling centre emergency response service','Shade infrastructure program'].sort());
   assert.ok(discovery.candidates.every(c => c.discovery.leadOnly && !c.discovery.effectsImported));
   assert.ok(discovery.interventionUniverse.interventionFamilies.length >= 1);
   assert.equal(discovery.recommendationEligible, false);
-  const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: 'Cooling interventions evaluation' }] }) : response({ esearchresult: { idlist: ['12345'] } }) });
-  assert.equal(evidence.evidenceLeads.length, 2);
-  assert.equal(evidence.evidenceSufficiency.independentSourceCount, 2);
+  const evidence = await discoverCandidateEvidence({ problem: 'reduce extreme heat illness', candidate: discovery.candidates[0], sources: [OPENALEX, PUBMED], fetchImpl: async url => url.includes('openalex') ? response({ results: [{ id: 'W1', display_name: `${discovery.candidates[0].name} evaluation` }] }) : url.includes('esummary') ? response({ result: { '12345': { uid: '12345', title: `${discovery.candidates[0].name} evaluation for extreme heat illness` } } }) : response({ esearchresult: { idlist: ['12345'] } }) });
+  assert.deepEqual([...new Set(evidence.sourceSearches.filter(s => s.status === 'evidence-leads-found').map(s => s.sourceId))].sort(), ['openalex-works','pubmed-eutils'].sort());
+  assert.ok(evidence.evidenceLeads.length >= 2);
+  assert.deepEqual([...new Set(evidence.evidenceLeads.filter(l => l.relevanceStatus === 'candidate-match' || l.relevanceStatus === 'verified').map(l => l.sourceId))].sort(), ['openalex-works','pubmed-eutils'].sort());
   assert.equal(evidence.evidenceSufficiency.recommendationEligible, false);
   assert.equal(evidence.effectsImported, false);
 });
