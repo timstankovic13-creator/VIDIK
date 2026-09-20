@@ -201,7 +201,7 @@ function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants
     const firstVerb = first.find(value => verbs.has(value) && normalized.includes(value));
     const secondVerb = second.find(value => verbs.has(value) && normalized.includes(value));
     const nounList = firstVerb ? second : secondVerb ? first : (first.some(value => normalized.includes(value)) ? first : second);
-    const noun = nounList.find(value => !verbs.has(value) && normalized.includes(value));
+    const noun = nounList.filter(value => !verbs.has(value) && normalized.includes(value)).sort((a, b) => b.length - a.length)[0];
     if (noun) {
       for (const replacement of nounList) {
         if (replacement === noun || verbs.has(replacement)) continue;
