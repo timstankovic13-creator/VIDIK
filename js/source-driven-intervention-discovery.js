@@ -137,59 +137,51 @@ function buildOpenAlexInterventionSearchUrl(source, query, { rows = 10 } = {}) {
   url.searchParams.set('per-page', String(rows));
   return url.toString();
 }
+function openAlexAbstractText(row) {
+  const index = row?.abstract_inverted_index;
+  if (!index || typeof index !== 'object') return '';
+  const tokens = [];
+  for (const [term, positions] of Object.entries(index)) {
+    if (!Array.isArray(positions)) continue;
+    for (const position of positions) tokens.push([position, term]);
+  }
+  return tokens.sort((x, y) => x[0] - y[0]).map(item => item[1]).join(' ');
+}
 function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
   const rows = Array.isArray(payload?.results) ? payload.results : [];
   const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+  const familyTerms = expectedFamilies.flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
   const explicit = INTERVENTION_TERMS.map(term => String(term).toLowerCase()).filter(term => term.length > 5);
-  const terms = [...new Set([...taxonomy, ...explicit])];
+  const terms = [...new Set([...taxonomy, ...familyTerms, ...explicit])];
   const leads = [];
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
   for (const row of rows.slice(0, 20)) {
     const title = normalizeText(row?.display_name || '');
     if (!title) continue;
-    const abstractIndex = row?.abstract_inverted_index && typeof row.abstract_inverted_index === 'object' ? row.abstract_inverted_index : null;
-    const abstract = abstractIndex ? Object.entries(abstractIndex).flatMap(([word, positions]) => Array.isArray(positions) ? positions.map(position => [position, word]) : []).sort((a,b) => a[0]-b[0]).map(([,word]) => word).join(' ') : normalizeText(row?.abstract || '');
-    const searchableText = normalizeText(title + ' ' + abstract);
-    const lower = searchableText.toLowerCase();
-    const matched = terms.filter(term => lower.includes(term)).sort((a,b)=>b.length-a.length).slice(0, 2);
-    // Literature discovery is a lead-generation source, not causal verification.
-    // A paper title does not need to contain the intervention label verbatim, but it
-    // must be demonstrably about the problem domain before a taxonomy term from the
-    // explicit search query can be retained as a discovery lead. This prevents an
-    // arbitrary literature hit from manufacturing an intervention while still allowing
-    // genuine intervention literature to surface known intervention classes expressed
-    // with different wording.
-    const problemDomains = inferWorkspaceDomains(problem, workspace);
-    const titleDomains = [...new Set([...discoveryDomains(searchableText), ...inferWorkspaceDomains(searchableText, workspace)])];
-    const domainRelevant = !problemDomains.length || problemDomains.some(domain => titleDomains.includes(domain));
-    const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 2);
+    const abstract = normalizeText(openAlexAbstractText(row));
+    const searchable = (title + ' ' + abstract).trim();
+    const lower = searchable.toLowerCase();
+    const matched = terms.filter(term => lower.includes(term)).sort((x,y)=>y.length-x.length).slice(0, 3);
+    const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
+    const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
+    const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 4);
     const fallbackTerms = matched.length ? [] : (domainRelevant ? queryTerms : []);
-    for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 2)) {
+    for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
-      const candidate = { name, discoveryText: searchableText };
+      const candidate = { name, discoveryText: searchable };
       if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
+      const titleMatch = title.toLowerCase().includes(term);
       leads.push({
-        id: `source:${source.sourceId}:${row.id || row.doi || canonicalName}`,
-        name,
-        canonicalName,
-        interventionFamily: inferInterventionFamily(name),
-        problemTags: [String(problem).toLowerCase()],
-        domains: [source.domain],
-        requiredEvidence: ['causal','implementation','cost','equity'],
-        discoveryText: searchableText,
-        evidenceStatus: 'potential',
-        discovery: {
-          source: source.sourceId,
-          sourceType: 'intervention-literature',
-          jurisdiction: source.jurisdiction,
-          leadOnly: true,
-          effectsImported: false,
-          discoveryOnly: true,
-          externalId: row.id || row.doi || null,
-          extraction: matched.includes(term) ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-query',
-          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: matched.includes(term) ? 'title-match' : 'query-match' }]
-        }
+        id: 'source:' + source.sourceId + ':' + (row.id || row.doi || canonicalName) + ':' + canonicalName,
+        name, canonicalName, interventionFamily: inferInterventionFamily(name),
+        problemTags: [String(problem).toLowerCase()], domains: [source.domain],
+        requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: searchable, evidenceStatus: 'potential',
+        discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row.id || row.doi || null,
+          extraction: titleMatch ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: titleMatch ? 'title-match' : 'abstract-match' }] }
       });
     }
   }
@@ -271,7 +263,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
     if (literatureSource) {
-      const literatureTerms = taxonomyTerms(problem, workspace).slice(0, 3).map(term => `"${term}"`); const literatureQueries = [literatureTerms.length ? `"${problem}" OR ${literatureTerms.join(' OR ')}` : problem];
+      const literatureFamilies = expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 6); const literatureTerms = [...taxonomyTerms(problem, workspace).slice(0, 4), ...literatureFamilies].map(term => `"${term}"`); const literatureQueries = [literatureTerms.length ? `"${problem}" OR ${literatureTerms.join(' OR ')}` : problem];
       const attempts = [];
       for (const query of literatureQueries) {
         try {
