@@ -277,3 +277,31 @@ test('literature query-backed intervention leads retain auditable source provena
 // rerun after discovery syntax correction
 
 // trigger after extraction syntax fix
+
+
+test('evidence search ladder retains both independent providers and bounded per-source expansion', async () => {
+  const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
+  const candidate = {
+    id: 'candidate:test-violence',
+    name: 'Focused Deterrence',
+    discoveryText: 'focused deterrence group violence intervention',
+    interventionFamily: ['public-safety']
+  };
+  const result = await discoverCandidateEvidence({
+    problem: 'reduce violent crime',
+    candidate,
+    fetchImpl: async url => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      arrayBuffer: async () => Buffer.from(url.includes('eutils.ncbi.nlm.nih.gov')
+        ? JSON.stringify({ esearchresult: { idlist: ['1'] } })
+        : JSON.stringify({ results: [{ id: 'W1', display_name: 'Focused Deterrence Group Violence Intervention' }] }))
+    })
+  });
+  assert.ok(result.sourceDiagnostics['openalex-works']);
+  assert.ok(result.sourceDiagnostics['pubmed-eutils']);
+  assert.ok(result.diversifiedQueries.length <= 10);
+  assert.ok(result.sourceSearches.some(s => s.sourceId === 'openalex-works'));
+  assert.ok(result.sourceSearches.some(s => s.sourceId === 'pubmed-eutils'));
+});
