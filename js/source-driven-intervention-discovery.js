@@ -328,10 +328,31 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   const expected=new Set(expectedInterventionFamilies(original,workspace));
   const families=[...new Set([...expected,...inferInterventionFamily(normalized)])];
   const taxonomy=taxonomyTerms(original,workspace);
-  // Reserve a taxonomy query for each relevant workspace domain before filling the
-  // finite budget with broader family queries. This preserves problem-specific forms
-  // (e.g. customer retention, zero trust, device lending) without starving the
-  // intervention-family expansion that protects missing-option detection.
+
+  // The class ontology is a coverage guard, so it gets a deliberate slice of the
+  // finite retrieval budget rather than being appended after family/taxonomy terms
+  // and silently truncated. These are search anchors only; candidates still have to
+  // come from an external source and pass the normal intervention filters.
+  const classQueries=missingInterventionClassSearchQueries(problem,workspace,[])
+    .slice(0,6);
+  for(const term of classQueries) queries.add(term);
+
+  // Keep family discovery bounded but guaranteed a meaningful share of the budget.
+  // This preserves problem-specific intervention families while preventing one large
+  // family vocabulary from crowding out the recovered class ontology.
+  let familyQueriesAdded=0;
+  const familyQueryBudget=6;
+  for(const family of families){
+    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[])){
+      if(familyQueriesAdded>=familyQueryBudget) break;
+      const query=original+' '+term;
+      if(!queries.has(query)){ queries.add(query); familyQueriesAdded++; }
+    }
+    if(familyQueriesAdded>=familyQueryBudget) break;
+  }
+
+  // Reserve a taxonomy query for each relevant workspace domain, then use any
+  // remaining budget for additional workspace-specific terms.
   const domains=inferWorkspaceDomains(original,workspace);
   const reservedTaxonomy=new Set();
   const workspaceTaxonomy=WORKSPACE_TAXONOMIES[workspace]||WORKSPACE_TAXONOMIES.municipal;
@@ -339,13 +360,7 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
     const first=workspaceTaxonomy[domain]?.[0];
     if(first){ queries.add(original+' '+first); reservedTaxonomy.add(first); }
   }
-  for(const family of families){
-    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[])) queries.add(original+' '+term);
-  }
   for(const term of taxonomy) if(!reservedTaxonomy.has(term)) queries.add(term);
-  // Recover the broader pre-Insight-Quality class ontology as bounded search anchors.
-  // These are coverage prompts, never synthetic candidates.
-  for(const term of missingInterventionClassSearchQueries(problem, workspace, [])) queries.add(term);
   return [...queries].filter(Boolean).slice(0,DISCOVERY_MAX_QUERIES_PER_SOURCE);
 }
 function extractConcreteInterventionFromDescription(problem, workspace, description = '') {
