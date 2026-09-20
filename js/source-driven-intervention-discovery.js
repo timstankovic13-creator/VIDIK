@@ -131,8 +131,10 @@ function missingInterventionClassSearchQueries(problem, workspace, candidates = 
   const coverage = interventionClassCoverage(problem, workspace, candidates);
   const classes = LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal;
   const domains = inferWorkspaceDomains(problem, workspace);
+  const compatibleDomains = domains.flatMap(domain => [...(CROSS_DOMAIN_COMPATIBILITY[domain] || [])]);
+  const searchDomains = [...new Set([...domains, ...compatibleDomains])];
   const represented = new Set(coverage.representedClasses);
-  const queues = domains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
+  const queues = searchDomains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
   const selected = [];
   // Stratify missing-class searches across relevant domains so the finite budget
   // cannot be consumed by the first domain in the ontology. This is coverage
@@ -537,6 +539,11 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
+  // Mobility/safety problems routinely require infrastructure interventions. Preserve
+  // that explicit cross-domain relationship even when the candidate wording shares no
+  // literal problem token beyond road/traffic/safety vocabulary.
+  if ((problemLower.includes('traffic') || problemLower.includes('road safety') || problemLower.includes('fatalit')) &&
+      /\b(road|traffic)\b/i.test(candidateLower) && /\binfrastructure\b/i.test(candidateLower)) return true;
   // For genuinely novel problems with no inferred domain, retain an explicitly actionable
   // lead rather than silently converting an unknown problem into a zero-candidate result.
   // The lead remains discovery-only and cannot become recommendation-eligible without
