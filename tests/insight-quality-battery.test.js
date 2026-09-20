@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
-const { discoverCandidateEvidence, queryFor, evidenceLeadRelevance } = require('../js/source-driven-evidence-discovery');
+const { discoverCandidateEvidence, queryFor, evidenceLeadRelevance, extractPubmedAbstracts } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
   // Municipal / public sector
@@ -128,6 +128,9 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(evidenceLeadRelevance('Rental assistance evaluation for homeless adults', { name: 'Permanent Housing Access Program', discoveryText: 'rental assistance and permanent housing placement', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
   assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
   assert.equal(evidenceLeadRelevance('Violent crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
+  const pubmedXml = '<PubmedArticle><MedlineCitation><PMID>12345</PMID><Article><ArticleTitle>Intervention trial</ArticleTitle><Abstract><AbstractText>Community violence intervention reduced assault injuries.</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle>';
+  assert.equal(extractPubmedAbstracts(pubmedXml)['12345'], 'Community violence intervention reduced assault injuries.');
+  assert.equal(evidenceLeadRelevance('Evaluation of community violence intervention', { name: 'Community Violence Intervention Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'candidate-match');
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
