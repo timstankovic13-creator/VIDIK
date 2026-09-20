@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 const GOVUK_SOURCE = {
@@ -49,6 +49,22 @@ test('OpenAlex abstract-backed literature retains intervention leads when the ti
   } }] }, source, 'reduce youth unemployment', 'municipal', 'reduce youth unemployment job placement');
   assert.ok(leads.some(lead => /job placement/i.test(lead.name)));
   assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('bounded thesaurus expansion broadens problem vocabulary before intervention-family search', () => {
+  const variants = expandDiscoveryVocabulary('reduce violent crime', 'municipal', 8);
+  assert.equal(variants[0], 'reduce violent crime');
+  assert.ok(variants.includes('reduce serious violence'));
+  assert.ok(variants.includes('reduce community violence'));
+  assert.ok(variants.length <= 8);
+  assert.ok(!variants.some(value => /dataset|statistics|report/i.test(value)));
+});
+
+test('workspace thesaurus uses pertinent terminology for non-municipal discovery', () => {
+  const business = expandDiscoveryVocabulary('reduce customer churn', 'business', 8);
+  const enterprise = expandDiscoveryVocabulary('reduce digital access gaps', 'enterprise', 8);
+  assert.ok(business.includes('reduce customer attrition'));
+  assert.ok(enterprise.includes('reduce digital divide'));
 });
 
 test('digital-access taxonomy expands into concrete intervention queries', () => {
