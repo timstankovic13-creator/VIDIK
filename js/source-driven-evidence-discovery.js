@@ -145,7 +145,7 @@ function extractEvidenceLeads(payload, source, candidate, problem) {
   return ids.slice(0, 20).map(id => {
     const summary = summaries[id] || {}; const title = String(summary.title || '').trim(); const abstract = String(abstracts[id] || '').trim(); const searchable = `${title} ${abstract}`.trim();
     if (!title || !evidenceLeadRelevant(searchable,candidate,problem)) return null;
-    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(searchable, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } };
+    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId], sourceRole: 'causal-research-index', sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(searchable, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } };
   }).filter(Boolean);
 }
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
