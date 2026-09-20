@@ -71,12 +71,14 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
   const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2;
   if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit) return 'candidate-match';
+  const problemText = String(problem || '').toLowerCase().replace(/\\bcentres\\b/g, 'centers').replace(/\\bprogrammes\\b/g, 'programs').trim();
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
+  const problemPhraseHit = problemText.length >= 8 && haystack.includes(problemText);
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => haystack.includes(term.toLowerCase())));
   if (familyPhraseHit) return 'family-match';
-  if (problemHits >= Math.min(2, Math.max(1, problemTokens.length))) return 'problem-match';
+  if (problemPhraseHit || problemHits >= Math.min(2, Math.max(1, problemTokens.length))) return 'problem-match';
   return null;
 }
 function evidenceLeadRelevant(title, candidate, problem) { return Boolean(evidenceLeadRelevance(title, candidate, problem)); }
@@ -161,7 +163,7 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
-  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
+  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
 async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
