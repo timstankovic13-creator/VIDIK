@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 const GOVUK_SOURCE = {
@@ -40,6 +40,13 @@ test('GOV.UK extraction recognizes schemes and funds when the intervention is de
   ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
   assert.equal(leads.length, 2);
   assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
+});
+
+test('digital-access taxonomy expands into concrete intervention queries', () => {
+  const terms = taxonomyTerms('reduce digital access gaps', 'municipal');
+  assert.ok(terms.includes('digital inclusion'));
+  assert.ok(terms.includes('broadband voucher scheme'));
+  assert.ok(terms.includes('digital lifeline fund'));
 });
 
 test('GOV.UK query construction remains HTTPS and bounded', () => {
