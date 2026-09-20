@@ -129,8 +129,43 @@ function interventionClassCoverage(problem, workspace, candidates = []) {
 
 function missingInterventionClassSearchQueries(problem, workspace, candidates = []) {
   const coverage = interventionClassCoverage(problem, workspace, candidates);
-  return coverage.missingClasses.slice(0, 8).map(className => normalizeText(problem + ' ' + className));
+  const classes = LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal;
+  const domains = inferWorkspaceDomains(problem, workspace);
+  const represented = new Set(coverage.representedClasses);
+  const queues = domains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
+  const selected = [];
+  // Stratify missing-class searches across relevant domains so the finite budget
+  // cannot be consumed by the first domain in the ontology. This is coverage
+  // discovery, never candidate synthesis.
+  for (let round = 0; round < Math.max(...queues.map(queue => queue.length), 0) && selected.length < 8; round++) {
+    for (const queue of queues) {
+      if (queue[round] && selected.length < 8) selected.push(queue[round]);
+    }
+  }
+  return selected.map(className => normalizeText(problem + ' ' + className));
 }
+
+// Workspace-specific coverage vocabulary is deliberately separate from municipal taxonomy.
+// It describes what each workspace can actually deploy/study/operate; it is not a candidate registry.
+Object.assign(LEGACY_INTERVENTION_CLASSES.business, {
+  digitalAccess: ['remote service enablement','customer self-service','accessible digital channel','device access support'],
+  health: ['occupational health program','employee assistance','mental health support','workplace health screening']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.community, {
+  accessibility: ['accessible design','assistive technology','accommodation support','inclusive service design'],
+  infrastructure: ['community facility upgrade','transport access','neighborhood infrastructure','resilience hub'],
+  publicService: ['community service navigation','extended service hours','mobile service delivery','appointment access']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.research, {
+  governance: ['implementation governance','policy implementation','regulatory design','institutional coordination'],
+  infrastructure: ['capital intervention','infrastructure retrofit','asset renewal','service capacity'],
+  economic: ['income support','wage subsidy','business support','procurement intervention']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.enterprise, {
+  health: ['occupational health program','employee assistance','workplace health screening','mental health support'],
+  publicService: ['service redesign','queue management','appointment scheduling','self-service channel'],
+  climate: ['business continuity response','facility resilience','heat adaptation','flood preparedness']
+});
 
 const WORKSPACE_TAXONOMIES = Object.freeze({
   municipal: {
@@ -200,15 +235,22 @@ function taxonomyTerms(problem, workspace = 'municipal') {
   return [...new Set(domains.flatMap(domain => taxonomy[domain] || []))];
 }
 
+const NON_INTERVENTION_ARTIFACT_PATTERNS = [
+  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
+  /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
+  /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i
+];
 function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
   const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
   if(!titleText) return false;
+  if(NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern=>pattern.test(titleText))) return false;
   if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
-  const explicitProgram=/\b(program|programme|service|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance)\b/i.test(signalText);
+  const explicitProgram=/\b(program|programme|initiative|intervention|pilot|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
-  return explicitProgram || concreteAction || concreteServiceObject;
+  const serviceOnly=/\bservice\b/i.test(titleText) && !/\b(program|programme|initiative|intervention|pilot|scheme|voucher|subsidy|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation)\b/i.test(titleText);
+  return !serviceOnly && (explicitProgram || concreteAction || concreteServiceObject);
 }
 const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
   municipal: [
@@ -653,6 +695,60 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       coverage=discoveryCoverage(problem,workspace,candidates);
     }
   }
+  // If families are present but major intervention classes are still missing, spend
+  // remaining source budget on stratified class-specific searches. This is the
+  // explicit missing-option detector: it searches for absent real-world classes
+  // rather than treating family coverage as proof that the universe is complete.
+  const classTargetedQueries = missingInterventionClassSearchQueries(problem, workspace, candidates);
+  if (classTargetedQueries.length && selected.length) {
+    const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
+    for (const source of selected) {
+      const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
+      if (!sourceSearch) continue;
+      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted);
+      const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, remainingQueryBudget);
+      for (const query of sourceClassQueries) {
+        existingQueries.add(query);
+        try {
+          const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? buildGovUkSearchUrl(source, query, { rows })
+            : buildCkanSearchUrl(source, query, { rows });
+          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
+          if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const leads = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          rawCandidates.push(...leads);
+          candidates = deduplicateInterventionLeads(rawCandidates);
+          coverage = discoveryCoverage(problem, workspace, candidates);
+          sourceSearch.attempts.push({
+            query, queryLayer:'missing-class-expansion',
+            status:leads.length?'candidates-found':'searched-empty',
+            candidatesReturned:leads.length,
+            recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,
+            provenance:snapshot.retrieval, failureReason:null,
+            cumulativeUniqueCandidates:candidates.length,
+            expectedFamilies:coverage.expectedFamilies,
+            observedFamilies:coverage.observedFamilies,
+            missingFamilies:coverage.missingFamilies,
+            missingClasses:interventionClassCoverage(problem,workspace,candidates).missingClasses
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.usableQueryCount += 1;
+          sourceSearch.candidatesReturned += leads.length;
+        } catch(error) {
+          sourceSearch.attempts.push({query,queryLayer:'missing-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:candidates.length});
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.failedQueryCount += 1;
+        }
+      }
+      sourceSearch.missingFamilies = coverage.missingFamilies;
+      sourceSearch.observedFamilies = coverage.observedFamilies;
+      sourceSearch.expectedFamilies = coverage.expectedFamilies;
+    }
+  }
   if (candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
     const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
     if (exploratory.length) {
@@ -663,11 +759,21 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     }
   }
   const classCoverage=interventionClassCoverage(problem,workspace,candidates);
-  const diagnosticCounts={noCandidates:candidates.length===0,candidateUniverseWeak:candidates.length>0&&(coverage.expectedFamilies.length>0&&coverage.coverageRatio<DISCOVERY_TARGET_FAMILY_COVERAGE),missingFamilies:coverage.missingFamilies,missingClasses:classCoverage.missingClasses,sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original'))};
+  const diagnosticCounts={
+    noCandidates:candidates.length===0,
+    candidateUniverseWeak:candidates.length>0&&(coverage.expectedFamilies.length>0&&coverage.coverageRatio<DISCOVERY_TARGET_FAMILY_COVERAGE),
+    classCoverageWeak:candidates.length>0&&classCoverage.expectedClasses.length>0&&classCoverage.coverageRatio<0.5,
+    missingFamilies:coverage.missingFamilies,
+    missingClasses:classCoverage.missingClasses,
+    sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),
+    queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original')),
+    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='missing-class-expansion')),
+    missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='missing-class-expansion').length,0)
+  };
   const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
   universe.expectedInterventionFamilies=coverage.expectedFamilies;universe.observedInterventionFamilies=coverage.observedFamilies;universe.missingInterventionFamilies=coverage.missingFamilies;universe.coverageRatio=coverage.coverageRatio;universe.expectedInterventionClasses=classCoverage.expectedClasses;universe.observedInterventionClasses=classCoverage.representedClasses;universe.missingInterventionClasses=classCoverage.missingClasses;universe.classCoverageRatio=classCoverage.coverageRatio;universe.discoveryExpandedWhenWeak=sourceSearches.some(s=>s.queriesAttempted>1);
   universe.diagnosticCounts=diagnosticCounts;
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
-  return {schemaVersion:'vidik.source-driven-intervention-discovery.v8',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
+  return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { LEGACY_INTERVENTION_CLASSES, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
