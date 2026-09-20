@@ -315,13 +315,15 @@ function missingFamilySearchQueries(problem,workspace,candidates=[]){
   return [...new Set(queries)].slice(0,12);
 }
 function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
-  if (candidates.length > 0) return [];
   const families = expectedInterventionFamilies(problem, workspace);
-  return families.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 4).map((term, index) => {
+  const existingFamilies = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
+  const missingFamilies = families.filter(family => !existingFamilies.has(family));
+  if (!missingFamilies.length) return [];
+  return missingFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 3).map((term, index) => {
     const name = normalizeText(term).replace(/\b\w/g, character => character.toUpperCase());
     const canonicalName = normalizeInterventionName(name);
     if (!canonicalName) return null;
-    return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential' }] } };
+    return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
   }).filter(Boolean));
 }
 async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
