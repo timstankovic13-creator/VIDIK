@@ -3,6 +3,8 @@
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
+const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
+const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
@@ -137,25 +139,53 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const query = queryFor(candidate, problem);
   const discoveryTerms = evidenceConceptTokens(candidate?.discoveryText).slice(0, 8);
   const name = String(candidate?.name || '').trim();
-  // Evidence retrieval is deliberately bounded. The previous fan-out issued up to
-  // 8 queries per source per candidate, creating hundreds of external requests in the
-  // 60-case battery and making availability/rate-limit failures look like semantic misses.
+  // Governed adaptive evidence ladder. Each source gets multiple independent
+  // retrieval anchors, but the ladder stops early once that source has enough
+  // candidate-specific leads. This prevents the old failure mode where a single
+  // conjunctive query made a rich evidence universe look empty, while keeping
+  // external request volume bounded.
   const familyTerms = [...new Set(
     (Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [])
       .flatMap(family => EVIDENCE_FAMILY_TERMS[family] || [])
-  )].slice(0, 3);
-  // Literature indexes often fail on fully conjunctive queries even when the
-  // candidate has relevant evidence. Keep independent candidate anchors in the
-  // query set; relevance is still decided by evidenceLeadRelevance below.
+  )];
   const discoveryPhrase = discoveryTerms.slice(0, 6).join(' ');
-  const diversifiedQueries = [...new Set([
-    query,
+  const mechanisms = {
+    'public-safety': ['violence prevention','deterrence','street outreach','hot spots','violence interruption'],
+    housing: ['housing stability','housing retention','supportive services','rent assistance'],
+    'health-service': ['care coordination','case management','mobile care','community health'],
+    employment: ['employment retention','job placement','skills training','wage subsidy'],
+    education: ['academic support','tutoring','mentoring','early childhood'],
+    'mobility-safety': ['traffic calming','road safety','pedestrian safety','speed management'],
+    environmental: ['pollution control','mitigation','exposure reduction','environmental monitoring'],
+    energy: ['energy efficiency','weatherization','utility assistance'],
+    'digital-access': ['broadband access','device access','digital inclusion'],
+    'economic-support': ['cash transfer','business support','financial assistance']
+  };
+  const mechanismTerms = [...new Set(
+    (Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [])
+      .flatMap(family => mechanisms[family] || [])
+  )];
+  const operationalTerms = discoveryTerms.slice(0, 8);
+  const ladder = [
     name,
+    `${name} ${problem}`,
+    `${name} ${familyTerms.slice(0, 4).join(' ')}`,
+    `${name} ${mechanismTerms.slice(0, 4).join(' ')}`,
     discoveryPhrase,
-    `${problem} ${familyTerms.join(" ")}`
-  ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
+    `${problem} ${familyTerms.slice(0, 5).join(' ')}`,
+    `${problem} ${mechanismTerms.slice(0, 5).join(' ')}`,
+    operationalTerms.join(' '),
+    `${problem} systematic review meta analysis`,
+    `${problem} implementation evaluation`,
+    query
+  ];
+  const diversifiedQueries = [...new Set(ladder
+    .map(value => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter(value => value.length > 3))]
+    .slice(0, EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE);
   const searches = [], rawLeads = [];
   for (const source of selected) {
+    let candidateSpecificLeadCount = 0;
     for (const searchQuery of diversifiedQueries) {
       try {
         const url = buildEvidenceSearchUrl(source, searchQuery);
@@ -176,10 +206,21 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         }
         const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
         rawLeads.push(...found);
-        searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
-        // Stop once this source has produced relevant leads. Independence still requires
-        // a second source; extra queries after success only add external load.
-        if (found.length) break;
+        const candidateMatches = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
+        candidateSpecificLeadCount += candidateMatches;
+        searches.push({
+          sourceId: source.sourceId,
+          status: found.length ? 'evidence-leads-found' : 'searched-empty',
+          query: searchQuery,
+          candidatesReturned: found.length,
+          candidateMatched: candidateMatches,
+          provenance: snapshot.retrieval,
+          failureReason: null
+        });
+        // Do not stop at the first weak hit. Require multiple candidate-specific
+        // leads before closing a source, while a second source is still required
+        // by the sufficiency gate.
+        if (candidateSpecificLeadCount >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
       } catch (error) {
         searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
