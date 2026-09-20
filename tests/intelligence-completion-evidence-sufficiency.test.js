@@ -4,7 +4,7 @@ const test = require('node:test');
 const { assessEvidenceSufficiency, deduplicateEvidenceLeads, sourceIsAuthoritative } = require('../js/source-driven-evidence-discovery');
 
 test('evidence sufficiency requires independent usable sources and never grants recommendation authority', () => {
-  const result = assessEvidenceSufficiency({ sourceSearches: [{ status: 'evidence-leads-found' }, { status: 'evidence-leads-found' }], evidenceLeads: [{ id: 'a', sourceId: 'openalex-works' }, { id: 'b', sourceId: 'pubmed-eutils' }] });
+  const result = assessEvidenceSufficiency({ sourceSearches: [{ status: 'evidence-leads-found' }, { status: 'evidence-leads-found' }], evidenceLeads: [{ id: 'a', sourceId: 'openalex-works', relevanceStatus: 'candidate-match' }, { id: 'b', sourceId: 'pubmed-eutils', relevanceStatus: 'candidate-match' }] });
   assert.equal(result.evidenceComplete, true); assert.equal(result.independentSourceCount, 2); assert.equal(result.recommendationEligible, false); assert.equal(result.effectsImported, false);
 });
 
