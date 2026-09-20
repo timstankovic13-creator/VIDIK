@@ -5,7 +5,7 @@ const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
-  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
+  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program'],
   'climate-resilience':['cooling centre','clean air shelter','home cooling','smoke filtration','flood mitigation'],
