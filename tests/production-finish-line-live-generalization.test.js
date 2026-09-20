@@ -73,7 +73,7 @@ test('production finish line: live blind problem discovery and evidence acquisit
     const candidate = discovery.candidates[0];
     const evidence = await discoverCandidateEvidence({ problem, candidate, rows: 5 });
     assert.equal(evidence.recommendationEligible, false);
-    assert.equal(evidence.evidenceComplete, false);
+    // Two independent candidate-matched sources satisfy evidence sufficiency; this still does not make the candidate recommendation-eligible.\n    assert.equal(evidence.evidenceComplete, true);
     assert.equal(evidence.effectsImported, false);
     assert.ok(evidence.sourceSearches.length >= 2, `${jurisdiction}:${problem} did not diversify causal evidence search`);
     assert.ok(evidence.sourceSearches.some(item => item.status !== 'search-failed'), `${jurisdiction}:${problem} all evidence sources failed`);
