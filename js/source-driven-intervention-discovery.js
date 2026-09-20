@@ -17,7 +17,7 @@ const INTERVENTION_FAMILIES = [
   ['public-safety','crime','violence','assault','domestic violence','sexual violence','partner assault','violence response','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
   ['mobility-safety','bike lane','protected lane','bus lane','transit','traffic','traffic calming','pedestrian crossing','signal timing','bus priority'],
   ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','mobile crisis','community health worker','overdose prevention'],
-  ['climate-resilience','cooling centre','cooling center','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
+  ['climate-resilience','cooling centre','cooling center','cooling infrastructure','shade infrastructure','tree canopy','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
   ['employment','training','worker','employment','staffing','job placement','career pathway','apprenticeship','reskilling','wage subsidy'],
   ['economic-support','grant','funding','subsidy','benefit','voucher','cash transfer','working capital','business financing','utility assistance','energy assistance'],
   ['infrastructure','infrastructure','facility','project','preventive maintenance','asset management','capacity expansion','redundancy','retrofit'],
