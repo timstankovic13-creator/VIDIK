@@ -144,11 +144,15 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     (Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [])
       .flatMap(family => EVIDENCE_FAMILY_TERMS[family] || [])
   )].slice(0, 3);
+  // Literature indexes often fail on fully conjunctive queries even when the
+  // candidate has relevant evidence. Keep independent candidate anchors in the
+  // query set; relevance is still decided by evidenceLeadRelevance below.
+  const discoveryPhrase = discoveryTerms.slice(0, 6).join(' ');
   const diversifiedQueries = [...new Set([
     query,
-    `${problem} ${familyTerms.join(" ")}`,
-    `${name} ${familyTerms.slice(0, 2).join(" ")}`,
-    discoveryTerms.slice(0, 4).join(' ')
+    name,
+    discoveryPhrase,
+    `${problem} ${familyTerms.join(" ")}`
   ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
   const searches = [], rawLeads = [];
   for (const source of selected) {
