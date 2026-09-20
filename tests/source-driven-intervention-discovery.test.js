@@ -124,7 +124,7 @@ test('source-driven discovery is wired into decision execution and remains evide
 
 test('source-driven discovery records upstream failure instead of inventing an empty result', async () => {
   const result = await discoverSourceDrivenInterventions({ problem: 'urban flooding', sources: [SOURCE], fetchImpl: async () => mockResponse({ error: true }) });
-  assert.equal(result.sourceSearches[0].status, 'searched-empty');
+  assert.equal(result.sourceSearches[0].status, 'search-failed');
   assert.equal(result.candidates.length, 0);
 });
 
