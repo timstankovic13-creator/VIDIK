@@ -305,3 +305,30 @@ test('evidence search ladder retains both independent providers and bounded per-
   assert.ok(result.sourceSearches.some(s => s.sourceId === 'openalex-works'));
   assert.ok(result.sourceSearches.some(s => s.sourceId === 'pubmed-eutils'));
 });
+
+
+
+test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
+  assert.equal(mod.DISCOVERY_MIN_UNIQUE_CANDIDATES, 5);
+  assert.equal(mod.DISCOVERY_TARGET_FAMILY_COVERAGE, 0.75);
+  const queries = mod.buildDiscoveryQueries('reduce violent crime','municipal');
+  assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  assert.ok(queries.some(q => /violence interruption|focused deterrence|hot spot policing/i.test(q)));
+  assert.ok(queries.some(q => /crime/i.test(q)));
+});
+
+test('Campbell review indexes remain catalogued but are not falsely treated as executable evidence APIs', () => {
+  const { SOURCE_REGISTRY } = require('../js/source-registry');
+  const { canonicalSource, buildCkanSearchUrl, buildGovUkSearchUrl } = require('../js/source-driven-intervention-discovery');
+  const campbell = SOURCE_REGISTRY.find(source => source.sourceId === 'campbell-evidence');
+  const crime = SOURCE_REGISTRY.find(source => source.sourceId === 'campbell-crime-justice');
+  assert.ok(campbell);
+  assert.ok(crime);
+  assert.equal(campbell.accessMethod, 'review-index');
+  assert.equal(crime.accessMethod, 'review-index');
+  assert.equal(canonicalSource(campbell).sourceId, 'campbell-evidence');
+  assert.throws(() => buildCkanSearchUrl(campbell, 'violent crime'), /unsupported-ckan-intervention-source/);
+  assert.throws(() => buildGovUkSearchUrl(campbell, 'violent crime'), /unsupported-govuk-intervention-source/);
+});

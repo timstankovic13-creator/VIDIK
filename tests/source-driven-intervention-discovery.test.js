@@ -144,10 +144,39 @@ test('source-driven discovery records upstream failure instead of inventing an e
   assert.equal(result.candidates.length, 0);
 });
 
+test('mobility problems retain infrastructure interventions during semantic relevance filtering', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce traffic fatalities', jurisdiction: 'CA', sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'traffic-enforcement', title: 'Traffic safety enforcement program', notes: 'Municipal enforcement intervention for road safety.' },
+      { id: 'road-infrastructure', title: 'Road safety infrastructure project', notes: 'Infrastructure intervention improving road safety and reducing traffic fatalities.' }
+    ] } })
+  });
+  assert.ok(result.candidates.some(candidate => /traffic safety enforcement/i.test(candidate.name)));
+  assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
+  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true));
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('CKAN query construction remains HTTPS and bounded', () => {
   const url = new URL(buildCkanSearchUrl(SOURCE, 'reduce violent crime', { rows: 25 }));
   assert.equal(url.protocol, 'https:');
   assert.equal(url.searchParams.get('q'), 'reduce violent crime');
   assert.equal(url.searchParams.get('rows'), '25');
   assert.throws(() => buildCkanSearchUrl(SOURCE, 'crime', { rows: 101 }), /page-size-invalid/);
+});
+
+
+test('legacy intervention classes are a coverage guard, not synthetic candidates', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const coverage = mod.interventionClassCoverage('reduce violent crime', 'municipal', [
+    { name: 'Focused deterrence program', discoveryText: 'focused deterrence for serious violence' },
+    { name: 'Community violence intervention', discoveryText: 'community violence intervention' }
+  ]);
+  assert.ok(coverage.expectedClasses.length > 0);
+  assert.ok(coverage.representedClasses.some(name => /focused deterrence/i.test(name)));
+  assert.ok(coverage.missingClasses.length > 0);
+  const queries = mod.buildDiscoveryQueries('reduce violent crime', 'municipal');
+  assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion/i.test(q)));
 });
