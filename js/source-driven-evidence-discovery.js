@@ -61,6 +61,7 @@ function normalizeEvidenceText(value) {
     .replace(/\bcentres\b/g, 'centers')
     .replace(/\bprogrammes\b/g, 'programs')
     .replace(/\bprograms\b/g, 'program')
+    .replace(/[-_/]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
