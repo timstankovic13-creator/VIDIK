@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
-const { discoverCandidateEvidence, queryFor, evidenceLeadRelevance } = require('../js/source-driven-evidence-discovery');
+const { discoverCandidateEvidence, discoverCandidateUniverseEvidence, queryFor, evidenceLeadRelevance, extractPubmedAbstracts } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
   // Municipal / public sector
@@ -125,8 +125,12 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(discoveryModule.buildDiscoveryQueries('reduce violent crime','municipal').length <= 18);
   assert.match(queryFor({ name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), /violence interruption|focused deterrence|hot spot policing|community violence intervention/);
   assert.equal(evidenceLeadRelevance('Housing First randomized trial for homeless adults', { name: 'Housing First', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
+  assert.equal(evidenceLeadRelevance('Rental assistance evaluation for homeless adults', { name: 'Permanent Housing Access Program', discoveryText: 'rental assistance and permanent housing placement', interventionFamily: ['housing'] }, 'reduce homelessness'), 'candidate-match');
   assert.equal(evidenceLeadRelevance('Community violence intervention evaluation', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'family-match');
   assert.equal(evidenceLeadRelevance('Violent crime trends among residents', { name: 'Partner Assault Response Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'problem-match');
+  const pubmedXml = '<PubmedArticle><MedlineCitation><PMID>12345</PMID><Article><ArticleTitle>Intervention trial</ArticleTitle><Abstract><AbstractText>Community violence intervention reduced assault injuries.</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle>';
+  assert.equal(extractPubmedAbstracts(pubmedXml)['12345'], 'Community violence intervention reduced assault injuries.');
+  assert.equal(evidenceLeadRelevance('Evaluation of community violence intervention', { name: 'Community Violence Intervention Program', interventionFamily: ['public-safety'] }, 'reduce violent crime'), 'candidate-match');
 
   const municipalSafety=expectedInterventionFamilies('reduce violent crime','municipal');
   const businessChurn=expectedInterventionFamilies('reduce customer churn','business');
@@ -173,17 +177,19 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
 
     let evidence = null;
     if (candidates[0]) {
-      evidence = await discoverCandidateEvidence({ problem, candidate: candidates[0], rows: 5 });
+      evidence = await discoverCandidateUniverseEvidence({ problem, candidates, rows: 3, maxCandidates: 2 });
       assert.equal(evidence.recommendationEligible, false);
       assert.equal(evidence.effectsImported, false);
-      assert.ok(evidence.sourceSearches.length >= 2);
-      assert.ok(evidence.evidenceLeads.every(lead => lead.evidenceLeadOnly === true));
-      assert.ok(evidence.evidenceLeads.every(lead => lead.causalEffectImported === false));
+      assert.ok(evidence.candidateEvidence.every(result => result.sourceSearches.length >= 2));
+      assert.ok(evidence.candidateEvidence.every(result => result.evidenceLeads.every(lead => lead.evidenceLeadOnly === true)));
+      assert.ok(evidence.candidateEvidence.every(result => result.evidenceLeads.every(lead => lead.causalEffectImported === false)));
     }
 
     const relevanceRatio = candidates.length ? relevant.length / candidates.length : 0;
-    const independentEvidenceSources = evidence ? new Set(evidence.evidenceLeads.filter(x => x.relevanceStatus === 'candidate-match' || x.relevanceStatus === 'verified').map(x => x.sourceId)).size : 0;
-    const evidenceLeads = evidence?.evidenceLeads?.length || 0;
+    const evidenceResults = evidence?.candidateEvidence || [];
+    const evidenceCompleteCandidate = evidenceResults.find(result => result.evidenceSufficiency?.independentSourceCount >= 2);
+    const independentEvidenceSources = evidenceCompleteCandidate ? evidenceCompleteCandidate.evidenceSufficiency.independentSourceCount : 0;
+    const evidenceLeads = evidenceResults.reduce((count, result) => count + (result.evidenceLeads?.length || 0), 0);
 
     let grade = 'BLOCKED';
     if (candidates.length > 0 && actionable.length === candidates.length && relevanceRatio >= 0.5 && expectedClassHits > 0 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {

@@ -30,6 +30,18 @@ function queryFor(candidate, problem) {
   return `${problem} ${name} ${familyTerms.join(' ')}`.replace(/\\s+/g, ' ').slice(0, 500);
 }
 function buildPubmedSummaryUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-summary-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','json'); return url.toString(); }
+function buildPubmedAbstractUrl(source, ids) { if (!source || source.sourceId !== 'pubmed-eutils' || !ids.length) throw new Error('pubmed-abstract-input-required'); const url = new URL('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'); url.searchParams.set('db','pubmed'); url.searchParams.set('id',ids.join(',')); url.searchParams.set('retmode','xml'); return url.toString(); }
+function decodeXml(value) { return String(value || '').replace(/<[^>]+>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'\"').replace(/&#39;/g,"'").replace(/&#x27;/g,"'").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/\s+/g,' ').trim(); }
+function extractPubmedAbstracts(xml) {
+  const text = String(xml || ''); const out = {};
+  for (const article of text.matchAll(/<PubmedArticle>([\s\S]*?)<\/PubmedArticle>/g)) {
+    const block = article[1]; const id = block.match(/<PMID[^>]*>([^<]+)<\/PMID>/)?.[1]?.trim();
+    if (!id) continue;
+    const parts = [...block.matchAll(/<AbstractText(?: [^>]*)?>([\s\S]*?)<\/AbstractText>/g)].map(m=>decodeXml(m[1])).filter(Boolean);
+    if (parts.length) out[id] = parts.join(' ');
+  }
+  return out;
+}
 function buildEvidenceSearchUrl(source, query) { if (!source || !EVIDENCE_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-evidence-source'); const url = new URL(source.url); if (source.sourceId === 'pubmed-eutils') { url.searchParams.set('term', query); url.searchParams.set('retmode', 'json'); } else url.searchParams.set('search', query); return url.toString(); }
 function canonicalEvidenceSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceIsAuthoritative(source) {
@@ -45,11 +57,15 @@ function evidenceConceptTokens(value) {
     .map(token => token.replace(/ies$/,'y').replace(/s$/,''));
 }
 function evidenceLeadRelevance(title, candidate, problem) {
-  const haystack = String(title || '').toLowerCase();
-  const candidateTokens = evidenceConceptTokens(candidate?.name);
-  const problemTokens = evidenceConceptTokens(problem);
+  const haystack = String(title || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
+  const candidateText = `${candidate?.name || ""} ${candidate?.discoveryText || ""}`;
+  const candidateTokens = evidenceConceptTokens(candidateText).map(token => token.replace(/^centre$/, 'center'));
+  const candidatePhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
+    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'));
+  const phraseHit = candidatePhrases.some(phrase => phrase.length >= 8 && haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
-  if (candidateHits > 0) return 'candidate-match';
+  if (phraseHit || candidateHits >= 2) return 'candidate-match';
+  const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => haystack.includes(term.toLowerCase())));
@@ -58,18 +74,28 @@ function evidenceLeadRelevance(title, candidate, problem) {
   return null;
 }
 function evidenceLeadRelevant(title, candidate, problem) { return Boolean(evidenceLeadRelevance(title, candidate, problem)); }
+function openAlexAbstractText(row) {
+  const inverted = row?.abstract_inverted_index;
+  if (!inverted || typeof inverted !== 'object') return '';
+  const terms = [];
+  for (const [word, positions] of Object.entries(inverted)) {
+    for (const position of Array.isArray(positions) ? positions : []) {
+      if (Number.isInteger(position)) terms.push([position, word]);
+    }
+  }
+  return terms.sort((a, b) => a[0] - b[0]).map(([, word]) => word).join(' ').trim();
+}
 function extractEvidenceLeads(payload, source, candidate, problem) {
   if (source.sourceId === 'openalex-works') {
     const rows = Array.isArray(payload?.results) ? payload.results : [];
-    return rows.slice(0, 20).map(row => { const title = String(row.display_name || row.title || '').trim(); const relevanceStatus = evidenceLeadRelevance(title, candidate, problem); return { id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name || row.title}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus, provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null } }; }).filter(row => row.title && evidenceLeadRelevant(row.title, candidate, problem));
+    return rows.slice(0, 20).map(row => { const title = String(row.display_name || row.title || '').trim(); const abstract = openAlexAbstractText(row); const searchable = `${title} ${abstract}`.trim(); const relevanceStatus = evidenceLeadRelevance(searchable, candidate, problem); return { id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name || row.title}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus, provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } }; }).filter(row => row.title && Boolean(row.relevanceStatus));
   }
   const ids = Array.isArray(payload?.esearchresult?.idlist) ? payload.esearchresult.idlist : [];
-  const summaries = payload?._vidikSummaries || {};
+  const summaries = payload?._vidikSummaries || {}; const abstracts = payload?._vidikAbstracts || {};
   return ids.slice(0, 20).map(id => {
-    const summary = summaries[id] || {};
-    const title = String(summary.title || '').trim();
-    if (!title || !evidenceLeadRelevant(title,candidate,problem)) return null;
-    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(title, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id } };
+    const summary = summaries[id] || {}; const title = String(summary.title || '').trim(); const abstract = String(abstracts[id] || '').trim(); const searchable = `${title} ${abstract}`.trim();
+    if (!title || !evidenceLeadRelevant(searchable,candidate,problem)) return null;
+    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(searchable, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } };
   }).filter(Boolean);
 }
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
@@ -87,14 +113,18 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const selected = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
     .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source));
   const query = queryFor(candidate, problem);
+  const discoveryTerms = evidenceConceptTokens(candidate?.discoveryText).slice(0, 8);
+  const name = String(candidate?.name || '').trim();
   const diversifiedQueries = [...new Set([
     query,
-    `${problem} ${candidate?.name || ''}`,
-    `${candidate?.name || ''} causal`,
-    `${candidate?.name || ''} systematic review`,
-    `${candidate?.name || ''} ${Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily.join(' ') : ''} evidence`,
-    `${problem} implementation`
-  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(Boolean))].slice(0, 5);
+    `${problem} ${name}`,
+    `${name} causal`,
+    `${name} systematic review`,
+    `${name} ${Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily.join(' ') : ''} evidence`,
+    `${problem} implementation`,
+    discoveryTerms.slice(0, 4).join(' '),
+    discoveryTerms.slice(0, 2).join(' ')
+  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 8);
   const searches = [], rawLeads = [];
   for (const source of selected) {
     for (const searchQuery of diversifiedQueries) {
@@ -110,7 +140,9 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
             const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now });
             const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
             if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
-            evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {} };
+            const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now });
+            const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
+            evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
           }
         }
         const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
@@ -125,4 +157,25 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
   return { schemaVersion: 'vidik.source-driven-evidence-discovery.v3', problem, candidateId: candidate.id, query, diversifiedQueries, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: false, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
-module.exports = { EVIDENCE_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence };
+async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
+  const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
+  const results = [];
+  for (const candidate of selectedCandidates) {
+    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }));
+  }
+  const relevantLeads = results.flatMap(result => result.evidenceLeads || []).filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
+  const independentSources = [...new Set(relevantLeads.map(lead => lead.sourceId))];
+  return {
+    schemaVersion: 'vidik.source-driven-evidence-universe.v1',
+    problem,
+    candidatesChecked: results.length,
+    maxCandidates,
+    candidateEvidence: results,
+    independentEvidenceSources: independentSources,
+    candidatesWithIndependentEvidence: results.filter(result => result.evidenceSufficiency?.independentSourceCount >= 2).map(result => result.candidateId),
+    evidenceComplete: results.some(result => result.evidenceComplete === true),
+    recommendationEligible: false,
+    effectsImported: false
+  };
+}
+module.exports = { EVIDENCE_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };

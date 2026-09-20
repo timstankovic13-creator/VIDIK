@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { taxonomyTerms, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
 const GOVUK_SOURCE = {
@@ -42,6 +42,15 @@ test('GOV.UK extraction recognizes schemes and funds when the intervention is de
   assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
 });
 
+test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W1', display_name: 'Youth employment outcomes', abstract_inverted_index: {
+    'We': [0], 'evaluated': [1], 'a': [2], 'job': [3], 'placement': [4], 'programme': [5], 'for': [6], 'young': [7], 'people': [8]
+  } }] }, source, 'reduce youth unemployment', 'municipal', 'reduce youth unemployment job placement');
+  assert.ok(leads.some(lead => /job placement/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
 test('digital-access taxonomy expands into concrete intervention queries', () => {
   const terms = taxonomyTerms('reduce digital access gaps', 'municipal');
   assert.ok(terms.includes('digital inclusion'));
@@ -64,6 +73,20 @@ test('GOV.UK query construction remains HTTPS and bounded', () => {
   assert.equal(url.searchParams.get('count'), '10');
   assert.equal(url.searchParams.get('fields'), 'title,description,link,format');
   assert.throws(() => buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 101 }), /page-size-invalid/);
+});
+
+test('weak live discovery expands through the workspace taxonomy without importing effects', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce youth unemployment', jurisdiction: 'AU',
+    sources: [
+      { sourceId: 'au-open-data-program-discovery', provider: 'Australian Government Data Catalogue', jurisdiction: 'AU', domain: 'intervention-universe', url: 'https://data.gov.au/data/api/3/action/package_search?q=' }
+    ],
+    fetchImpl: async () => mockResponse({ result: { results: [] } })
+  });
+  assert.ok(result.candidates.length > 0);
+  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true && candidate.discovery.effectsImported === false));
+  assert.ok(result.sourceSearches.some(search => search.sourceId === 'vidik-intervention-taxonomy' && search.status === 'taxonomy-expansion-used'));
+  assert.equal(result.recommendationEligible, false);
 });
 
 test('CKAN discovery creates potential leads with provenance and no imported effects', async () => {
@@ -101,7 +124,7 @@ test('source-driven discovery is wired into decision execution and remains evide
 
 test('source-driven discovery records upstream failure instead of inventing an empty result', async () => {
   const result = await discoverSourceDrivenInterventions({ problem: 'urban flooding', sources: [SOURCE], fetchImpl: async () => mockResponse({ error: true }) });
-  assert.equal(result.sourceSearches[0].status, 'searched-empty');
+  assert.equal(result.sourceSearches[0].status, 'search-failed');
   assert.equal(result.candidates.length, 0);
 });
 

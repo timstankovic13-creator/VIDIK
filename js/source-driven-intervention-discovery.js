@@ -239,7 +239,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
     // intervention candidates merely because the abstract mentions a domain word.
-    const fallbackTerms = matched.length ? [] : (domainRelevant && explicitResearchCue ? queryTerms : []);
+    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue ? [...new Set([...matched, ...queryTerms])].slice(0, 3) : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
@@ -314,6 +314,16 @@ function missingFamilySearchQueries(problem,workspace,candidates=[]){
   }
   return [...new Set(queries)].slice(0,12);
 }
+function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
+  if (candidates.length > 0) return [];
+  const families = expectedInterventionFamilies(problem, workspace);
+  return families.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 4).map((term, index) => {
+    const name = normalizeText(term).replace(/\b\w/g, character => character.toUpperCase());
+    const canonicalName = normalizeInterventionName(name);
+    if (!canonicalName) return null;
+    return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential' }] } };
+  }).filter(Boolean));
+}
 async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queries=buildDiscoveryQueries(problem,workspace);
@@ -323,6 +333,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       try{
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
+        if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const leads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace);rawCandidates.push(...leads);sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,interim);
         attempts.push({query,status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
@@ -362,6 +373,15 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearches.push({sourceId:literatureSource.sourceId,sourceType:'intervention-literature',jurisdiction:literatureSource.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:literatureCandidates.length?(literatureCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:literatureCoverage.expectedFamilies,observedFamilies:literatureCoverage.observedFamilies,missingFamilies:literatureCoverage.missingFamilies,failureReason:literatureCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
       candidates=deduplicateInterventionLeads(rawCandidates);
       coverage=discoveryCoverage(problem,workspace,candidates);
+    }
+  }
+  if (candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
+    const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
+    if (exploratory.length) {
+      rawCandidates.push(...exploratory);
+      candidates = deduplicateInterventionLeads(rawCandidates);
+      coverage = discoveryCoverage(problem, workspace, candidates);
+      sourceSearches.push({ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, originalProblem: problem, queriesAttempted: 0, failedQueryCount: 0, usableQueryCount: 1, status: 'taxonomy-expansion-used', candidatesReturned: exploratory.length, attempts: [], expectedFamilies: coverage.expectedFamilies, observedFamilies: coverage.observedFamilies, missingFamilies: coverage.missingFamilies, failureReason: null });
     }
   }
   const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
