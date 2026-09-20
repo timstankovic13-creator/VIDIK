@@ -74,6 +74,17 @@ function evidenceLeadRelevance(title, candidate, problem) {
   return null;
 }
 function evidenceLeadRelevant(title, candidate, problem) { return Boolean(evidenceLeadRelevance(title, candidate, problem)); }
+function openAlexAbstractText(row) {
+  const inverted = row?.abstract_inverted_index;
+  if (!inverted || typeof inverted !== 'object') return '';
+  const terms = [];
+  for (const [word, positions] of Object.entries(inverted)) {
+    for (const position of Array.isArray(positions) ? positions : []) {
+      if (Number.isInteger(position)) terms.push([position, word]);
+    }
+  }
+  return terms.sort((a, b) => a[0] - b[0]).map(([, word]) => word).join(' ').trim();
+}
 function extractEvidenceLeads(payload, source, candidate, problem) {
   if (source.sourceId === 'openalex-works') {
     const rows = Array.isArray(payload?.results) ? payload.results : [];
