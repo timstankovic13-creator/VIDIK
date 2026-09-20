@@ -381,7 +381,7 @@ function buildApplicabilityAudit({ problem, jurisdiction = null, suppliedSources
 function deduplicateInterventionLeads(leads = []) { const groups = new Map(); for (const lead of leads) { const key = lead.canonicalName || normalizeInterventionName(lead.name); if (!key) continue; const existing = groups.get(key); if (!existing) { groups.set(key, { ...lead, id: `universe:${sha256(key).slice(0, 16)}`, sourceIds: [lead.discovery?.source].filter(Boolean), sourceCount: 1, sourceProvenance: lead.discovery?.provenance || [], interventionFamily: lead.interventionFamily || ['other'] }); continue; } existing.sourceIds = [...new Set([...existing.sourceIds, lead.discovery?.source].filter(Boolean))]; existing.sourceCount = existing.sourceIds.length; existing.sourceProvenance = [...existing.sourceProvenance, ...(lead.discovery?.provenance || [])]; existing.interventionFamily = [...new Set([...existing.interventionFamily, ...(lead.interventionFamily || [])])]; existing.discovery = { ...existing.discovery, corroboratedBySources: existing.sourceIds.length, leadOnly: true, effectsImported: false, discoveryOnly: true }; } return [...groups.values()]; }
 function buildInterventionUniverseAssessment({ problem, jurisdiction = null, sourceSearches = [], candidates = [], requestedSourceCount = 0 } = {}) { const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const deduped = deduplicateInterventionLeads(candidates); const families = [...new Set(deduped.flatMap(candidate => candidate.interventionFamily || ['other']))]; const coverage = requestedSourceCount > 0 ? usable.length / requestedSourceCount : 0; const evidenceReadyLeads = deduped.filter(candidate => candidate.requiredEvidence?.length).length; return { problem, jurisdiction, sourcesAttempted: sourceSearches.length, usableSources: usable.length, failedSources: failed.length, sourceCoverageRatio: coverage, rawCandidateCount: candidates.length, uniqueCandidateCount: deduped.length, interventionFamilies: families, evidenceRequirementsAttached: evidenceReadyLeads === deduped.length, discoveryComplete: sourceSearches.length > 0 && failed.length === 0 && deduped.length > 0, recommendationEligible: false, stoppingReason: sourceSearches.length === 0 ? 'no-source-searches' : failed.length === sourceSearches.length ? 'all-sources-failed' : deduped.length === 0 ? 'no-intervention-candidates' : failed.length ? 'partial-source-failure' : 'candidate-universe-discovered' }; }
 const DISCOVERY_DOMAIN_GROUPS = [['public-safety',['crime','violence','assault','robbery','homicide','policing','enforcement','patrol','public safety']],['housing',['housing','homeless','shelter','rent','rehousing','tenancy','eviction']],['food',['food','nutrition','grocery','meal','hunger','food insecurity','food access']],['energy',['energy','utility','electricity','weatherization','heating','cooling','fuel','power','energy burden']],['mobility',['transit','bus','rail','mobility','commute','signal','traffic','delay','congestion','travel time','pedestrian','crossing','sidewalk','bike','bicycle','road safety']],['health',['health','hospital','clinic','patient','treatment','care','emergency department','urgent care','overcrowding','patient flow','opioid','overdose','mortality']],['climate',['wildfire','smoke','air quality','filtration','clean air','fire season','heat','heatwave','extreme heat','cooling','temperature','flood','flooding','stormwater','drainage','resilience']],['employment',['employment','worker','job','workforce','training','displacement']],['economic',['poverty','low income','income','benefit','subsidy','grant','voucher','affordability','economic hardship']],['education',['youth','child','children','student','school','education']],['accessibility',['senior','seniors','aging','elderly','disability','accessible','accessibility','caregiver']],['environment',['environment','pollution','waste','recycling','emissions','air pollution']],['infrastructure',['infrastructure','road resurfacing','water billing','drainage','stormwater','utility billing']]];
-const CROSS_DOMAIN_COMPATIBILITY = {'public-safety':new Set(['housing','health','mobility','food','climate']),housing:new Set(['public-safety','health','economic']),food:new Set(['housing','economic','health']),energy:new Set(['housing','health','climate','economic']),mobility:new Set(['public-safety','infrastructure']),health:new Set(['public-safety','housing','food','energy','climate']),climate:new Set(['health','mobility']),employment:new Set(['economic','housing']),economic:new Set(['housing','food','employment','health','energy']),education:new Set(['housing','employment','health']),accessibility:new Set(['housing','health','mobility']),environment:new Set(['climate','health']),infrastructure:new Set(['mobility','climate','environment'])};
+const CROSS_DOMAIN_COMPATIBILITY = {'public-safety':new Set(['housing','health','mobility','food','climate']),housing:new Set(['public-safety','health','economic','infrastructure']),food:new Set(['housing','economic','health','infrastructure']),energy:new Set(['housing','health','climate','economic','infrastructure']),mobility:new Set(['public-safety','infrastructure']),health:new Set(['public-safety','housing','food','energy','climate','infrastructure']),climate:new Set(['health','mobility','infrastructure']),employment:new Set(['economic','housing']),economic:new Set(['housing','food','employment','health','energy']),education:new Set(['housing','employment','health']),accessibility:new Set(['housing','health','mobility']),environment:new Set(['climate','health','infrastructure']),infrastructure:new Set(['mobility','climate','environment'])};
 function discoveryDomains(text) { const normalized = normalizeText(text).toLowerCase(); return DISCOVERY_DOMAIN_GROUPS.filter(([,terms]) => terms.some(term => normalized.includes(term))).map(([name]) => name); }
 function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
 function interventionMatchesProblem(problem,candidate,workspace='municipal'){
@@ -459,6 +459,71 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
+  // If the first bounded search finds candidates but misses intervention families, run a
+  // second, explicitly family-targeted pass. This is the missing-option safeguard: family
+  // expansion must not depend solely on the original query vocabulary. Keep it bounded and
+  // source-backed; never synthesize candidates from taxonomy terms.
+  if (coverage.missingFamilies.length && selected.length) {
+    const targetedQueries = missingFamilySearchQueries(problem, workspace, candidates);
+    const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
+    for (const source of selected) {
+      const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
+      if (!sourceSearch) continue;
+      const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, 6);
+      for (const query of sourceTargetQueries) {
+        existingQueries.add(query);
+        try {
+          const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? buildGovUkSearchUrl(source, query, { rows })
+            : buildCkanSearchUrl(source, query, { rows });
+          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
+          if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const leads = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          rawCandidates.push(...leads);
+          candidates = deduplicateInterventionLeads(rawCandidates);
+          coverage = discoveryCoverage(problem, workspace, candidates);
+          sourceSearch.attempts.push({
+            query,
+            queryLayer: 'missing-family-expansion',
+            status: leads.length ? 'candidates-found' : 'searched-empty',
+            candidatesReturned: leads.length,
+            recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
+            provenance: snapshot.retrieval,
+            failureReason: null,
+            cumulativeUniqueCandidates: candidates.length,
+            expectedFamilies: coverage.expectedFamilies,
+            observedFamilies: coverage.observedFamilies,
+            missingFamilies: coverage.missingFamilies
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.usableQueryCount += 1;
+          sourceSearch.candidatesReturned += leads.length;
+          sourceSearch.missingFamilies = coverage.missingFamilies;
+          sourceSearch.observedFamilies = coverage.observedFamilies;
+          sourceSearch.expectedFamilies = coverage.expectedFamilies;
+          if (coverage.missingFamilies.length === 0 && candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
+        } catch (error) {
+          sourceSearch.attempts.push({
+            query,
+            queryLayer: 'missing-family-expansion',
+            status: 'search-failed',
+            candidatesReturned: 0,
+            recordsConsidered: 0,
+            provenance: null,
+            failureReason: error?.message || 'source-driven-search-failed',
+            cumulativeUniqueCandidates: candidates.length
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.failedQueryCount += 1;
+        }
+      }
+      if (coverage.missingFamilies.length === 0) break;
+    }
+  }
   const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => source?.sourceId === 'openalex-works');
   if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
