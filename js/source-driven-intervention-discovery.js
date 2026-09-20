@@ -226,7 +226,18 @@ function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants
   return [...variants].slice(0, maxVariants);
 }
 
-function classifyDiscoveryQuery(query, problem, workspace='municipal') {\n  const q=normalizeText(query).toLowerCase(), p=normalizeText(problem).toLowerCase();\n  if(q===p) return 'original';\n  if(q.includes('systematic review')||q.includes('meta analysis')) return 'evidence-index';\n  const families=expectedInterventionFamilies(problem,workspace);\n  if(families.some(f => (INTERVENTION_FAMILY_SEARCH_TERMS[f]||[]).some(t=>q.endsWith(' '+t)))) return 'family-expansion';\n  const taxonomy=(WORKSPACE_TAXONOMIES[workspace]||{});\n  if(Object.values(taxonomy).flat().some(t=>q.endsWith(' '+t))) return 'workspace-taxonomy';\n  return 'vocabulary-expansion';\n}\n\nfunction buildDiscoveryQueries(problem,workspace='municipal'){
+function classifyDiscoveryQuery(query, problem, workspace='municipal') {
+  const q=normalizeText(query).toLowerCase(), p=normalizeText(problem).toLowerCase();
+  if(q===p) return 'original';
+  if(q.includes('systematic review')||q.includes('meta analysis')) return 'evidence-index';
+  const families=expectedInterventionFamilies(problem,workspace);
+  if(families.some(f => (INTERVENTION_FAMILY_SEARCH_TERMS[f]||[]).some(t=>q.endsWith(' '+t)))) return 'family-expansion';
+  const taxonomy=(WORKSPACE_TAXONOMIES[workspace]||{});
+  if(Object.values(taxonomy).flat().some(t=>q.endsWith(' '+t))) return 'workspace-taxonomy';
+  return 'vocabulary-expansion';
+}
+
+function buildDiscoveryQueries(problem,workspace='municipal'){
   const original=normalizeText(problem),normalized=original.toLowerCase(),queries=new Set([original]);
   // Expand the user's problem vocabulary before family/taxonomy expansion. These are
   // bounded alternate phrasings, not evidence: they only improve retrieval recall.
