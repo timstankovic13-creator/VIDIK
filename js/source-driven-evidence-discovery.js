@@ -4,7 +4,7 @@ const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
-  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','street outreach','firearm violence prevention'],
+  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program'],
