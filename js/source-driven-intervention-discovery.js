@@ -4,8 +4,8 @@ const { SOURCE_REGISTRY } = require('./source-registry');
 const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
 const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
 const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
-const DISCOVERY_MIN_UNIQUE_CANDIDATES = 3;
-const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.5;
+const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
+const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
 function buildGovUkSearchUrl(source, query, { rows = 10 } = {}) { if (!source?.url || !GOVUK_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-govuk-intervention-source'); if (!String(query || '').trim()) throw new Error('source-driven-query-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(query).trim()); url.searchParams.set('count', String(rows)); url.searchParams.set('fields', 'title,description,link,format'); return url.toString(); }
@@ -126,8 +126,8 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   if(!titleText) return false;
   if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
-  const explicitProgram=/\b(program|programme|service|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|assessment|governance)\b/i.test(signalText);
-  const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain)\b/i.test(signalText);
+  const explicitProgram=/\b(program|programme|service|initiative|intervention|pilot|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance)\b/i.test(signalText);
+  const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
   return explicitProgram || concreteAction || concreteServiceObject;
 }
