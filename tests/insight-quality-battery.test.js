@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage } = require('../js/source-driven-intervention-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
 const { discoverCandidateEvidence } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
