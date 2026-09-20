@@ -58,13 +58,15 @@ function evidenceConceptTokens(value) {
 }
 function evidenceLeadRelevance(title, candidate, problem) {
   const haystack = String(title || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
-  const candidateText = `${candidate?.name || ""} ${candidate?.discoveryText || ""}`;
-  const candidateTokens = evidenceConceptTokens(candidateText).map(token => token.replace(/^centre$/, 'center'));
-  const candidatePhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
-    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'));
-  const phraseHit = candidatePhrases.some(phrase => phrase.length >= 8 && haystack.includes(phrase));
+  const candidateName = String(candidate?.name || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
+  const candidateTokens = evidenceConceptTokens(candidate?.name).map(token => token.replace(/^centre$/, 'center'));
+  const discoveryPhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
+    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'))
+    .filter(phrase => phrase.length >= 8);
+  const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
+  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
-  if (phraseHit || candidateHits >= 2) return 'candidate-match';
+  if (exactNameHit || operationalPhraseHit || candidateHits >= 2) return 'candidate-match';
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
