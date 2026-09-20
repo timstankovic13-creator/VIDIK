@@ -165,3 +165,18 @@ test('CKAN query construction remains HTTPS and bounded', () => {
   assert.equal(url.searchParams.get('rows'), '25');
   assert.throws(() => buildCkanSearchUrl(SOURCE, 'crime', { rows: 101 }), /page-size-invalid/);
 });
+
+
+test('legacy intervention classes are a coverage guard, not synthetic candidates', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const coverage = mod.interventionClassCoverage('reduce violent crime', 'municipal', [
+    { name: 'Focused deterrence program', discoveryText: 'focused deterrence for serious violence' },
+    { name: 'Community violence intervention', discoveryText: 'community violence intervention' }
+  ]);
+  assert.ok(coverage.expectedClasses.length > 0);
+  assert.ok(coverage.representedClasses.some(name => /focused deterrence/i.test(name)));
+  assert.ok(coverage.missingClasses.length > 0);
+  const queries = mod.buildDiscoveryQueries('reduce violent crime', 'municipal');
+  assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion/i.test(q)));
+});
