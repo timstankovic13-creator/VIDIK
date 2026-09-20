@@ -16,7 +16,12 @@ const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'digital-access':['broadband subsidy','broadband voucher','internet access support','device lending','digital literacy'],
   regulatory:['permit modernization','digital permitting','inspection reform','licensing reform'],
   accessibility:['accessible design','assistive technology','accommodation program','inclusive service design'],
-  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery']
+  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'],
+  'public-service':['library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
+  environmental:['noise mitigation','noise barrier','quiet pavement','water treatment','source water protection','air pollution control','waste reduction'],
+  energy:['home energy assistance','energy bill assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+  education:['school meal program','after-school program','student support','early childhood education','tutoring'],
+  infrastructure:['preventive maintenance','asset management','capacity expansion','retrofit','emergency response coordination','incident command','business continuity response']
 });
 function queryFor(candidate, problem) {
   const name = String(candidate?.name || '').trim();
