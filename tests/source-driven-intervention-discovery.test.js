@@ -144,6 +144,20 @@ test('source-driven discovery records upstream failure instead of inventing an e
   assert.equal(result.candidates.length, 0);
 });
 
+test('mobility problems retain infrastructure interventions during semantic relevance filtering', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce traffic fatalities', jurisdiction: 'CA', sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'traffic-enforcement', title: 'Traffic safety enforcement program', notes: 'Municipal enforcement intervention for road safety.' },
+      { id: 'road-infrastructure', title: 'Road safety infrastructure project', notes: 'Infrastructure intervention improving road safety and reducing traffic fatalities.' }
+    ] } })
+  });
+  assert.ok(result.candidates.some(candidate => /traffic safety enforcement/i.test(candidate.name)));
+  assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
+  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true));
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('CKAN query construction remains HTTPS and bounded', () => {
   const url = new URL(buildCkanSearchUrl(SOURCE, 'reduce violent crime', { rows: 25 }));
   assert.equal(url.protocol, 'https:');
