@@ -12,7 +12,7 @@ test('arbitrary problem produces a bounded candidate universe then evidence lead
   const discovery = await discoverSourceDrivenInterventions({ problem: 'reduce extreme heat illness', jurisdiction: 'CA', sources: [CA], fetchImpl: async () => response({ result: { results: [
     { id: 'cooling', title: 'Community cooling centre emergency response service', notes: 'Seasonal heat-response service.' },
     { id: 'data', title: 'Extreme Heat Statistics Dataset', notes: 'Observed heat illness counts.' },
-    { id: 'shade', title: 'Neighbourhood shade infrastructure project', notes: 'Public cooling infrastructure.' }
+    { id: 'shade', title: 'Shade infrastructure program', notes: 'Public cooling infrastructure.' }
   ] } }) });
   assert.equal(discovery.candidates.length, 2);
   assert.ok(discovery.candidates.every(c => c.discovery.leadOnly && !c.discovery.effectsImported));
