@@ -174,6 +174,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
       const titleMatch = title.toLowerCase().includes(term);
+      const queryMatch = String(query || '').toLowerCase().includes(term);
       leads.push({
         id: 'source:' + source.sourceId + ':' + (row.id || row.doi || canonicalName) + ':' + canonicalName,
         name, canonicalName, interventionFamily: inferInterventionFamily(name),
@@ -181,7 +182,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
         requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: searchable, evidenceStatus: 'potential',
         discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row.id || row.doi || null,
           extraction: titleMatch ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
-          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: titleMatch ? 'title-match' : 'abstract-match' }] }
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: queryMatch ? 'query-match' : (titleMatch ? 'title-match' : 'abstract-match') }] }
       });
     }
   }
