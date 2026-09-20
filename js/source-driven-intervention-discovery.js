@@ -591,7 +591,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queries=buildDiscoveryQueries(problem,workspace);
   for(const source of selected){
     const attempts=[],sourceCandidates=[];
-    for(const query of queries){
+    for(const query of queries.slice(0, Math.max(1, DISCOVERY_MAX_QUERIES_PER_SOURCE - 6))){
       try{
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
@@ -616,7 +616,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch) continue;
-      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, remainingQueryBudget);
+      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
       for (const query of sourceTargetQueries) {
         existingQueries.add(query);
         try {
@@ -713,7 +713,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch) continue;
       const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted);
-      const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, remainingQueryBudget);
+      const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
       for (const query of sourceClassQueries) {
         existingQueries.add(query);
         try {
