@@ -167,7 +167,7 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
     if (!title) return [];
     const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
-    const names = titleActionable ? [title] : extractConcreteInterventionFromDescription(problem, workspace, description);
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
     return names.map((name, extractedIndex) => {
       const candidate = { name, discoveryText: description };
       if (!interventionMatchesProblem(problem, candidate, workspace)) return null;
@@ -186,7 +186,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
-    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' ')).map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' }));
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' ')).map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })));
     return names.map((item, extractedIndex) => {
       const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
       if (!interventionMatchesProblem(problem, candidate, workspace)) return null;
