@@ -49,6 +49,14 @@ test('digital-access taxonomy expands into concrete intervention queries', () =>
   assert.ok(terms.includes('digital lifeline fund'));
 });
 
+test('GOV.UK extraction can use intervention signals in the official description', () => {
+  const leads = extractGovUkInterventionLeads({ results: [
+    { title: 'Digital inclusion', description: 'A government programme provides device grants and broadband vouchers to improve access.', link: '/digital-inclusion', format: 'guide' }
+  ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].name, 'Digital inclusion');
+});
+
 test('GOV.UK query construction remains HTTPS and bounded', () => {
   const url = new URL(buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 10 }));
   assert.equal(url.protocol, 'https:');
