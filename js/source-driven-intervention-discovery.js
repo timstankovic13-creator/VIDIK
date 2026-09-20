@@ -31,7 +31,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
-  'climate-resilience':['cooling centre','clean air shelter','home cooling','smoke filtration','tree canopy','flood mitigation','stormwater management','home weatherization','evacuation support'],
+  'climate-resilience':['cooling centre','clean air shelter','home cooling','cooling infrastructure','shade infrastructure','tree canopy','smoke filtration','flood mitigation','stormwater management','home weatherization','evacuation support'],
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
   employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
