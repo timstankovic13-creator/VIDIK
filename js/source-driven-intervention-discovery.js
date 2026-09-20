@@ -230,7 +230,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
     if (literatureSource) {
-      const literatureQueries = [...new Set([problem, ...taxonomyTerms(problem, workspace).slice(0, 4).map(term => `${problem} ${term}`)])].slice(0, 3);
+      const literatureTerms = taxonomyTerms(problem, workspace).slice(0, 3).map(term => `"${term}"`); const literatureQueries = [literatureTerms.length ? `"${problem}" OR ${literatureTerms.join(' OR ')}` : problem];
       const attempts = [];
       for (const query of literatureQueries) {
         try {
