@@ -53,6 +53,85 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   education:['school meal program','after-school program','student support','early childhood education','tutoring']
 });
 function inferInterventionFamily(text) { const normalized = normalizeText(text).toLowerCase(); const matches = INTERVENTION_FAMILIES.filter(([, ...terms]) => terms.some(term => normalized.includes(term))); return matches.length ? matches.map(([family]) => family) : ['other']; }
+const LEGACY_INTERVENTION_CLASSES = Object.freeze({
+  municipal: {
+    safety: ['hot-spots policing','problem-oriented policing','focused deterrence','community violence intervention','place/environmental prevention','youth violence prevention','hospital-based violence intervention','victim services','justice-system diversion','police deployment/resource allocation','lighting/CCTV/place management'],
+    housing: ['supportive housing','housing first','rapid rehousing','prevention/diversion','rent assistance','support services','new affordable housing supply','zoning/planning reform','shelter/service redesign'],
+    health: ['prevention','harm reduction','treatment access','outreach','primary care expansion','mobile/community care','screening','public-health regulation','health-system coordination'],
+    mobility: ['road engineering','traffic calming','speed management','automated enforcement','intersection redesign','active transportation','transit service','parking/pricing','education/enforcement'],
+    climate: ['green infrastructure','drainage/stormwater upgrades','flood protection','land-use controls','building standards','early warning','emergency preparedness','water conservation','asset renewal'],
+    environment: ['collection/service redesign','recycling/organics','pricing/incentives','regulation','monitoring/enforcement','infrastructure investment','public education'],
+    infrastructure: ['maintenance','renewal','replacement','new capital','condition-based prioritization','demand management','shared infrastructure','procurement changes'],
+    economic: ['skills/training','business support','procurement/local purchasing','tax/fee incentives','infrastructure','placemaking','partnerships','targeted grants'],
+    food: ['income supports','food programs','service navigation','targeted subsidies','affordable services','partnerships','prevention'],
+    governance: ['zoning reform','development standards','infrastructure sequencing','incentives','fees','public land strategy','planning process redesign']
+  },
+  business: {
+    employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
+    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','route optimization','warehouse automation','emergency response coordination','business continuity response'],
+    safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
+    accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
+    governance: ['compliance automation','internal controls','data governance program','procurement reform']
+  },
+  community: {
+    safety: ['violence interruption','youth mentoring','credible messenger','community patrol','safe passage'],
+    housing: ['housing first','rental assistance','tenant support','community land trust','housing navigation'],
+    health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach'],
+    food: ['community food hub','food voucher','mobile market','community kitchen','school meal program'],
+    climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization'],
+    employment: ['job placement','bridge training','language training','apprenticeship support'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  research: {
+    safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention'],
+    housing: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
+    health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention'],
+    climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
+    mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
+    employment: ['job training','wage subsidy','career pathway','reskilling program','worker displacement','displacement support','redeployment','worker transition'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  enterprise: {
+    cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
+    governance: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'],
+    economic: ['process automation','workflow redesign','supplier diversification','capacity planning'],
+    employment: ['workforce planning','manager training','employee assistance','skills training','internal mobility'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'],
+    accessibility: ['accessible design','assistive technology','service accommodation','inclusive service design'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response']
+  }
+});
+
+function legacyClassTerms(problem, workspace = 'municipal') {
+  const domains = inferWorkspaceDomains(problem, workspace);
+  const classes = LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal;
+  return [...new Set(domains.flatMap(domain => classes[domain] || []))];
+}
+
+function interventionClassCoverage(problem, workspace, candidates = []) {
+  const expected = legacyClassTerms(problem, workspace);
+  const represented = expected.filter(className => {
+    const tokens = className.toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(t => t.length > 3);
+    return candidates.some(candidate => {
+      const haystack = normalizeText(candidate.name + ' ' + (candidate.discoveryText || '')).toLowerCase();
+      const hits = tokens.filter(token => haystack.includes(token)).length;
+      return tokens.length <= 2 ? hits >= 1 : hits >= Math.min(2, tokens.length);
+    });
+  });
+  return {
+    expectedClasses: expected,
+    representedClasses: represented,
+    missingClasses: expected.filter(className => !represented.includes(className)),
+    coverageRatio: expected.length ? represented.length / expected.length : 1
+  };
+}
+
+function missingInterventionClassSearchQueries(problem, workspace, candidates = []) {
+  const coverage = interventionClassCoverage(problem, workspace, candidates);
+  return coverage.missingClasses.slice(0, 8).map(className => normalizeText(problem + ' ' + className));
+}
+
 const WORKSPACE_TAXONOMIES = Object.freeze({
   municipal: {
     safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention','street outreach','safe routes','traffic calming','automated speed enforcement'],
