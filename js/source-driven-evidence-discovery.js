@@ -56,14 +56,22 @@ function evidenceConceptTokens(value) {
     .filter(token => token.length > 3 && !new Set(['reduce','increase','improve','prevent','study','evaluate','intervention','interventions','program','programme','service','ways','effective']).has(token))
     .map(token => token.replace(/ies$/,'y').replace(/s$/,''));
 }
+function normalizeEvidenceText(value) {
+  return String(value || '').toLowerCase()
+    .replace(/\bcentres\b/g, 'centers')
+    .replace(/\bprogrammes\b/g, 'programs')
+    .replace(/\bprograms\b/g, 'program')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function evidenceLeadRelevance(title, candidate, problem) {
-  const haystack = String(title || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
-  const candidateName = String(candidate?.name || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
+  const haystack = normalizeEvidenceText(title);
+  const candidateName = normalizeEvidenceText(candidate?.name);
   const candidateTokens = evidenceConceptTokens(candidate?.name).map(token => token.replace(/^centre$/, 'center'));
-  const discoveryText = String(candidate?.discoveryText || '').toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs');
+  const discoveryText = normalizeEvidenceText(candidate?.discoveryText);
   const discoveryTokens = evidenceConceptTokens(candidate?.discoveryText).map(token => token.replace(/^centre$/, 'center'));
   const discoveryPhrases = [candidate?.name, candidate?.discoveryText].filter(Boolean)
-    .map(value => String(value).toLowerCase().replace(/\bcentres\b/g, 'centers').replace(/\bprogrammes\b/g, 'programs'))
+    .map(value => normalizeEvidenceText(value))
     .filter(phrase => phrase.length >= 8);
   const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
   const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
@@ -71,12 +79,17 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
   const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2;
   if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit) return 'candidate-match';
-  const problemText = String(problem || '').toLowerCase().replace(/\\bcentres\\b/g, 'centers').replace(/\\bprogrammes\\b/g, 'programs').trim();
+  const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const problemPhraseHit = problemText.length >= 8 && haystack.includes(problemText);
   const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
-  const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => haystack.includes(term.toLowerCase())));
+  const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
+    const normalizedTerm = normalizeEvidenceText(term);
+    if (haystack.includes(normalizedTerm)) return true;
+    const termTokens = evidenceConceptTokens(normalizedTerm);
+    return termTokens.length >= 2 && termTokens.every(token => haystack.includes(token));
+  }));
   if (familyPhraseHit) return 'family-match';
   if (problemPhraseHit || problemHits >= Math.min(2, Math.max(1, problemTokens.length))) return 'problem-match';
   return null;
