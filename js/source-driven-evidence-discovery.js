@@ -56,7 +56,7 @@ function evidenceLeadRelevant(title, candidate, problem) { return Boolean(eviden
 function extractEvidenceLeads(payload, source, candidate, problem) {
   if (source.sourceId === 'openalex-works') {
     const rows = Array.isArray(payload?.results) ? payload.results : [];
-    return rows.slice(0, 20).map(row => ({ id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title: String(row.display_name || '').trim(), evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(row.title, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null } })).filter(row => row.title && evidenceLeadRelevant(row.title, candidate, problem));
+    return rows.slice(0, 20).map(row => { const title = String(row.display_name || row.title || '').trim(); const relevanceStatus = evidenceLeadRelevance(title, candidate, problem); return { id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name || row.title}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus, provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null } }; }).filter(row => row.title && evidenceLeadRelevant(row.title, candidate, problem));
   }
   const ids = Array.isArray(payload?.esearchresult?.idlist) ? payload.esearchresult.idlist : [];
   const summaries = payload?._vidikSummaries || {};
