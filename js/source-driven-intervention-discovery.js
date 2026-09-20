@@ -95,7 +95,7 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
 
 function inferWorkspaceDomains(problem, workspace = 'municipal') {
   const p=normalizeText(problem).toLowerCase();
-  const aliases={municipal:{safety:['crime','violence','injur','gun','opioid','overdose','road safety'],housing:['homeless','housing','eviction','rough sleeping'],health:['health','hospital','clinic','overcrowding','opioid','overdose','mental'],food:['food','hunger','nutrition'],climate:['heat','wildfire','smoke','flood','climate','disaster'],mobility:['transit','traffic','pedestrian','mobility','congestion'],economic:['business','cost','poverty','income','affordability','energy burden','utility burden','energy bill','utility bill','energy costs'],governance:['permit','permitting','regulatory','compliance'],publicService:['library','libraries','library service','wait time','wait times','queue','queues','service access','customer service'],environment:['water contamination','water quality','noise pollution','noise','air pollution'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access']},business:{employment:['employee','turnover','hiring','training','burnout','workforce'],economic:['business','churn','survival','supply','cost','pricing','delivery'],safety:['injury','workplace','safety'],infrastructure:['delivery','maintenance','capacity'],accessibility:['accessibility','disability','accessible'],governance:['compliance','procurement','governance']},community:{safety:['violence','safety','youth'],housing:['housing','homeless','rent','eviction'],health:['health','mental','healthcare'],food:['food','hunger'],climate:['heat','wildfire','smoke','disaster','evacuation'],employment:['employment','job','newcomer','training']},research:{safety:['crime','violence','injury','opioid'],housing:['homeless','housing','eviction'],health:['health','hospital','overdose','mental'],climate:['heat','wildfire','smoke','flood'],mobility:['transit','traffic','pedestrian','mobility'],employment:['employment','workforce','automation','worker displacement','displacement','redeployment','worker transition']},enterprise:{cybersecurity:['cybersecurity','cyber','security incident'],governance:['governance','data','compliance','regulatory'],economic:['procurement','cycle time','automation','workflow','supplier','capacity'],employment:['employee','burnout','workforce','training'],accessibility:['accessibility','accessible','disability'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access'],infrastructure:['maintenance','infrastructure','asset','emergency response']}};
+  const aliases={municipal:{safety:['crime','violence','injur','gun','opioid','overdose','road safety'],housing:['homeless','housing','eviction','rough sleeping'],health:['health','hospital','clinic','overcrowding','opioid','overdose','mental'],food:['food','hunger','nutrition'],climate:['heat','wildfire','smoke','flood','climate','disaster'],mobility:['transit','traffic','pedestrian','mobility','congestion'],economic:['business','cost','poverty','income','affordability','energy burden','utility burden','energy bill','utility bill','energy costs'],governance:['permit','permitting','regulatory','compliance'],publicService:['library','libraries','library service','wait time','wait times','queue','queues','service access','customer service'],environment:['water contamination','water quality','noise pollution','noise','air pollution'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access']},business:{employment:['employee','turnover','hiring','training','burnout','workforce'],economic:['business','churn','survival','supply','cost','pricing','delivery'],safety:['injury','workplace','safety'],infrastructure:['delivery','maintenance','capacity'],accessibility:['accessibility','disability','accessible'],governance:['compliance','procurement','governance']},community:{safety:['violence','safety','youth'],housing:['housing','homeless','rent','eviction'],health:['health','mental','healthcare'],food:['food','hunger'],climate:['heat','wildfire','smoke','disaster','evacuation'],employment:['employment','job','newcomer','training']},research:{safety:['crime','violence','injury','opioid'],housing:['homeless','housing','eviction'],health:['health','hospital','overdose','mental'],climate:['heat','wildfire','smoke','flood'],mobility:['transit','traffic','pedestrian','mobility'],employment:['employment','workforce','automation','worker displacement','displacement','redeployment','worker transition','labor','labour','job loss','job transition','workforce transition','occupational transition','career transition','worker retraining']},enterprise:{cybersecurity:['cybersecurity','cyber','security incident'],governance:['governance','data','compliance','regulatory'],economic:['procurement','cycle time','automation','workflow','supplier','capacity'],employment:['employee','burnout','workforce','training'],accessibility:['accessibility','accessible','disability'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access'],infrastructure:['maintenance','infrastructure','asset','emergency response']}};
   const taxonomy=WORKSPACE_TAXONOMIES[workspace]||WORKSPACE_TAXONOMIES.municipal, selected=aliases[workspace]||aliases.municipal, domains=[];
   for(const [domain,keywords] of Object.entries(selected)) if(keywords.some(keyword=>p.includes(keyword))) domains.push(domain);
   for(const [domain,phrases] of Object.entries(taxonomy)) if(phrases.some(phrase=>p.includes(String(phrase).toLowerCase()))) domains.push(domain);
@@ -146,7 +146,10 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
   for (const row of rows.slice(0, 20)) {
     const title = normalizeText(row?.display_name || '');
     if (!title) continue;
-    const lower = title.toLowerCase();
+    const abstractIndex = row?.abstract_inverted_index && typeof row.abstract_inverted_index === 'object' ? row.abstract_inverted_index : null;
+    const abstract = abstractIndex ? Object.entries(abstractIndex).flatMap(([word, positions]) => Array.isArray(positions) ? positions.map(position => [position, word]) : []).sort((a,b) => a[0]-b[0]).map(([,word]) => word).join(' ') : normalizeText(row?.abstract || '');
+    const searchableText = normalizeText(title + ' ' + abstract);
+    const lower = searchableText.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((a,b)=>b.length-a.length).slice(0, 2);
     // Literature discovery is a lead-generation source, not causal verification.
     // A paper title does not need to contain the intervention label verbatim, but it
@@ -156,13 +159,13 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // genuine intervention literature to surface known intervention classes expressed
     // with different wording.
     const problemDomains = inferWorkspaceDomains(problem, workspace);
-    const titleDomains = [...new Set([...discoveryDomains(title), ...inferWorkspaceDomains(title, workspace)])];
+    const titleDomains = [...new Set([...discoveryDomains(searchableText), ...inferWorkspaceDomains(searchableText, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => titleDomains.includes(domain));
     const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 2);
     const fallbackTerms = matched.length ? [] : (domainRelevant ? queryTerms : []);
     for (const term of [...new Set([...matched, ...fallbackTerms])].slice(0, 2)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
-      const candidate = { name, discoveryText: title };
+      const candidate = { name, discoveryText: searchableText };
       if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
@@ -174,7 +177,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
         problemTags: [String(problem).toLowerCase()],
         domains: [source.domain],
         requiredEvidence: ['causal','implementation','cost','equity'],
-        discoveryText: title,
+        discoveryText: searchableText,
         evidenceStatus: 'potential',
         discovery: {
           source: source.sourceId,
