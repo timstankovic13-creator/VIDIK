@@ -33,7 +33,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
   'climate-resilience':['cooling centre','clean air shelter','home cooling','smoke filtration','tree canopy','flood mitigation','stormwater management','home weatherization','evacuation support'],
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
-  employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','wage subsidy'],
+  employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
   infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation'],
   'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
