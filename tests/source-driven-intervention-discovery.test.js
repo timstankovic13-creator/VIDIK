@@ -75,6 +75,20 @@ test('GOV.UK query construction remains HTTPS and bounded', () => {
   assert.throws(() => buildGovUkSearchUrl(GOVUK_SOURCE, 'digital inclusion', { rows: 101 }), /page-size-invalid/);
 });
 
+test('weak live discovery expands through the workspace taxonomy without importing effects', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce youth unemployment', jurisdiction: 'AU',
+    sources: [
+      { sourceId: 'au-open-data-program-discovery', provider: 'Australian Government Data Catalogue', jurisdiction: 'AU', domain: 'intervention-universe', url: 'https://data.gov.au/data/api/3/action/package_search?q=' }
+    ],
+    fetchImpl: async () => mockResponse({ result: { results: [] } })
+  });
+  assert.ok(result.candidates.length > 0);
+  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true && candidate.discovery.effectsImported === false));
+  assert.ok(result.sourceSearches.some(search => search.sourceId === 'vidik-intervention-taxonomy' && search.status === 'taxonomy-expansion-used'));
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('CKAN discovery creates potential leads with provenance and no imported effects', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'food insecurity', sources: [SOURCE], fetchImpl: async () => mockResponse({ result: { results: [
