@@ -137,16 +137,19 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const query = queryFor(candidate, problem);
   const discoveryTerms = evidenceConceptTokens(candidate?.discoveryText).slice(0, 8);
   const name = String(candidate?.name || '').trim();
+  // Evidence retrieval is deliberately bounded. The previous fan-out issued up to
+  // 8 queries per source per candidate, creating hundreds of external requests in the
+  // 60-case battery and making availability/rate-limit failures look like semantic misses.
+  const familyTerms = [...new Set(
+    (Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [])
+      .flatMap(family => EVIDENCE_FAMILY_TERMS[family] || [])
+  )].slice(0, 3);
   const diversifiedQueries = [...new Set([
     query,
-    `${problem} ${name}`,
-    `${name} causal`,
-    `${name} systematic review`,
-    `${name} ${Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily.join(' ') : ''} evidence`,
-    `${problem} implementation`,
-    discoveryTerms.slice(0, 4).join(' '),
-    discoveryTerms.slice(0, 2).join(' ')
-  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 8);
+    \`${problem} ${familyTerms.join(" ")}\`,
+    \`${name} ${familyTerms.slice(0, 2).join(" ")}\`,
+    discoveryTerms.slice(0, 4).join(' ')
+  ].map(value => value.replace(/\\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, 4);
   const searches = [], rawLeads = [];
   for (const source of selected) {
     for (const searchQuery of diversifiedQueries) {
@@ -170,6 +173,9 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
         rawLeads.push(...found);
         searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
+        // Stop once this source has produced relevant leads. Independence still requires
+        // a second source; extra queries after success only add external load.
+        if (found.length) break;
       } catch (error) {
         searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
