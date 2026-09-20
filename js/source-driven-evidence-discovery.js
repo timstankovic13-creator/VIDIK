@@ -46,7 +46,11 @@ function evidenceConceptTokens(value) {
 }
 function evidenceLeadRelevance(title, candidate, problem) {
   const haystack = String(title || '').toLowerCase();
-  const candidateTokens = evidenceConceptTokens(candidate?.name);
+  // Use the candidate's operational description as candidate-specific vocabulary.
+  // This catches literature that uses a synonym while keeping generic family/problem
+  // matches in their separate relevance classes.
+  const candidateText = `${candidate?.name || ''} ${candidate?.discoveryText || ''}`;
+  const candidateTokens = evidenceConceptTokens(candidateText);
   const problemTokens = evidenceConceptTokens(problem);
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
   if (candidateHits > 0) return 'candidate-match';
