@@ -182,7 +182,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
   return results.flatMap((row, index) => {
     const title = normalizeText(row?.title || row?.name);
     if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
-    const notes = normalizeText(row.notes || row.description);
+    const notes = normalizeText(row?.notes || row?.description);
     const tags = Array.isArray(row.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
