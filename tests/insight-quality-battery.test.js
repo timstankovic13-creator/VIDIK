@@ -236,7 +236,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
 test('literature query-backed intervention leads retain auditable source provenance', async () => {
   const { extractOpenAlexInterventionLeads } = require('../js/source-driven-intervention-discovery');
   const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
-  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W1', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W1', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'research', 'reduce digital access gaps broadband subsidy');
   assert.ok(leads.length > 0);
   assert.equal(leads[0].name, 'broadband subsidy');
   const unrelated = extractOpenAlexInterventionLeads(
