@@ -555,8 +555,13 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText) || isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '');
   if(tokenHit) return true;
   if(!candidateDomains.length) return false;
-  if(candidateDomains.some(domain=>problemDomains.includes(domain))) return true;
-  return problemDomains.some(a=>candidateDomains.some(b=>CROSS_DOMAIN_COMPATIBILITY[a]?.has(b)));
+  // Shared domain alone is not sufficient: broad domains such as infrastructure,
+  // health, and economic-support contain many interventions that are unrelated to
+  // the actual decision problem. Require a problem concept or an explicit taxonomy
+  // hit before accepting same-domain/cross-domain candidates.
+  if(candidateDomains.some(domain=>problemDomains.includes(domain))) return false;
+  if(problemDomains.some(a=>candidateDomains.some(b=>CROSS_DOMAIN_COMPATIBILITY[a]?.has(b)))) return false;
+  return false;
 }
 function evidenceConceptTokensForIntervention(value){
   return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
