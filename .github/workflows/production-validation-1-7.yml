@@ -18,8 +18,8 @@ jobs:
     name: "1 Baseline + readiness"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -38,8 +38,8 @@ jobs:
     name: "2 Municipal + three-city"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -61,8 +61,8 @@ jobs:
     name: "3 Open-world discovery"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -91,8 +91,8 @@ jobs:
     name: "4 Decision intelligence + uncertainty"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -110,8 +110,8 @@ jobs:
     name: "5 Lifecycle + audit + learning"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -131,8 +131,8 @@ jobs:
     name: "6 Hostile + regression"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
@@ -148,8 +148,8 @@ jobs:
     name: "7 Browser acceptance"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
