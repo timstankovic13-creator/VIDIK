@@ -231,7 +231,42 @@ function inferWorkspaceDomains(problem, workspace = 'municipal') {
   for(const [domain,phrases] of Object.entries(taxonomy)) if(phrases.some(phrase=>p.includes(String(phrase).toLowerCase()))) domains.push(domain);
   return [...new Set([...domains,...discoveryDomains(p)])];
 }
+function enterpriseProblemProfile(problem) {
+  const p = normalizeText(problem).toLowerCase();
+  const profiles = [
+    { match: /cybersecurity|security incident/, classes: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+    { match: /procurement.*cycle|cycle.*procurement|procurement cycle time/, classes: ['process automation','workflow redesign','supplier diversification','capacity planning'] },
+    { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
+    { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
+    { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation'] },
+    { match: /data governance/, classes: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'] },
+    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response'] },
+    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response'] },
+    { match: /accessibility barriers.*digital services|digital services.*accessibility barriers/, classes: ['accessible design','assistive technology','service accommodation','inclusive service design'] },
+    { match: /digital access gaps/, classes: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'] }
+  ];
+  return profiles.find(profile => profile.match.test(p)) || null;
+}
+
+function isEnterpriseProfileAlignedTitle(title) {
+  const normalizedTitle = normalizeInterventionName(title);
+  if (!normalizedTitle) return false;
+  const classes = new Set([
+    ...Object.values(LEGACY_INTERVENTION_CLASSES.enterprise || {}).flat(),
+    ...Object.values(WORKSPACE_TAXONOMIES.enterprise || {}).flat(),
+    ...[
+      'remote service enablement','customer self-service','accessible digital channel','device access support',
+      'business continuity response','incident command','emergency response coordination'
+    ]
+  ]);
+  return [...classes].some(className => normalizeInterventionName(className) === normalizedTitle);
+}
+
 function taxonomyTerms(problem, workspace = 'municipal') {
+  if (workspace === 'enterprise') {
+    const profile = enterpriseProblemProfile(problem);
+    if (profile) return [...profile.classes];
+  }
   const domains = inferWorkspaceDomains(problem, workspace);
   const taxonomy = WORKSPACE_TAXONOMIES[workspace] || WORKSPACE_TAXONOMIES.municipal;
   return [...new Set(domains.flatMap(domain => taxonomy[domain] || []))];
@@ -255,6 +290,9 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
 function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
   const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
   if(!titleText) return false;
+  // Exact workspace-profile intervention classes are executable interventions even when
+  // a shared noun (for example "data") would otherwise trip the artifact guard.
+  if (isEnterpriseProfileAlignedTitle(titleText)) return true;
   if(NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern=>pattern.test(titleText))) return false;
   if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
