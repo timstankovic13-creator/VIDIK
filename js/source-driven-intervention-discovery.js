@@ -564,7 +564,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['water quality','drinking water','contaminated water','water pollution','water treatment','source water protection'],
     ['waste','landfill','solid waste','waste reduction','recycling','organics','collection service redesign'],
     ['mental health','psychological distress','behavioral health','mental health support','peer support','community health worker','care navigation','mobile crisis response'],
-    ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy']
+    ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy','youth employment','employment training','job training','workforce support','employment support','employment service']
   ];
   if(semanticGroups.some(group => group.some(term => problemLower.includes(term)) && group.some(term => candidateLower.includes(term)))) return true;
   // Operational vocabulary bridges for common municipal systems where the user's
