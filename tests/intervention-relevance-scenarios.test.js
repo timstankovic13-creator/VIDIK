@@ -115,6 +115,40 @@ const SCENARIOS = [
     expected: ['stormwater retention infrastructure project', 'urban drainage improvement program'],
     rejected: ['urban flooding risk dashboard']
   },
+
+  {
+    name: 'overdose', problem: 'reduce opioid overdose deaths',
+    records: [
+      ['naloxone distribution service', 'Community overdose prevention and naloxone distribution.'],
+      ['community paramedicine program', 'Paramedicine outreach for people at risk of overdose.'],
+      ['opioid mortality statistics dashboard', 'Opioid mortality data and statistics.'],
+      ['downtown beautification project', 'Public realm improvement project.']
+    ],
+    expected: ['naloxone distribution service', 'community paramedicine program'],
+    rejected: ['opioid mortality statistics dashboard']
+  },
+  {
+    name: 'permit delays', problem: 'reduce construction permitting delays',
+    records: [
+      ['digital permitting service', 'Online permit review and application service.'],
+      ['one stop permitting reform', 'Permit process redesign and streamlining.'],
+      ['building permit statistics report', 'Permit processing statistics.'],
+      ['road maintenance program', 'Routine road maintenance.']
+    ],
+    expected: ['digital permitting service', 'one stop permitting reform'],
+    rejected: ['building permit statistics report']
+  },
+  {
+    name: 'mental health', problem: 'improve community mental health',
+    records: [
+      ['community health worker program', 'Community mental health outreach and support.'],
+      ['mobile crisis response service', 'Behavioral health crisis response.'],
+      ['mental health survey report', 'Mental health survey findings.'],
+      ['stormwater infrastructure project', 'Flood mitigation infrastructure.']
+    ],
+    expected: ['community health worker program', 'mobile crisis response service'],
+    rejected: ['mental health survey report']
+  },
   {
     name: 'deliberate decoy pressure', problem: 'reduce violent crime',
     records: [
