@@ -8,15 +8,15 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: 20
+  NODE_VERSION: 24
 
 jobs:
   nine-gaps:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install

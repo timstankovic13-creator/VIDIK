@@ -12,10 +12,10 @@ jobs:
         case: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Adversarial probe ${{ matrix.case }}
         run: node tests/intelligence-discovery-probes-v2.test.js ${{ matrix.case }}
 
@@ -23,10 +23,10 @@ jobs:
     needs: discovery-probe
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Deep arbitrary-problem intelligence gauntlet
         run: node tests/intelligence-discovery-gauntlet.test.js
 
@@ -34,10 +34,10 @@ jobs:
     needs: [discovery-probe, intelligence-gauntlet]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Discovery/evidence hardening
         run: node tests/intelligence-discovery-hardening.test.js
       - name: A-E intelligence validation

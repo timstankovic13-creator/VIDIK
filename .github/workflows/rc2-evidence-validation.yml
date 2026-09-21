@@ -9,9 +9,9 @@ jobs:
   evidence-governance:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24 }
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: RC2 evidence governance, causal chain and fail-closed gates
         run: node --test tests/rc2-evidence-governance.test.js
@@ -19,9 +19,9 @@ jobs:
     needs: evidence-governance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24 }
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npx playwright install chromium
       - name: Existing full acceptance and hostile lifecycle regression

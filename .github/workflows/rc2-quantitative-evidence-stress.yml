@@ -8,10 +8,10 @@ jobs:
   quantitative-evidence-stress:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Run RC2 quantitative evidence and stress tests
         run: node --test tests/rc2-stress-and-learning.test.js tests/rc2-evidence-governance.test.js
 
@@ -20,10 +20,10 @@ jobs:
     if: ${{ needs.quantitative-evidence-stress.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test --if-present
       - run: npm run test:municipal-contracts

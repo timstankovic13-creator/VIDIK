@@ -12,10 +12,10 @@ jobs:
   intelligence-completion:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: PR trigger architecture lock
         run: node --test tests/pr-ci-trigger-architecture.test.js
       - name: Intervention universe hardening
@@ -90,10 +90,10 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Install runtime dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Real PostgreSQL lifecycle, tenant isolation, and audit acceptance
