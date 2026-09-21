@@ -518,11 +518,12 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
-      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
-      const canonicalName = normalizeInterventionName(name);
-      if (!canonicalName) continue;
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
+      const queryBackedRelevant = Boolean(queryMatch && domainRelevant && explicitResearchCue && queryBackedTerms.includes(term));
+      if (!interventionMatchesProblem(problem, candidate, workspace) && !queryBackedRelevant) continue;
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
       leads.push({
         id: 'source:' + source.sourceId + ':' + (row.id || row.doi || canonicalName) + ':' + canonicalName,
         name, canonicalName, interventionFamily: inferInterventionFamily(name),
@@ -566,7 +567,8 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // A candidate is relevant when it is explicitly named by the problem's workspace taxonomy,
   // shares meaningful problem concepts, or is in the same/cross-compatible intervention domain.
   // Generic words such as "program" or "service" never count as semantic evidence.
-  const taxonomyHit=taxonomy.some(term=>term.length > 4 && candidateLower.includes(term));
+  const GENERIC_RELEVANCE_TERMS = new Set(['governance','response','delivery','data','customer','customers','digital','service','services','access']);
+  const taxonomyHit=taxonomy.some(term=>term.length > 4 && !GENERIC_RELEVANCE_TERMS.has(term) && candidateLower.includes(term));
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
