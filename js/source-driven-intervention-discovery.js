@@ -536,10 +536,21 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // A candidate is relevant when it is explicitly named by the problem's workspace taxonomy,
   // shares meaningful problem concepts, or is in the same/cross-compatible intervention domain.
   // Generic words such as "program" or "service" never count as semantic evidence.
-  const taxonomyHit=taxonomy.some(term=>candidateLower.includes(term));
+  const taxonomyHit=taxonomy.some(term=>term.length > 4 && candidateLower.includes(term));
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
+  // A candidate with a strong domain signal that is neither the problem domain nor
+  // explicitly compatible with it is an unrelated option, even if its title looks
+  // actionable. This prevents generic programs from leaking into a problem universe.
+  const incompatibleCandidateDomains=candidateDomains.filter(domain =>
+    !problemDomains.includes(domain) &&
+    !problemDomains.some(problemDomain => CROSS_DOMAIN_COMPATIBILITY[problemDomain]?.has(domain))
+  );
+  const hasStrongIncompatibleDomain=incompatibleCandidateDomains.some(domain =>
+    /public-safety|mobility|housing|food|energy|health|climate|employment|economic|environment|infrastructure|digital-access/.test(domain)
+  );
+  if(hasStrongIncompatibleDomain && !taxonomyHit && !tokenHit) return false;
   if(taxonomyHit) return true;
   // Bounded problem-to-intervention concept bridges improve recall when the
   // intervention uses operational language rather than the user's problem wording.
@@ -547,7 +558,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
     ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing'],
-    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes'],
+    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes','intersection safety','protected intersection','crosswalk','safe crossing','pedestrian safety'],
     ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
     ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling'],
     ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
@@ -555,7 +566,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic'],
     ['food insecurity','hunger','food access','food access gaps','food voucher','community food hub','mobile market','community kitchen','school meal'],
     ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance'],
-    ['traffic congestion','congestion','traffic delays','travel delays','transit frequency','bus priority','signal timing','road pricing'],
+    ['traffic congestion','congestion','traffic delays','travel delays','transit delay','transit delays','bus delay','transit reliability','transit frequency','bus priority','signal timing','traffic signal priority','road pricing'],
     ['childcare','child care','early childhood','childcare affordability','child care access','early childhood education','childcare subsidy'],
     ['energy burden','energy affordability','utility burden','energy costs','home energy assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
     ['construction permitting','permit delays','permitting delays','planning approval delays','permit modernization','one stop permitting','digital permitting','permit streamlining'],
