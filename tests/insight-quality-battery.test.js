@@ -357,3 +357,12 @@ test('Crossref supporting literature improves provider diversity without becomin
   assert.equal(leads[0].sourceRole, 'supporting-literature-index');
   assert.equal(leads[0].causalEffectImported, false);
 });
+
+
+test('cross-domain records do not survive relevance filtering on generic shared nouns', () => {
+  const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
+  assert.equal(interventionMatchesProblem('improve data governance', { name: 'Academy trusts: governance', discoveryText: 'governance guidance for schools' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'National assessment of harmful algal bloom preparedness', discoveryText: 'preparedness and future needs' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('reduce accessibility barriers in digital services', { name: 'A Review of the Measures to Address Prostitution Initiative', discoveryText: 'review of a public initiative' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve remote service delivery', { name: 'Legal aid service delivery by type of lawyer', discoveryText: 'legal aid delivery research' }, 'enterprise'), false);
+});
