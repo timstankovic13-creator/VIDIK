@@ -238,7 +238,8 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 }
 
 const NON_INTERVENTION_ARTIFACT_PATTERNS = [
-  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,\n  /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
+  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
+  /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
   /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
   /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
@@ -255,7 +256,8 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(food bank|food pantry|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
-  // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.\n
+  // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
+
   return explicitProgram || concreteAction || concreteServiceObject;
 }
 const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
