@@ -501,7 +501,14 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // candidate name.
     const queryBackedTerms = [...new Set([
       ...queryTerms,
-      ...terms.filter(term => queryLower.includes(term))
+      ...terms.filter(term => queryLower.includes(term)),
+      ...queryLower
+        .replace(/["']/g, '')
+        .split(/\s+/)
+        .slice(-4)
+        .join(' ')
+        .split(/\s+(?=[a-z0-9])/)
+        .filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term))
     ])].slice(0, 3);
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
@@ -606,7 +613,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // lead rather than silently converting an unknown problem into a zero-candidate result.
   // The lead remains discovery-only and cannot become recommendation-eligible without
   // candidate-specific evidence. Data/report records are already rejected upstream.
-  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText) || isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '');
+  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText);
   if(tokenHit) return true;
   if(!candidateDomains.length) return false;
   // Shared domain alone is not sufficient: broad domains such as infrastructure,
