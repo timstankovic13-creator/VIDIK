@@ -429,7 +429,6 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
     return names.map((name, extractedIndex) => {
       const candidate = { name, discoveryText: description };
-      if (!interventionMatchesProblem(problem, candidate, workspace)) return null;
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) return null;
       return { id: `source:${source.sourceId}:${row?.link || index + 1}:${extractedIndex}`, name, canonicalName, interventionFamily: inferInterventionFamily(name + ' ' + description), problemTags: [String(problem).toLowerCase()], domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${description}`.trim(), evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.link || null, classification: { basis: titleActionable ? 'official-government-search-result' : 'description-extracted-intervention', format: row?.format || null }, provenance: [{ sourceId: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.link || null }] } };
@@ -448,7 +447,6 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' ')).map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })));
     return names.map((item, extractedIndex) => {
       const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
-      if (!interventionMatchesProblem(problem, candidate, workspace)) return null;
       const canonicalName = normalizeInterventionName(item.name);
       if (!canonicalName) return null;
       const id = row.id || row.name || `${source.sourceId}-${index + 1}`;
