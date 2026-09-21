@@ -565,7 +565,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
 }
 function evidenceConceptTokensForIntervention(value){
   return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
-    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways'].includes(token))
+    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays'].includes(token))
     .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
 }
 function expectedInterventionFamilies(problem,workspace='municipal'){
