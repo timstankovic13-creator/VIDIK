@@ -240,6 +240,7 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
   /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
+  /\b(?:service|services)\s+delivery\s+by\s+type\s+of\b/i,
   /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
   /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
