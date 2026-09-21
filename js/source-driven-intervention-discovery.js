@@ -239,6 +239,8 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 
 const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
+  /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
+  /\b(?:service|services)\s+delivery\s+by\s+type\s+of\b/i,
   /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
   /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
@@ -255,7 +257,8 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(food bank|food pantry|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
-  // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.\n
+  // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
+
   return explicitProgram || concreteAction || concreteServiceObject;
 }
 const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
@@ -489,22 +492,41 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     const lower = searchable.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((x,y)=>y.length-x.length).slice(0, 3);
     const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
-    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
+    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|policy evaluation|program evaluation|service evaluation|implementation evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
     const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
-    const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 4);
+    const queryLower = String(query || '').toLowerCase();
+    const queryTerms = terms.filter(term => queryLower.includes(term)).slice(0, 4);
+    // A bounded query-backed lead is allowed only when the literature result itself
+    // is relevant and explicitly describes an evaluated/implemented intervention.
+    // The term must come from VIDIK's existing workspace/family vocabulary and be
+    // present in the actual source query; arbitrary query text can never become a
+    // candidate name.
+    const problemLower = normalizeText(problem).toLowerCase();
+    const querySuffix = queryLower
+      .replace(problemLower, '')
+      .replace(/["']/g, '')
+      .trim();
+    const queryBackedTerms = [...new Set([
+      ...queryTerms,
+      ...terms.filter(term => queryLower.includes(term)),
+      ...(querySuffix.split(/\s+/).length >= 2 ? [querySuffix] : [])
+    ])].filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term)).slice(0, 3);
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
     // intervention candidates merely because the abstract mentions a domain word.
-    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue ? [...new Set([...matched, ...queryTerms])].slice(0, 3) : [];
+    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue
+      ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
+      : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
-      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
-      const canonicalName = normalizeInterventionName(name);
-      if (!canonicalName) continue;
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
+      const queryBackedRelevant = Boolean(queryMatch && domainRelevant && explicitResearchCue && queryBackedTerms.includes(term));
+      if (!interventionMatchesProblem(problem, candidate, workspace) && !queryBackedRelevant) continue;
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
       leads.push({
         id: 'source:' + source.sourceId + ':' + (row.id || row.doi || canonicalName) + ':' + canonicalName,
         name, canonicalName, interventionFamily: inferInterventionFamily(name),
@@ -518,6 +540,18 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
   }
   return leads;
 }
+function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
+  const normalizedProblem = normalizeText(problem);
+  const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 4));
+  const taxonomy = taxonomyTerms(problem, workspace).slice(0, 8);
+  return [...new Set([
+    normalizedProblem,
+    `"${normalizedProblem}" intervention`,
+    ...familyTerms.map(term => `"${normalizedProblem}" "${term}"`),
+    ...taxonomy.map(term => `"${normalizedProblem}" "${term}"`)
+  ].filter(Boolean))].slice(0, 12);
+}
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
 function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); return matched.length ? matched : eligible; }
@@ -527,16 +561,21 @@ function buildInterventionUniverseAssessment({ problem, jurisdiction = null, sou
 const DISCOVERY_DOMAIN_GROUPS = [['public-safety',['crime','violence','assault','robbery','homicide','policing','enforcement','patrol','public safety']],['housing',['housing','homeless','shelter','rent','rehousing','tenancy','eviction']],['food',['food','nutrition','grocery','meal','hunger','food insecurity','food access']],['energy',['energy','utility','electricity','weatherization','heating','cooling','fuel','power','energy burden']],['mobility',['transit','bus','rail','mobility','commute','signal','traffic','delay','congestion','travel time','pedestrian','crossing','sidewalk','bike','bicycle','road safety']],['health',['health','hospital','clinic','patient','treatment','care','emergency department','urgent care','overcrowding','patient flow','opioid','overdose','mortality']],['climate',['wildfire','smoke','air quality','filtration','clean air','fire season','heat','heatwave','extreme heat','cooling','temperature','flood','flooding','stormwater','drainage','resilience']],['employment',['employment','worker','job','workforce','training','displacement']],['economic',['poverty','low income','income','benefit','subsidy','grant','voucher','affordability','economic hardship']],['education',['youth','child','children','student','school','education']],['accessibility',['senior','seniors','aging','elderly','disability','accessible','accessibility','caregiver']],['environment',['environment','pollution','waste','recycling','emissions','air pollution']],['infrastructure',['infrastructure','road resurfacing','water billing','drainage','stormwater','utility billing']]];
 const CROSS_DOMAIN_COMPATIBILITY = {'public-safety':new Set(['housing','health','mobility','food','climate']),housing:new Set(['public-safety','health','economic','infrastructure']),food:new Set(['housing','economic','health','infrastructure']),energy:new Set(['housing','health','climate','economic','infrastructure']),mobility:new Set(['public-safety','infrastructure']),health:new Set(['public-safety','housing','food','energy','climate','infrastructure']),climate:new Set(['health','mobility','infrastructure']),employment:new Set(['economic','housing']),economic:new Set(['housing','food','employment','health','energy']),education:new Set(['housing','employment','health']),accessibility:new Set(['housing','health','mobility']),environment:new Set(['climate','health','infrastructure']),infrastructure:new Set(['mobility','climate','environment'])};
 function discoveryDomains(text) { const normalized = normalizeText(text).toLowerCase(); return DISCOVERY_DOMAIN_GROUPS.filter(([,terms]) => terms.some(term => normalized.includes(term))).map(([name]) => name); }
-function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
+function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','services','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with','governance','response','delivery','data','customer','customers','digital','access']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
 function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemText=normalizeText(problem),candidateText=normalizeText((candidate?.name||'')+' '+(candidate?.discoveryText||''));
+  // Relevance cannot rescue a non-intervention artifact. This is the final semantic boundary:
+  // reports, datasets, reviews, findings and other records must never become candidates merely
+  // because they share a problem noun with the decision.
+  if(!isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true })) return false;
   const problemLower=problemText.toLowerCase(),candidateLower=candidateText.toLowerCase();
   const problemDomains=inferWorkspaceDomains(problemText,workspace),candidateDomains=[...new Set([...discoveryDomains(candidateText),...inferWorkspaceDomains(candidateText,workspace)])];
   const taxonomy=taxonomyTerms(problemText,workspace).map(term=>term.toLowerCase()).filter(Boolean);
   // A candidate is relevant when it is explicitly named by the problem's workspace taxonomy,
   // shares meaningful problem concepts, or is in the same/cross-compatible intervention domain.
   // Generic words such as "program" or "service" never count as semantic evidence.
-  const taxonomyHit=taxonomy.some(term=>term.length > 4 && candidateLower.includes(term));
+  const GENERIC_RELEVANCE_TERMS = new Set(['governance','response','delivery','data','customer','customers','digital','service','services','access']);
+  const taxonomyHit=taxonomy.some(term=>term.length > 4 && !GENERIC_RELEVANCE_TERMS.has(term) && candidateLower.includes(term));
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
@@ -582,7 +621,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // lead rather than silently converting an unknown problem into a zero-candidate result.
   // The lead remains discovery-only and cannot become recommendation-eligible without
   // candidate-specific evidence. Data/report records are already rejected upstream.
-  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText) || isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '');
+  if(!problemDomains.length) return isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true }) || tokenHit || directConceptOverlap(problemText,candidateText);
   if(tokenHit) return true;
   if(!candidateDomains.length) return false;
   // Shared domain alone is not sufficient: broad domains such as infrastructure,
@@ -595,7 +634,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
 }
 function evidenceConceptTokensForIntervention(value){
   return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
-    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays','audit'].includes(token))
+    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays','audit','governance','response','delivery','data','customer','customers','digital'].includes(token))
     .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
 }
 function expectedInterventionFamilies(problem,workspace='municipal'){
@@ -712,13 +751,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     }
   }
   const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => source?.sourceId === 'openalex-works');
-  if (allowLiteratureFallback && (candidates.length === 0 || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
+  if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
     if (literatureSource) {
-      const expectedFamilies = expectedInterventionFamilies(problem, workspace);
-      const familyQueries = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 3).map(term => `"${problem}" "${term}"`));
-      const taxonomyQueries = taxonomyTerms(problem, workspace).slice(0, 4).map(term => `"${problem}" "${term}"`);
-      const literatureQueries = [...new Set([`"${problem}" intervention`, ...familyQueries, ...taxonomyQueries])].slice(0, 7);
+      const literatureQueries = buildLiteratureFallbackQueries(problem, workspace);
       const attempts = [];
       for (const query of literatureQueries) {
         try {
@@ -824,4 +860,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
