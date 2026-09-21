@@ -769,9 +769,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
-          const leads = GOVUK_SOURCE_IDS.has(source.sourceId)
+          const extractedLeads = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
             : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
