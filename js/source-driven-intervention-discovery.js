@@ -240,7 +240,11 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
   /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
-  /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i
+  /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i,
+  /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
+  /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
+  /\bpre-?application\s+advice\b/i,
+  /\b(?:project|programme|program)\s+area\b/i
 ];
 function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
   const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
