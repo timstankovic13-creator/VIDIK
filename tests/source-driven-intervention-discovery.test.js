@@ -259,3 +259,24 @@ test('class-level missing-option expansion is bounded and source-backed', async 
   assert.ok(result.sourceSearches[0].queriesAttempted <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
   assert.ok(seen.length <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
 });
+
+
+test('semantic relevance rejects same-domain decoys that do not address the decision problem', () => {
+  const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
+  assert.equal(
+    interventionMatchesProblem('improve emergency response coordination', { name: 'NSW Climate Change Fund 2015-2016' }, 'enterprise'),
+    false
+  );
+  assert.equal(
+    interventionMatchesProblem('reduce regulatory compliance delays', { name: 'Measures to improve local audit delays' }, 'enterprise'),
+    false
+  );
+  assert.equal(
+    interventionMatchesProblem('reduce urban flooding', { name: 'Stormwater Infrastructure Project' }, 'municipal'),
+    true
+  );
+  assert.equal(
+    interventionMatchesProblem('reduce violent crime', { name: 'Community Violence Intervention Program' }, 'municipal'),
+    true
+  );
+});
