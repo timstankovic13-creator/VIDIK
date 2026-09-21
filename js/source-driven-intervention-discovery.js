@@ -252,7 +252,7 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   if(NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern=>pattern.test(titleText))) return false;
   if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
-  const explicitProgram=/\b(program|programme|initiative|intervention|pilot|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
+  const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(food bank|food pantry|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
   // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.\n
@@ -536,7 +536,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // A candidate is relevant when it is explicitly named by the problem's workspace taxonomy,
   // shares meaningful problem concepts, or is in the same/cross-compatible intervention domain.
   // Generic words such as "program" or "service" never count as semantic evidence.
-  const taxonomyHit=taxonomy.some(term=>candidateLower.includes(term));
+  const taxonomyHit=taxonomy.some(term=>term.length > 4 && candidateLower.includes(term));
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
@@ -546,16 +546,16 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // These are explicit semantic relationships, not same-domain shortcuts.
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
-    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing'],
-    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes'],
+    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance'],
+    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes','intersection safety','protected intersection','crosswalk','safe crossing','pedestrian safety'],
     ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
-    ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling'],
+    ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling','cool roof','cool-roof','roof retrofit','reflective roof','building retrofit','heat retrofit'],
     ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
-    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine'],
-    ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic'],
+    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine','addiction treatment','substance use treatment','medication treatment','treatment access'],
+    ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic','mobile health outreach','community health outreach','primary care clinic'],
     ['food insecurity','hunger','food access','food access gaps','food voucher','community food hub','mobile market','community kitchen','school meal'],
-    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance'],
-    ['traffic congestion','congestion','traffic delays','travel delays','transit frequency','bus priority','signal timing','road pricing'],
+    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','rehousing','supportive housing','rental assistance','rental affordability','housing affordability','affordable housing','below-market housing','housing supply','affordable housing development','shelter','shelter diversion','homelessness support'],
+    ['traffic congestion','congestion','traffic delays','travel delays','transit delay','transit delays','bus delay','transit reliability','transit frequency','bus priority','signal timing','traffic signal priority','road pricing'],
     ['childcare','child care','early childhood','childcare affordability','child care access','early childhood education','childcare subsidy'],
     ['energy burden','energy affordability','utility burden','energy costs','home energy assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
     ['construction permitting','permit delays','permitting delays','planning approval delays','permit modernization','one stop permitting','digital permitting','permit streamlining'],
@@ -564,9 +564,15 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['water quality','drinking water','contaminated water','water pollution','water treatment','source water protection'],
     ['waste','landfill','solid waste','waste reduction','recycling','organics','collection service redesign'],
     ['mental health','psychological distress','behavioral health','mental health support','peer support','community health worker','care navigation','mobile crisis response'],
-    ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy']
+    ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy','youth employment','employment training','job training','workforce support','employment support','employment service']
   ];
   if(semanticGroups.some(group => group.some(term => problemLower.includes(term)) && group.some(term => candidateLower.includes(term)))) return true;
+  // Operational vocabulary bridges for common municipal systems where the user's
+  // problem and the intervention use different nouns.
+  if (/\b(transit|public transit|bus|rail)\b/i.test(problemLower) &&
+      /\b(signal|signal priority|bus priority|transit priority|traffic signal|transit service|bus lane)\b/i.test(candidateLower)) return true;
+  if (/\b(emergency department|emergency room|hospital overcrowding|ed crowding)\b/i.test(problemLower) &&
+      /\b(patient flow|care navigation|urgent care|community paramedicine|mobile clinic|hospital flow)\b/i.test(candidateLower)) return true;
   // Mobility/safety problems routinely require infrastructure interventions. Preserve
   // that explicit cross-domain relationship even when the candidate wording shares no
   // literal problem token beyond road/traffic/safety vocabulary.
@@ -758,9 +764,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
-          const leads = GOVUK_SOURCE_IDS.has(source.sourceId)
+          const extractedLeads = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
             : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
