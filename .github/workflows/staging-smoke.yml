@@ -9,9 +9,9 @@ jobs:
   staging-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 24 }
       - name: Start staging server
         run: node staging/server.js > /tmp/vidik-staging.log 2>&1 & echo $! > /tmp/vidik.pid
       - name: Readiness check
