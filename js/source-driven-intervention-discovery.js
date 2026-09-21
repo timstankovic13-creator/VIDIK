@@ -543,6 +543,15 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
+  const semanticGroups = [
+    ['flood','flooding','stormwater','drainage','inundation'],
+    ['violent crime','violence','assault','crime'],
+    ['pedestrian','walk','walking','crossing'],
+    ['wildfire','smoke','air quality'],
+    ['heat','extreme heat','cooling'],
+    ['worker displacement','displaced worker','redeployment','reskilling','automation']
+  ];
+  if(semanticGroups.some(group => group.some(term => problemLower.includes(term)) && group.some(term => candidateLower.includes(term)))) return true;
   // Mobility/safety problems routinely require infrastructure interventions. Preserve
   // that explicit cross-domain relationship even when the candidate wording shares no
   // literal problem token beyond road/traffic/safety vocabulary.
@@ -565,7 +574,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
 }
 function evidenceConceptTokensForIntervention(value){
   return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
-    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays'].includes(token))
+    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays','audit'].includes(token))
     .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
 }
 function expectedInterventionFamilies(problem,workspace='municipal'){
