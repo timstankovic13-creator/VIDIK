@@ -551,7 +551,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
     ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling','cool roof','cool-roof','roof retrofit','reflective roof','building retrofit','heat retrofit'],
     ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
-    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine'],
+    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine','addiction treatment','substance use treatment','medication treatment','treatment access'],
     ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic','mobile health outreach','community health outreach','primary care clinic'],
     ['food insecurity','hunger','food access','food access gaps','food voucher','community food hub','mobile market','community kitchen','school meal'],
     ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance','rental affordability','housing affordability','affordable housing','below-market housing','housing supply','affordable housing development'],
