@@ -308,6 +308,70 @@ test('evidence search ladder retains both independent providers and bounded per-
 
 
 
+test('weak structured sources trigger bounded literature fallback across the remaining 14-case cohort', async () => {
+  const cohort = [
+    ['business','US','improve small business survival'],
+    ['business','US','reduce customer churn'],
+    ['business','US','reduce employee turnover'],
+    ['business','US','reduce workplace injuries'],
+    ['business','CA','reduce supply chain disruption'],
+    ['business','US','increase employee training completion'],
+    ['community','US','reduce youth violence'],
+    ['community','US','improve disaster preparedness'],
+    ['community','US','reduce heat exposure'],
+    ['research','US','study interventions to reduce pedestrian injuries'],
+    ['research','US','study workforce displacement from automation'],
+    ['enterprise','US','reduce digital access gaps'],
+    ['enterprise','US','reduce cybersecurity incident risk'],
+    ['enterprise','US','reduce procurement cycle time']
+  ];
+  const mockFetch = async url => {
+    const parsed = new URL(url);
+    const body = parsed.hostname === 'api.openalex.org'
+      ? (() => {
+          const query = decodeURIComponent(parsed.searchParams.get('search') || '');
+          const quoted = query.match(/"([^"]+)"$/)?.[1] || query.match(/"([^"]+)" "/)?.[2] || '';
+          const term = quoted || 'intervention';
+          return JSON.stringify({
+            results: [{
+              id: 'https://openalex.org/W-FALLBACK',
+              display_name: 'Evaluation of ' + term,
+              abstract_inverted_index: Object.fromEntries((term + ' intervention').split(/\s+/).map((word, i) => [word, [i]]))
+            }]
+          });
+        })()
+      : JSON.stringify({ result: { results: [] } });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: name => name === 'content-type' ? 'application/json' : null },
+      arrayBuffer: async () => Buffer.from(body)
+    };
+  };
+
+  for (const [workspace, jurisdiction, problem] of cohort) {
+    const result = await discoverSourceDrivenInterventions({
+      problem, jurisdiction, workspace, rows: 5, fetchImpl: mockFetch
+    });
+    assert.ok(result.sourceSearches.some(search => search.sourceId === 'openalex-works'), workspace + ': literature fallback missing for ' + problem);
+    assert.ok(result.candidates.length > 0, workspace + ': fallback failed to recover ' + problem);
+    assert.notEqual(result.interventionUniverse.stoppingReason, 'all-sources-failed', workspace + ': fallback did not transition state for ' + problem);
+  }
+});
+
+test('literature fallback rejects study-only mentions that do not establish an implemented intervention', async () => {
+  const { extractOpenAlexInterventionLeads } = require('../js/source-driven-intervention-discovery');
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{
+      id: 'https://openalex.org/W-STUDY',
+      display_name: 'Follow-up study of workforce outcomes',
+      abstract_inverted_index: Object.fromEntries('workforce displacement from automation study outcomes'.split(/\s+/).map((word, i) => [word, [i]]))
+    }]
+  }, source, 'study workforce displacement from automation', 'research', '"study workforce displacement from automation" "worker transition"');
+  assert.equal(leads.length, 0);
+});
+
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
