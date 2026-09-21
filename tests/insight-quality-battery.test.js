@@ -92,11 +92,8 @@ function termsFor(problem) {
   return Object.entries(DOMAIN_TERMS).filter(([, terms]) => terms.some(t => p.includes(t))).map(([d]) => d);
 }
 
-function candidateRelevant(problem, candidate) {
-  const text = String(candidate?.name || '') + ' ' + String(candidate?.discoveryText || '');
-  const p = problem.toLowerCase();
-  const wanted = termsFor(problem);
-  return wanted.length === 0 || wanted.some(domain => DOMAIN_TERMS[domain].some(term => text.toLowerCase().includes(term)));
+function candidateRelevant(problem, candidate, workspace) {
+  return interventionMatchesProblem(problem, candidate, workspace);
 }
 
 test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
@@ -107,7 +104,11 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
   assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
-  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);\n  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);\n  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);\n  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);\n  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);
+  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
+  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);
+  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);
+  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);
+  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);\n  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);\n  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);\n  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);\n  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);
   assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
   assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
   assert.equal(isActionableInterventionTitle('Customer Satisfaction Feedback Initiative – Service Questionnaire Results','Questionnaire results'), false);
@@ -210,6 +211,9 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       expectedFamilyCoverage: expectedFamilies.length ? Number((expectedFamilyHits.length / expectedFamilies.length).toFixed(2)) : 1,
       relevantCount: relevant.length,
       relevanceRatio: Number(relevanceRatio.toFixed(2)),
+      productionRelevantCount: productionRelevant.length,
+      productionRelevanceRatio: Number((candidates.length ? productionRelevant.length / candidates.length : 0).toFixed(2)),
+      candidateQualityDefects: candidates.filter(candidate => !isActionableInterventionTitle(candidate.name, candidate.discoveryText)).length,
       interventionFamilies: [...families],
       topCandidates: candidates.slice(0, 5).map(c => c.name),
       evidenceLeads,
@@ -239,6 +243,9 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     averageExpectedFamilyCoverage: Number((results.reduce((n,r) => n + r.expectedFamilyCoverage, 0) / results.length).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
     casesWithNoCandidates: counts.BLOCKED,
+    casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
+    casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
+    totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
