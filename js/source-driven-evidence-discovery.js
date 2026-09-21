@@ -9,7 +9,7 @@ const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
   'crossref-works': 'bibliographic-metadata-index'
 });
 const EVIDENCE_CAUSAL_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
-const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 14;
+const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
 
 const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
