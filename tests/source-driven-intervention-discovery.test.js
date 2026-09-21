@@ -191,6 +191,17 @@ test('intervention extraction rejects administrative artifacts that masquerade a
   assert.equal(classifyCkanRecord({ title: 'Audit of staffing and classification service delivery', notes: 'Audit report.' }).accepted, false);
 });
 
+test('intervention precision rejects administrative program records without rejecting real interventions', () => {
+  const { isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  assert.equal(isActionableInterventionTitle('Implementing nuclear regulatory taskforce review: letter from Philip Duffy to Chancellor of the Exchequer'), false);
+  assert.equal(isActionableInterventionTitle('GC HR and Pay - Program Management Committee, 2025 Jan to Jun'), false);
+  assert.equal(isActionableInterventionTitle('Nationally Significant Infrastructure Projects: Pre-Application Advice on Environmental Impact Assessment'), false);
+  assert.equal(isActionableInterventionTitle('Grow With Wyre Woodland Improvement Grant Project Area'), false);
+  assert.equal(isActionableInterventionTitle('Preventive Maintenance Program'), true);
+  assert.equal(isActionableInterventionTitle('Stormwater Infrastructure Project'), true);
+  assert.equal(isActionableInterventionTitle('Community Violence Intervention Program'), true);
+});
+
 test('missing-class discovery is stratified across relevant workspace domains', () => {
   const { missingInterventionClassSearchQueries } = require('../js/source-driven-intervention-discovery');
   const queries = missingInterventionClassSearchQueries('reduce traffic fatalities', 'municipal', []);
