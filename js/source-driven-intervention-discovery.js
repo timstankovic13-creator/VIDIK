@@ -541,13 +541,30 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
+  // Bounded problem-to-intervention concept bridges improve recall when the
+  // intervention uses operational language rather than the user's problem wording.
+  // These are explicit semantic relationships, not same-domain shortcuts.
   const semanticGroups = [
-    ['flood','flooding','stormwater','drainage','inundation'],
-    ['violent crime','violence','assault','crime'],
-    ['pedestrian','walk','walking','crossing'],
-    ['wildfire','smoke','air quality'],
-    ['heat','extreme heat','cooling'],
-    ['worker displacement','displaced worker','redeployment','reskilling','automation']
+    ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
+    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing'],
+    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes'],
+    ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
+    ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling'],
+    ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
+    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine'],
+    ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic'],
+    ['food insecurity','hunger','food access','food access gaps','food voucher','community food hub','mobile market','community kitchen','school meal'],
+    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance'],
+    ['traffic congestion','congestion','traffic delays','travel delays','transit frequency','bus priority','signal timing','road pricing'],
+    ['childcare','child care','early childhood','childcare affordability','child care access','early childhood education','childcare subsidy'],
+    ['energy burden','energy affordability','utility burden','energy costs','home energy assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+    ['construction permitting','permit delays','permitting delays','planning approval delays','permit modernization','one stop permitting','digital permitting','permit streamlining'],
+    ['noise pollution','noise','traffic noise','noise exposure','noise mitigation','noise barrier','quiet pavement'],
+    ['air pollution','air quality','particulate','emissions','air pollution control','clean air shelter','source air protection'],
+    ['water quality','drinking water','contaminated water','water pollution','water treatment','source water protection'],
+    ['waste','landfill','solid waste','waste reduction','recycling','organics','collection service redesign'],
+    ['mental health','psychological distress','behavioral health','mental health support','peer support','community health worker','care navigation','mobile crisis response'],
+    ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy']
   ];
   if(semanticGroups.some(group => group.some(term => problemLower.includes(term)) && group.some(term => candidateLower.includes(term)))) return true;
   // Mobility/safety problems routinely require infrastructure interventions. Preserve
