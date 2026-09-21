@@ -1,0 +1,18 @@
+name: VIDIK Discovery Fix Validation
+on:
+  push:
+    branches: [fix/discovery-relevance-domain-firewall]
+jobs:
+  discovery-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Novel relevance
+        run: node --test tests/intervention-relevance-novel-problems.test.js
+      - name: Blind jurisdiction discovery
+        run: node --test tests/blind-jurisdiction-discovery.test.js
+      - name: Full intelligence generalization
+        run: node tests/intelligence-generalization.test.js
