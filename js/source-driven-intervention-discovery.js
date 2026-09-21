@@ -492,11 +492,23 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|policy evaluation|program evaluation|service evaluation|implementation evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
     const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
-    const queryTerms = terms.filter(term => String(query || '').toLowerCase().includes(term)).slice(0, 4);
+    const queryLower = String(query || '').toLowerCase();
+    const queryTerms = terms.filter(term => queryLower.includes(term)).slice(0, 4);
+    // A bounded query-backed lead is allowed only when the literature result itself
+    // is relevant and explicitly describes an evaluated/implemented intervention.
+    // The term must come from VIDIK's existing workspace/family vocabulary and be
+    // present in the actual source query; arbitrary query text can never become a
+    // candidate name.
+    const queryBackedTerms = [...new Set([
+      ...queryTerms,
+      ...terms.filter(term => queryLower.includes(term))
+    ])].slice(0, 3);
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
     // intervention candidates merely because the abstract mentions a domain word.
-    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue ? [...new Set([...matched, ...queryTerms])].slice(0, 3) : [];
+    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue
+      ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
+      : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
