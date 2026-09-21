@@ -540,17 +540,6 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
-  // A candidate with a strong domain signal that is neither the problem domain nor
-  // explicitly compatible with it is an unrelated option, even if its title looks
-  // actionable. This prevents generic programs from leaking into a problem universe.
-  const incompatibleCandidateDomains=candidateDomains.filter(domain =>
-    !problemDomains.includes(domain) &&
-    !problemDomains.some(problemDomain => CROSS_DOMAIN_COMPATIBILITY[problemDomain]?.has(domain))
-  );
-  const hasStrongIncompatibleDomain=incompatibleCandidateDomains.some(domain =>
-    /public-safety|mobility|housing|food|energy|health|climate|employment|economic|environment|infrastructure|digital-access/.test(domain)
-  );
-  if(hasStrongIncompatibleDomain && !taxonomyHit && !tokenHit) return false;
   if(taxonomyHit) return true;
   // Bounded problem-to-intervention concept bridges improve recall when the
   // intervention uses operational language rather than the user's problem wording.
