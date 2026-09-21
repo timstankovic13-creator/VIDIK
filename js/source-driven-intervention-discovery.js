@@ -565,7 +565,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine'],
     ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic'],
     ['food insecurity','hunger','food access','food access gaps','food voucher','community food hub','mobile market','community kitchen','school meal'],
-    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance'],
+    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','supportive housing','rental assistance','rental affordability','housing affordability','affordable housing','below-market housing','housing supply','affordable housing development'],
     ['traffic congestion','congestion','traffic delays','travel delays','transit delay','transit delays','bus delay','transit reliability','transit frequency','bus priority','signal timing','traffic signal priority','road pricing'],
     ['childcare','child care','early childhood','childcare affordability','child care access','early childhood education','childcare subsidy'],
     ['energy burden','energy affordability','utility burden','energy costs','home energy assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
