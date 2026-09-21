@@ -578,6 +578,12 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['unemployment','joblessness','employment access','job placement','career pathway','apprenticeship','skills training','wage subsidy']
   ];
   if(semanticGroups.some(group => group.some(term => problemLower.includes(term)) && group.some(term => candidateLower.includes(term)))) return true;
+  // Operational vocabulary bridges for common municipal systems where the user's
+  // problem and the intervention use different nouns.
+  if (/\b(transit|public transit|bus|rail)\b/i.test(problemLower) &&
+      /\b(signal|signal priority|bus priority|transit priority|traffic signal|transit service|bus lane)\b/i.test(candidateLower)) return true;
+  if (/\b(emergency department|emergency room|hospital overcrowding|ed crowding)\b/i.test(problemLower) &&
+      /\b(patient flow|care navigation|urgent care|community paramedicine|mobile clinic|hospital flow)\b/i.test(candidateLower)) return true;
   // Mobility/safety problems routinely require infrastructure interventions. Preserve
   // that explicit cross-domain relationship even when the candidate wording shares no
   // literal problem token beyond road/traffic/safety vocabulary.
