@@ -694,7 +694,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch) continue;
-      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
+      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
       for (const query of sourceTargetQueries) {
         existingQueries.add(query);
         try {
