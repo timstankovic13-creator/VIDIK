@@ -499,17 +499,15 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // The term must come from VIDIK's existing workspace/family vocabulary and be
     // present in the actual source query; arbitrary query text can never become a
     // candidate name.
+    const querySuffix = queryLower
+      .replace(problemLower, '')
+      .replace(/["']/g, '')
+      .trim();
     const queryBackedTerms = [...new Set([
       ...queryTerms,
       ...terms.filter(term => queryLower.includes(term)),
-      ...queryLower
-        .replace(/["']/g, '')
-        .split(/\s+/)
-        .slice(-4)
-        .join(' ')
-        .split(/\s+(?=[a-z0-9])/)
-        .filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term))
-    ])].slice(0, 3);
+      ...(querySuffix.split(/\s+/).length >= 2 ? [querySuffix] : [])
+    ])].filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term)).slice(0, 3);
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
     // intervention candidates merely because the abstract mentions a domain word.
