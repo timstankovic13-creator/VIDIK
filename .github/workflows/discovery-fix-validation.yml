@@ -10,6 +10,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Debug transit discovery
+        run: |
+          node - <<'NODE'
+          const {discoverSourceDrivenInterventions}=require('./js/source-driven-intervention-discovery');
+          const source={sourceId:'ca-program-discovery',jurisdiction:'CA',domain:'intervention-universe',url:'https://open.canada.ca/data/en/api/3/action/package_search?q='};
+          const records=[
+            {id:'0',title:'bus priority lane program',notes:'Dedicated transit priority lanes improve bus reliability and reduce delay.'},
+            {id:'1',title:'traffic signal priority project',notes:'Signal priority for transit vehicles reduces intersection delay.'},
+            {id:'2',title:'homelessness statistics report',notes:'Administrative homelessness statistics.'},
+            {id:'3',title:'stormwater drainage project',notes:'Flood and drainage infrastructure.'}
+          ];
+          const body=Buffer.from(JSON.stringify({result:{results:records}}));
+          discoverSourceDrivenInterventions({problem:'reduce transit delay',jurisdiction:'CA',sources:[source],fetchImpl:async()=>({ok:true,status:200,headers:{get:k=>k==='content-type'?'application/json':null},arrayBuffer:async()=>body})})
+            .then(r=>console.log(JSON.stringify(r.candidates.map(x=>({name:x.name,family:x.interventionFamily,discovery:x.discoveryText})),null,2)));
+          NODE
       - name: Novel relevance
         run: node --test tests/intervention-relevance-novel-problems.test.js
       - name: Blind jurisdiction discovery
