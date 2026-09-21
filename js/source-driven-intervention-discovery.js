@@ -561,6 +561,10 @@ function discoveryDomains(text) { const normalized = normalizeText(text).toLower
 function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','services','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with','governance','response','delivery','data','customer','customers','digital','access']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
 function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemText=normalizeText(problem),candidateText=normalizeText((candidate?.name||'')+' '+(candidate?.discoveryText||''));
+  // Relevance cannot rescue a non-intervention artifact. This is the final semantic boundary:
+  // reports, datasets, reviews, findings and other records must never become candidates merely
+  // because they share a problem noun with the decision.
+  if(!isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true })) return false;
   const problemLower=problemText.toLowerCase(),candidateLower=candidateText.toLowerCase();
   const problemDomains=inferWorkspaceDomains(problemText,workspace),candidateDomains=[...new Set([...discoveryDomains(candidateText),...inferWorkspaceDomains(candidateText,workspace)])];
   const taxonomy=taxonomyTerms(problemText,workspace).map(term=>term.toLowerCase()).filter(Boolean);
