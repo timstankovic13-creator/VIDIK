@@ -499,6 +499,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // The term must come from VIDIK's existing workspace/family vocabulary and be
     // present in the actual source query; arbitrary query text can never become a
     // candidate name.
+    const problemLower = normalizeText(problem).toLowerCase();
     const querySuffix = queryLower
       .replace(problemLower, '')
       .replace(/["']/g, '')
@@ -611,7 +612,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // lead rather than silently converting an unknown problem into a zero-candidate result.
   // The lead remains discovery-only and cannot become recommendation-eligible without
   // candidate-specific evidence. Data/report records are already rejected upstream.
-  if(!problemDomains.length) return tokenHit || directConceptOverlap(problemText,candidateText);
+  if(!problemDomains.length) return isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true }) || tokenHit || directConceptOverlap(problemText,candidateText);
   if(tokenHit) return true;
   if(!candidateDomains.length) return false;
   // Shared domain alone is not sufficient: broad domains such as infrastructure,
