@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, interventionMatchesProblem, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
 const { discoverCandidateEvidence, discoverCandidateUniverseEvidence, queryFor, evidenceLeadRelevance, extractPubmedAbstracts } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
@@ -107,7 +107,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Preventive Maintenance Service','Asset maintenance service'), true);
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
   assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
-  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
+  assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);\n  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);\n  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);\n  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);\n  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);
   assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
   assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
   assert.equal(isActionableInterventionTitle('Customer Satisfaction Feedback Initiative – Service Questionnaire Results','Questionnaire results'), false);
@@ -165,7 +165,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     assert.equal(typeof discovery.interventionUniverse.coverageRatio, 'number');
 
     const candidates = discovery.candidates || [];
-    const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
+    const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate, workspace));\n    const productionRelevant = candidates.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
     const actionable = candidates.filter(candidate => isActionableInterventionTitle(candidate.name, candidate.discoveryText));
     const expectedTerms = taxonomyTerms(problem, workspace).map(term => term.toLowerCase());
     const expectedClassHits = candidates.filter(candidate => expectedTerms.some(term => String(candidate.name + ' ' + candidate.discoveryText).toLowerCase().includes(term))).length;
