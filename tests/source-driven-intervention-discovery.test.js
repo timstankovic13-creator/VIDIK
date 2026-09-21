@@ -180,3 +180,71 @@ test('legacy intervention classes are a coverage guard, not synthetic candidates
   assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
   assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion/i.test(q)));
 });
+
+
+test('intervention extraction rejects administrative artifacts that masquerade as interventions', () => {
+  const { isActionableInterventionTitle, classifyCkanRecord } = require('../js/source-driven-intervention-discovery');
+  assert.equal(isActionableInterventionTitle('Audit of staffing and classification service delivery'), false);
+  assert.equal(isActionableInterventionTitle('Regulatory Casework Review 2026'), false);
+  assert.equal(isActionableInterventionTitle('Funding allocations for Seniors Active Living Centre programs'), false);
+  assert.equal(isActionableInterventionTitle('Digital Inclusion Innovation Fund'), true);
+  assert.equal(classifyCkanRecord({ title: 'Audit of staffing and classification service delivery', notes: 'Audit report.' }).accepted, false);
+});
+
+test('missing-class discovery is stratified across relevant workspace domains', () => {
+  const { missingInterventionClassSearchQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = missingInterventionClassSearchQueries('reduce traffic fatalities', 'municipal', []);
+  assert.ok(queries.length > 1);
+  assert.ok(queries.some(q => /road engineering|traffic calming|speed management/i.test(q)));
+  assert.ok(queries.some(q => /maintenance|renewal|replacement|infrastructure/i.test(q)));
+});
+
+test('nonmunicipal workspaces expose distinct intervention coverage rather than municipal fallback', () => {
+  const { legacyClassTerms } = require('../js/source-driven-intervention-discovery');
+  const business = legacyClassTerms('reduce employee burnout', 'business');
+  const community = legacyClassTerms('improve community accessibility', 'community');
+  const research = legacyClassTerms('study infrastructure interventions', 'research');
+  const enterprise = legacyClassTerms('reduce cybersecurity incident risk', 'enterprise');
+  assert.ok(business.some(term => /manager training|employee assistance|flexible scheduling/i.test(term)));
+  assert.ok(community.some(term => /accessible design|assistive technology|inclusive service/i.test(term)));
+  assert.ok(research.some(term => /capital intervention|infrastructure retrofit|asset renewal/i.test(term)));
+  assert.ok(enterprise.some(term => /zero trust|multi factor authentication|endpoint detection/i.test(term)));
+});
+
+test('class-level missing-option expansion is bounded and source-backed', async () => {
+  const { discoverSourceDrivenInterventions, DISCOVERY_MAX_QUERIES_PER_SOURCE } = require('../js/source-driven-intervention-discovery');
+  const seen = [];
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce traffic fatalities',
+    jurisdiction: 'CA',
+    sources: [{
+      sourceId: 'ca-program-discovery',
+      provider: 'Government of Canada Open Government Portal',
+      jurisdiction: 'CA',
+      domain: 'intervention-universe',
+      tier: 'official_machine_readable',
+      accessMethod: 'ckan-action-api',
+      url: 'https://open.canada.ca/data/en/api/3/action/package_search?q='
+    }],
+    fetchImpl: async url => {
+      const q = new URL(url).searchParams.get('q');
+      seen.push(q);
+      if (/road engineering|maintenance|renewal|replacement/i.test(q)) {
+        return mockResponse({ result: { results: [{
+          id: 'class-expansion',
+          title: 'Road safety infrastructure project',
+          notes: 'Infrastructure project improving road safety and reducing traffic fatalities.'
+        }] } });
+      }
+      return mockResponse({ result: { results: [{
+        id: 'traffic-enforcement',
+        title: 'Traffic safety enforcement program',
+        notes: 'Municipal enforcement intervention for road safety.'
+      }] } });
+    }
+  });
+  assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
+  assert.ok(result.interventionUniverse.diagnosticCounts.missingOptionSearchUsed);
+  assert.ok(result.sourceSearches[0].queriesAttempted <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  assert.ok(seen.length <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
+});

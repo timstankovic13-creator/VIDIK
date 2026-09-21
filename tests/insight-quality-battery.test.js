@@ -332,3 +332,28 @@ test('Campbell review indexes remain catalogued but are not falsely treated as e
   assert.throws(() => buildCkanSearchUrl(campbell, 'violent crime'), /unsupported-ckan-intervention-source/);
   assert.throws(() => buildGovUkSearchUrl(campbell, 'violent crime'), /unsupported-govuk-intervention-source/);
 });
+
+
+test('Crossref supporting literature improves provider diversity without becoming causal identification', () => {
+  const mod = require('../js/source-driven-evidence-discovery');
+  assert.ok(mod.EVIDENCE_SOURCE_IDS.has('crossref-works'));
+  assert.equal(mod.EVIDENCE_SOURCE_FAMILIES['crossref-works'], 'bibliographic-metadata-index');
+  assert.equal(mod.EVIDENCE_CAUSAL_SOURCE_IDS.has('crossref-works'), false);
+  const source = { sourceId: 'crossref-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const leads = mod.extractEvidenceLeads({
+    message: { items: [{
+      DOI: '10.1234/example',
+      title: ['Focused deterrence evaluation'],
+      abstract: '<jats:p>Focused deterrence reduced serious violence in the study population.</jats:p>'
+    }] }
+  }, source, {
+    id: 'candidate:focused',
+    name: 'Focused Deterrence',
+    discoveryText: 'focused deterrence serious violence',
+    interventionFamily: ['public-safety']
+  }, 'reduce violent crime');
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].sourceFamily, 'bibliographic-metadata-index');
+  assert.equal(leads[0].sourceRole, 'supporting-literature-index');
+  assert.equal(leads[0].causalEffectImported, false);
+});

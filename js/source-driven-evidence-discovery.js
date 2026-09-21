@@ -2,8 +2,15 @@
 
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
-const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
+const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils', 'crossref-works']);
+const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
+  'openalex-works': 'open-literature-index',
+  'pubmed-eutils': 'biomedical-index',
+  'crossref-works': 'bibliographic-metadata-index'
+});
+const EVIDENCE_CAUSAL_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
+
 const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
@@ -44,7 +51,7 @@ function extractPubmedAbstracts(xml) {
   }
   return out;
 }
-function buildEvidenceSearchUrl(source, query) { if (!source || !EVIDENCE_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-evidence-source'); const url = new URL(source.url); if (source.sourceId === 'pubmed-eutils') { url.searchParams.set('term', query); url.searchParams.set('retmode', 'json'); } else url.searchParams.set('search', query); return url.toString(); }
+function buildEvidenceSearchUrl(source, query) { if (!source || !EVIDENCE_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-evidence-source'); const url = new URL(source.url); if (source.sourceId === 'pubmed-eutils') { url.searchParams.set('term', query); url.searchParams.set('retmode', 'json'); } else if (source.sourceId === 'crossref-works') { url.searchParams.set('query.bibliographic', query); url.searchParams.set('rows', '20'); url.searchParams.set('select', 'DOI,title,abstract,type,published,URL'); } else url.searchParams.set('search', query); return url.toString(); }
 function canonicalEvidenceSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceIsAuthoritative(source) {
   const canonical = canonicalEvidenceSource(source);
@@ -110,16 +117,35 @@ function openAlexAbstractText(row) {
   return terms.sort((a, b) => a[0] - b[0]).map(([, word]) => word).join(' ').trim();
 }
 function extractEvidenceLeads(payload, source, candidate, problem) {
+  if (source.sourceId === 'crossref-works') {
+    const rows = Array.isArray(payload?.message?.items) ? payload.message.items : [];
+    return rows.slice(0, 20).map(row => {
+      const title = Array.isArray(row.title) ? String(row.title[0] || '').trim() : String(row.title || '').trim();
+      const abstract = String(row.abstract || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const searchable = `${title} ${abstract}`.trim();
+      const relevanceStatus = evidenceLeadRelevance(searchable, candidate, problem);
+      return {
+        id: `evidence:${source.sourceId}:${row.DOI || row.URL || title}`,
+        candidateId: candidate.id, problem, sourceId: source.sourceId,
+        sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId],
+        sourceRole: 'supporting-literature-index',
+        sourceType: 'independent-literature-index',
+        title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false,
+        relevanceStatus,
+        provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.DOI || row.URL || null, contentBasis: abstract ? 'title-and-abstract' : 'title-only' }
+      };
+    }).filter(row => row.title && Boolean(row.relevanceStatus));
+  }
   if (source.sourceId === 'openalex-works') {
     const rows = Array.isArray(payload?.results) ? payload.results : [];
-    return rows.slice(0, 20).map(row => { const title = String(row.display_name || row.title || '').trim(); const abstract = openAlexAbstractText(row); const searchable = `${title} ${abstract}`.trim(); const relevanceStatus = evidenceLeadRelevance(searchable, candidate, problem); return { id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name || row.title}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus, provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } }; }).filter(row => row.title && Boolean(row.relevanceStatus));
+    return rows.slice(0, 20).map(row => { const title = String(row.display_name || row.title || '').trim(); const abstract = openAlexAbstractText(row); const searchable = `${title} ${abstract}`.trim(); const relevanceStatus = evidenceLeadRelevance(searchable, candidate, problem); return { id: `evidence:${source.sourceId}:${row.id || row.doi || row.display_name || row.title}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId], sourceRole: 'causal-research-index', sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId], sourceRole: 'causal-research-index', sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus, provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: row.id || row.doi || null, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } }; }).filter(row => row.title && Boolean(row.relevanceStatus));
   }
   const ids = Array.isArray(payload?.esearchresult?.idlist) ? payload.esearchresult.idlist : [];
   const summaries = payload?._vidikSummaries || {}; const abstracts = payload?._vidikAbstracts || {};
   return ids.slice(0, 20).map(id => {
     const summary = summaries[id] || {}; const title = String(summary.title || '').trim(); const abstract = String(abstracts[id] || '').trim(); const searchable = `${title} ${abstract}`.trim();
     if (!title || !evidenceLeadRelevant(searchable,candidate,problem)) return null;
-    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(searchable, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } };
+    return { id: `evidence:${source.sourceId}:${id}`, candidateId: candidate.id, problem, sourceId: source.sourceId, sourceFamily: EVIDENCE_SOURCE_FAMILIES[source.sourceId], sourceRole: 'causal-research-index', sourceType: 'independent-causal-research', title, evidenceStatus: 'potential', evidenceLeadOnly: true, causalEffectImported: false, relevanceStatus: evidenceLeadRelevance(searchable, candidate, problem), provenance: { sourceId: source.sourceId, jurisdiction: source.jurisdiction, externalId: id, contentBasis: abstract ? 'title-and-abstract' : 'title-only' } };
   }).filter(Boolean);
 }
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
@@ -128,8 +154,13 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
   const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
   const relevantLeads = uniqueLeads.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSourceCount = new Set(relevantLeads.map(lead => lead.sourceId)).size;
-  const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && relevantLeads.length > 0;
-  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
+  const independentSourceFamilyCount = new Set(relevantLeads.map(lead => lead.sourceFamily || EVIDENCE_SOURCE_FAMILIES[lead.sourceId] || lead.sourceId)).size;
+  const causalSourceCount = new Set(relevantLeads.filter(lead => EVIDENCE_CAUSAL_SOURCE_IDS.has(lead.sourceId)).map(lead => lead.sourceId)).size;
+  // Crossref can improve provider diversity and recall, but it is a bibliographic
+  // metadata index, not causal identification. Completion therefore requires at
+  // least one causal provider plus two independent provider families.
+  const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && independentSourceFamilyCount >= 2 && causalSourceCount >= 1 && relevantLeads.length > 0;
+  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
@@ -166,6 +197,11 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     name + ' ' + problem,
     name + ' ' + familyTerms.join(' '),
     name + ' ' + mechanismPhrase,
+    name + ' systematic review',
+    name + ' meta analysis',
+    name + ' implementation evaluation',
+    name + ' impact evaluation',
+    name + ' randomized trial',
     discoveryPhrase,
     problem + ' ' + familyTerms.join(' '),
     problem + ' ' + mechanismPhrase,
@@ -207,8 +243,8 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
-  const sourceDiagnostics = Object.fromEntries(selected.map(source => [source.sourceId, { attempted: searches.filter(s => s.sourceId === source.sourceId).length, failed: searches.filter(s => s.sourceId === source.sourceId && s.status === 'search-failed').length, leads: evidenceLeads.filter(l => l.sourceId === source.sourceId).length, candidateMatches: evidenceLeads.filter(l => l.sourceId === source.sourceId && ['candidate-match','verified'].includes(l.relevanceStatus)).length }]));
-  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v4', problem, candidateId: candidate.id, query, diversifiedQueries, sourceDiagnostics, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
+  const sourceDiagnostics = Object.fromEntries(selected.map(source => [source.sourceId, { sourceFamily:EVIDENCE_SOURCE_FAMILIES[source.sourceId] || source.sourceId, sourceRole:EVIDENCE_CAUSAL_SOURCE_IDS.has(source.sourceId)?'causal-research-index':'supporting-literature-index', attempted: searches.filter(s => s.sourceId === source.sourceId).length, failed: searches.filter(s => s.sourceId === source.sourceId && s.status === 'search-failed').length, leads: evidenceLeads.filter(l => l.sourceId === source.sourceId).length, candidateMatches: evidenceLeads.filter(l => l.sourceId === source.sourceId && ['candidate-match','verified'].includes(l.relevanceStatus)).length }]));
+  return { schemaVersion: 'vidik.source-driven-evidence-discovery.v5', problem, candidateId: candidate.id, query, diversifiedQueries, sourceDiagnostics, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
 async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
@@ -231,4 +267,4 @@ async function discoverCandidateUniverseEvidence({ problem, candidates = [], sou
     effectsImported: false
   };
 }
-module.exports = { EVIDENCE_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };
+module.exports = { EVIDENCE_SOURCE_IDS, EVIDENCE_SOURCE_FAMILIES, EVIDENCE_CAUSAL_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };
