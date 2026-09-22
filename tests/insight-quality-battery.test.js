@@ -96,6 +96,17 @@ function candidateRelevant(problem, candidate, workspace) {
   return interventionMatchesProblem(problem, candidate, workspace);
 }
 
+test('enterprise thin-universe profiles retain concrete retrieval classes', () => {
+  const { buildDiscoveryQueries, taxonomyTerms } = require('../js/source-driven-intervention-discovery');
+  const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
+  assert.ok(dataQueries.some(query => /data stewardship program|data quality management|data standards program|master data management/i.test(query)));
+  assert.ok(taxonomyTerms('improve data governance', 'enterprise').some(term => /data stewardship|data quality|data standards/i.test(term)));
+  const complianceQueries = buildDiscoveryQueries('reduce regulatory compliance delays', 'enterprise');
+  assert.ok(complianceQueries.some(query => /compliance workflow automation|regulatory workflow redesign|regulatory case management/i.test(query)));
+  const maintenanceQueries = buildDiscoveryQueries('reduce infrastructure maintenance backlog', 'enterprise');
+  assert.ok(maintenanceQueries.some(query => /condition-based maintenance|predictive maintenance|asset renewal/i.test(query)));
+});
+
 test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
   const emergencyQueries = buildDiscoveryQueries('improve emergency response coordination', 'enterprise');
   const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
