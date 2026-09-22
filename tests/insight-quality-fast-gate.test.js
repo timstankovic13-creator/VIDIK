@@ -93,6 +93,35 @@ test('fast insight-quality preflight: expanded 240-case query battery runs witho
   assert.ok(executed >= 240);
 });
 
+test('fast insight-quality preflight: literature fallback promotes only source-backed query terms', () => {
+  const source = { sourceId: 'openalex-works', sourceType: 'intervention-literature', jurisdiction: 'international', domain: 'research' };
+  const { extractOpenAlexInterventionLeads } = mod;
+  const abstractInvertedIndex = {};
+  const words = 'A program was implemented and evaluated for respiratory protection during wildfire smoke mitigation planning.'.split(/\\s+/);
+  words.forEach((word, index) => {
+    const key = word.replace(/[^A-Za-z0-9-]/g, '').toLowerCase();
+    if (!key) return;
+    (abstractInvertedIndex[key] ||= []).push(index);
+  });
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{
+      id: 'W-fast-wildfire',
+      display_name: 'Program evaluation of respiratory protection',
+      abstract_inverted_index: abstractInvertedIndex
+    }]
+  }, source, 'reduce wildfire smoke exposure', 'municipal', 'wildfire smoke mitigation');
+  assert.ok(leads.some(lead => lead.name === 'wildfire smoke mitigation'));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+  const noCue = extractOpenAlexInterventionLeads({
+    results: [{
+      id: 'W-fast-no-cue',
+      display_name: 'Respiratory protection',
+      abstract_inverted_index: { 'wildfire': [0], 'smoke': [1], 'mitigation': [2] }
+    }]
+  }, source, 'reduce wildfire smoke exposure', 'municipal', 'wildfire smoke mitigation');
+  assert.equal(noCue.length, 0);
+});
+
 test('fast insight-quality preflight: actionable intervention corpus survives while adversarial artifacts fail', () => {
   const actionable = [
     ['reduce violent crime','municipal','Community Violence Intervention Program'],
