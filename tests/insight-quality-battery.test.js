@@ -108,7 +108,8 @@ test('targeted recall packs cover the observed blocked-case discovery lanes with
     ['research','evaluate interventions for food insecurity', /food voucher|community food hub|school meal program/i],
     ['research','study wildfire smoke mitigation', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
     ['enterprise','reduce procurement cycle time', /procurement process redesign|procurement workflow automation|e-procurement/i],
-    ['enterprise','improve data governance', /data governance program|master data management|data stewardship program/i]
+    ['enterprise','improve data governance', /data governance program|master data management|data stewardship program/i],
+    ['enterprise','reduce cybersecurity incident risk', /zero trust|multi factor authentication|endpoint detection/i]
   ];
   for (const [workspace, problem, expected] of cases) {
     const queries = buildDiscoveryQueries(problem, workspace);
@@ -433,4 +434,17 @@ test('cross-domain records do not survive relevance filtering on generic shared 
   assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'National assessment of harmful algal bloom preparedness', discoveryText: 'preparedness and future needs' }, 'enterprise'), false);
   assert.equal(interventionMatchesProblem('reduce accessibility barriers in digital services', { name: 'A Review of the Measures to Address Prostitution Initiative', discoveryText: 'review of a public initiative' }, 'enterprise'), false);
   assert.equal(interventionMatchesProblem('improve remote service delivery', { name: 'Legal aid service delivery by type of lawyer', discoveryText: 'legal aid delivery research' }, 'enterprise'), false);
+});
+test('blocked-case recall lanes are placed inside the live per-source query budget', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  for (const [workspace, problem, expected] of [
+    ['municipal', 'reduce wildfire smoke exposure', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['community', 'reduce wildfire evacuation barriers', /wildfire evacuation support|evacuation assistance|safe passage/i],
+    ['research', 'study wildfire smoke mitigation', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['enterprise', 'reduce cybersecurity incident risk', /zero trust|multi factor authentication|endpoint detection/i]
+  ]) {
+    const queries = mod.buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
+    assert.ok(queries.slice(0, 12).some(query => expected.test(query)), workspace + ': blocked-case recall anchor was crowded out for ' + problem);
+  }
 });
