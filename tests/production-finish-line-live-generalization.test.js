@@ -43,6 +43,16 @@ function assertDiscoveryBoundary(result, problem, jurisdiction) {
   return { sourceFailureClosed: false };
 }
 
+test('wildfire smoke retrieval vocabulary remains actionable at the intervention boundary', () => {
+  const { isActionableInterventionTitle, interventionMatchesProblem, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  for (const name of ['wildfire smoke mitigation', 'smoke filtration', 'wildfire evacuation support', 'clean air shelter']) {
+    assert.equal(isActionableInterventionTitle(name), true, name);
+    assert.equal(interventionMatchesProblem('reduce wildfire smoke exposure', { name, discoveryText: name }, 'municipal'), true, name);
+  }
+  const queries = buildDiscoveryQueries('reduce wildfire smoke exposure', 'municipal');
+  assert.ok(queries.some(query => /wildfire smoke mitigation|smoke filtration|clean air shelter|wildfire evacuation support/i.test(query)));
+});
+
 test('worker displacement expands to transition and redeployment intervention classes', async () => {
   const { buildDiscoveryQueries, taxonomyTerms, expectedInterventionFamilies } = require('../js/source-driven-intervention-discovery');
   const queries = buildDiscoveryQueries('reduce worker displacement', 'research');

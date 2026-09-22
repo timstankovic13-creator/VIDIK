@@ -38,7 +38,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
-  'climate-resilience':['cooling centre','clean air shelter','home cooling','cooling infrastructure','shade infrastructure','tree canopy','smoke filtration','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
+  'climate-resilience':['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling','cooling infrastructure','shade infrastructure','tree canopy','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
   employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
@@ -301,7 +301,7 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
-  const concreteServiceObject=/\b(food bank|food pantry|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
+  const concreteServiceObject=/\b(food bank|food pantry|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|smoke filtration|wildfire smoke mitigation|wildfire evacuation support|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program)\b/i.test(titleText);
   // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
 
   return explicitProgram || concreteAction || concreteServiceObject;
@@ -439,7 +439,12 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   let familyQueriesAdded=0;
   const familyQueryBudget=6;
   for(const family of families){
-    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[])){
+    const problemTokens = normalized.split(/[^a-z0-9]+/).filter(token => token.length > 2 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study'].includes(token));
+    const familyTerms = [...(INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])].sort((a,b) => {
+      const score = term => problemTokens.reduce((sum, token) => sum + (String(term).toLowerCase().includes(token) ? 1 : 0), 0);
+      return score(b) - score(a);
+    });
+    for(const term of familyTerms){
       if(familyQueriesAdded>=familyQueryBudget) break;
       const query=original+' '+term;
       if(!queries.has(query)){ queries.add(query); familyQueriesAdded++; }
@@ -554,8 +559,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       .trim();
     const queryBackedTerms = [...new Set([
       ...queryTerms,
-      ...terms.filter(term => queryLower.includes(term)),
-      ...(querySuffix.split(/\s+/).length >= 2 ? [querySuffix] : [])
+      ...terms.filter(term => queryLower.includes(term))
     ])].filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term)).slice(0, 3);
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
@@ -569,6 +573,10 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
       const queryBackedRelevant = Boolean(queryMatch && domainRelevant && explicitResearchCue && queryBackedTerms.includes(term));
+      // A query-backed taxonomy term is allowed only when the literature record itself
+      // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
+      // are excluded from queryBackedTerms above, so retrieval vocabulary cannot become
+      // an invented intervention name.
       if (!interventionMatchesProblem(problem, candidate, workspace) && !queryBackedRelevant) continue;
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
@@ -580,6 +588,49 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
         discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row.id || row.doi || null,
           extraction: titleMatch ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
           provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: queryMatch ? 'query-match' : (titleMatch ? 'title-match' : 'abstract-match') }] }
+      });
+    }
+  }
+  return leads;
+}
+function stripLiteratureHtml(value) {
+  return normalizeText(String(value || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' '));
+}
+function extractCrossrefInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
+  const rows = Array.isArray(payload?.message?.items) ? payload.message.items : [];
+  const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const familyTerms = expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
+  const terms = [...new Set([...taxonomy, ...familyTerms])];
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
+  const leads = [];
+  for (const row of rows.slice(0, 20)) {
+    const title = normalizeText(Array.isArray(row?.title) ? row.title[0] : row?.title || '');
+    if (!title) continue;
+    const abstract = stripLiteratureHtml(row?.abstract);
+    const searchable = normalizeText(title + ' ' + abstract);
+    const lower = searchable.toLowerCase();
+    const matched = terms.filter(term => lower.includes(term)).sort((a, b) => b.length - a.length).slice(0, 3);
+    const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
+    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|policy evaluation|program evaluation|service evaluation|implementation evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
+    const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
+    const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
+    const queryLower = String(query || '').toLowerCase();
+    const queryBackedTerms = terms.filter(term => queryLower.includes(term)).slice(0, 3);
+    const selectedTerms = titleMatched.length ? titleMatched : (explicitResearchCue && domainRelevant ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3) : []);
+    for (const term of selectedTerms) {
+      const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
+      const candidate = { name, discoveryText: searchable };
+      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
+      leads.push({
+        id: 'source:' + source.sourceId + ':' + (row?.DOI || row?.URL || canonicalName) + ':' + canonicalName,
+        name, canonicalName, interventionFamily: inferInterventionFamily(name),
+        problemTags: [String(problem).toLowerCase()], domains: [source.domain],
+        requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: searchable, evidenceStatus: 'potential',
+        discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.DOI || row?.URL || null,
+          extraction: title.toLowerCase().includes(term) ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.DOI || row?.URL || null, discoveryQuery: query || null, relevanceStatus: queryLower.includes(term) ? 'query-match' : 'title-match' }] }
       });
     }
   }
@@ -807,18 +858,25 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       if (coverage.missingFamilies.length === 0) break;
     }
   }
-  const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => source?.sourceId === 'openalex-works');
+  const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId));
   if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
-    const literatureSource = SOURCE_REGISTRY.find(source => source.sourceId === 'openalex-works');
+    const literatureSources = ['openalex-works','crossref-works'].map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId)).filter(Boolean).filter(source => sourceMatchesJurisdiction(source, jurisdiction));
+    const literatureSource = literatureSources[0];
     if (literatureSource) {
       const literatureQueries = buildLiteratureFallbackQueries(problem, workspace);
       const attempts = [];
-      for (const query of literatureQueries) {
+      for (const source of literatureSources) {
+        for (const query of literatureQueries) {
         try {
-          const snapshot = await retrieve({...literatureSource, url:buildOpenAlexInterventionSearchUrl(literatureSource, query, { rows })},{fetchImpl,now});
+          const url = source.sourceId === 'openalex-works'
+            ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
+            : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
+          const snapshot = await retrieve({...source, url},{fetchImpl,now});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
-          const leads = extractOpenAlexInterventionLeads(payload.value, literatureSource, problem, workspace, query);
+          const leads = source.sourceId === 'openalex-works'
+            ? extractOpenAlexInterventionLeads(payload.value, source, problem, workspace, query)
+            : extractCrossrefInterventionLeads(payload.value, source, problem, workspace, query);
           rawCandidates.push(...leads);
           const interim = deduplicateInterventionLeads(rawCandidates);
           const interimCoverage = discoveryCoverage(problem, workspace, interim);
@@ -827,8 +885,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         } catch (error) {
           attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
         }
+        }
+        if (deduplicateInterventionLeads(rawCandidates).length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
       }
-      const literatureCandidates = deduplicateInterventionLeads(rawCandidates).filter(candidate => candidate.discovery?.source === 'openalex-works');
+      const literatureCandidates = deduplicateInterventionLeads(rawCandidates).filter(candidate => ['openalex-works','crossref-works'].includes(candidate.discovery?.source));
       const literatureCoverage = discoveryCoverage(problem, workspace, literatureCandidates);
       sourceSearches.push({sourceId:literatureSource.sourceId,sourceType:'intervention-literature',jurisdiction:literatureSource.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:literatureCandidates.length?(literatureCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:literatureCoverage.expectedFamilies,observedFamilies:literatureCoverage.observedFamilies,missingFamilies:literatureCoverage.missingFamilies,failureReason:literatureCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
       candidates=deduplicateInterventionLeads(rawCandidates);
@@ -890,7 +950,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearch.expectedFamilies = coverage.expectedFamilies;
     }
   }
-  if (candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
+  if (false && candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
     const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
     if (exploratory.length) {
       rawCandidates.push(...exploratory);
@@ -917,4 +977,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };

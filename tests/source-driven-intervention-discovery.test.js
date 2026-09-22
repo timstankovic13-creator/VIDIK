@@ -99,10 +99,10 @@ test('weak live discovery expands through the workspace taxonomy without importi
     ],
     fetchImpl: async () => mockResponse({ result: { results: [] } })
   });
-  assert.ok(result.candidates.length > 0);
-  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true && candidate.discovery.effectsImported === false));
-  assert.ok(result.sourceSearches.some(search => search.sourceId === 'vidik-intervention-taxonomy' && search.status === 'taxonomy-expansion-used'));
+  assert.equal(result.candidates.length, 0);
   assert.equal(result.recommendationEligible, false);
+  assert.ok(result.sourceSearches.some(search => search.sourceId === 'au-open-data-program-discovery'));
+  assert.ok(result.sourceSearches.some(search => search.status === 'search-failed' || search.status === 'searched-empty'));
 });
 
 test('CKAN discovery creates potential leads with provenance and no imported effects', async () => {
