@@ -90,7 +90,7 @@ const LEGACY_INTERVENTION_CLASSES = Object.freeze({
     climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
     mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
     employment: ['worker transition','redeployment','displacement support','reskilling program','worker displacement','job training','wage subsidy','career pathway'],
-    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+    digitalAccess: ['digital inclusion','broadband subsidy','broadband voucher','internet access support','device lending','digital literacy']
   },
   enterprise: {
     cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
