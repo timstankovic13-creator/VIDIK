@@ -96,6 +96,33 @@ function candidateRelevant(problem, candidate, workspace) {
   return interventionMatchesProblem(problem, candidate, workspace);
 }
 
+test('targeted recall packs preserve bounded source-backed discovery for observed blocked cases', () => {
+  const discoveryModule = require('../js/source-driven-intervention-discovery');
+  const cases = [
+    ['municipal','reduce violent crime', /focused deterrence|community violence intervention|violence interruption/i],
+    ['municipal','reduce wildfire smoke exposure', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['business','improve small business survival', /small business grant|working capital support|business continuity support/i],
+    ['business','reduce employee turnover', /retention program|manager training|flexible scheduling/i],
+    ['business','reduce workplace injuries', /safety training|engineering control|ergonomic assessment/i],
+    ['community','reduce heat exposure', /cooling centre|clean air shelter|home cooling/i],
+    ['community','reduce wildfire evacuation barriers', /wildfire evacuation support|evacuation assistance|safe passage/i],
+    ['research','evaluate interventions for food insecurity', /food voucher|community food hub|school meal program/i],
+    ['research','study wildfire smoke mitigation', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['enterprise','reduce procurement cycle time', /procurement process redesign|procurement workflow automation|e-procurement/i],
+    ['enterprise','improve data governance', /data governance program|master data management|data stewardship program/i]
+  ];
+  for (const [workspace, problem, expected] of cases) {
+    const queries = discoveryModule.buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.length <= 18, workspace + ': query budget exceeded for ' + problem);
+    assert.ok(queries.some(query => expected.test(query)), workspace + ': recall pack missing for ' + problem);
+  }
+  assert.equal(discoveryModule.isActionableInterventionTitle('Engineering Control', 'A workplace engineering control'), true);
+  assert.equal(discoveryModule.interventionMatchesProblem('reduce workplace injuries', { name: 'Engineering Control', discoveryText: 'workplace engineering control' }, 'business'), true);
+  assert.equal(discoveryModule.interventionMatchesProblem('improve small business survival', { name: 'Small Business Grant', discoveryText: 'grant support for small businesses' }, 'business'), true);
+  assert.equal(discoveryModule.interventionMatchesProblem('reduce procurement cycle time', { name: 'Procurement Process Redesign', discoveryText: 'procurement process redesign' }, 'enterprise'), true);
+  assert.equal(discoveryModule.interventionMatchesProblem('improve data governance', { name: 'Data Governance Program', discoveryText: 'enterprise data governance program' }, 'enterprise'), true);
+});
+
 test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
   const emergencyQueries = buildDiscoveryQueries('improve emergency response coordination', 'enterprise');
   const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
