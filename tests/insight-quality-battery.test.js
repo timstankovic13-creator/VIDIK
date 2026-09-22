@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+const { discoverSourceDrivenInterventions, taxonomyTerms, isActionableInterventionTitle, interventionMatchesProblem, expectedInterventionFamilies, discoveryCoverage, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
 const { discoverCandidateEvidence, discoverCandidateUniverseEvidence, queryFor, evidenceLeadRelevance, extractPubmedAbstracts } = require('../js/source-driven-evidence-discovery');
 
 const CASES = [
@@ -92,11 +92,8 @@ function termsFor(problem) {
   return Object.entries(DOMAIN_TERMS).filter(([, terms]) => terms.some(t => p.includes(t))).map(([d]) => d);
 }
 
-function candidateRelevant(problem, candidate) {
-  const text = String(candidate?.name || '') + ' ' + String(candidate?.discoveryText || '');
-  const p = problem.toLowerCase();
-  const wanted = termsFor(problem);
-  return wanted.length === 0 || wanted.some(domain => DOMAIN_TERMS[domain].some(term => text.toLowerCase().includes(term)));
+function candidateRelevant(problem, candidate, workspace) {
+  return interventionMatchesProblem(problem, candidate, workspace);
 }
 
 test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
@@ -108,6 +105,14 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.equal(isActionableInterventionTitle('Public Wi-Fi Access Program','Free public wireless access in community facilities'), true);
   assert.equal(isActionableInterventionTitle('Device Lending Service','Lending computers and tablets to residents'), true);
   assert.equal(isActionableInterventionTitle('The National Service Provider List (NSPL)','Directory of service providers'), false);
+  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);
+  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);
+  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);
+  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);
+  assert.equal(isActionableInterventionTitle('National assessment of harmful algal bloom preparedness and future needs','Preparedness assessment and future needs'), false);
+  assert.equal(isActionableInterventionTitle('Barriers to accessibility encountered by persons with disabilities, aged 15 years and over, Canada, 2024','Survey estimates of barriers'), false);
+  assert.equal(isActionableInterventionTitle('Excellence in Service Delivery','Service delivery performance'), false);
+  assert.equal(isActionableInterventionTitle('Artificial Intelligence (AI) use cases in the Ontario Public Service','Catalogue of use cases'), false);
   assert.equal(isActionableInterventionTitle('Next Generation Of Jobs Fund grant recipients','List of organizations receiving grants'), false);
   assert.equal(isActionableInterventionTitle('Crime Data Registry','Administrative records'), false);
   assert.equal(isActionableInterventionTitle('Customer Satisfaction Feedback Initiative – Service Questionnaire Results','Questionnaire results'), false);
@@ -119,6 +124,14 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce customer churn','business').some(query => /customer retention|loyalty|pricing intervention/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
+  assert.deepEqual(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response']);
+  assert.deepEqual(taxonomyTerms('improve data governance','enterprise'), ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls']);
+  assert.equal(isActionableInterventionTitle('Master Data Management','Enterprise master data management capability'), true);
+  assert.equal(isActionableInterventionTitle('Incident Command','Incident command and coordination capability'), true);
+  assert.equal(isActionableInterventionTitle('National data governance report','Annual findings and recommendations'), false);
+  assert.equal(interventionMatchesProblem('improve data governance', { name: 'Master Data Management', discoveryText: 'enterprise master data management capability' }, 'enterprise'), true);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Incident Command', discoveryText: 'enterprise incident command capability' }, 'enterprise'), true);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Preventive Maintenance', discoveryText: 'asset maintenance service' }, 'enterprise'), false);
   // Weak source libraries must trigger bounded, family-specific literature expansion rather than
   // a single broad query; the fanout remains governed and discovery-only.
   const discoveryModule = require('../js/source-driven-intervention-discovery');
@@ -165,7 +178,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     assert.equal(typeof discovery.interventionUniverse.coverageRatio, 'number');
 
     const candidates = discovery.candidates || [];
-    const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate));
+    const relevant = candidates.filter(candidate => candidateRelevant(problem, candidate, workspace));
+    const productionRelevant = candidates.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
     const actionable = candidates.filter(candidate => isActionableInterventionTitle(candidate.name, candidate.discoveryText));
     const expectedTerms = taxonomyTerms(problem, workspace).map(term => term.toLowerCase());
     const expectedClassHits = candidates.filter(candidate => expectedTerms.some(term => String(candidate.name + ' ' + candidate.discoveryText).toLowerCase().includes(term))).length;
@@ -210,6 +224,9 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       expectedFamilyCoverage: expectedFamilies.length ? Number((expectedFamilyHits.length / expectedFamilies.length).toFixed(2)) : 1,
       relevantCount: relevant.length,
       relevanceRatio: Number(relevanceRatio.toFixed(2)),
+      productionRelevantCount: productionRelevant.length,
+      productionRelevanceRatio: Number((candidates.length ? productionRelevant.length / candidates.length : 0).toFixed(2)),
+      candidateQualityDefects: candidates.filter(candidate => !isActionableInterventionTitle(candidate.name, candidate.discoveryText)).length,
       interventionFamilies: [...families],
       topCandidates: candidates.slice(0, 5).map(c => c.name),
       evidenceLeads,
@@ -239,6 +256,9 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     averageExpectedFamilyCoverage: Number((results.reduce((n,r) => n + r.expectedFamilyCoverage, 0) / results.length).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
     casesWithNoCandidates: counts.BLOCKED,
+    casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
+    casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
+    totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
@@ -356,4 +376,13 @@ test('Crossref supporting literature improves provider diversity without becomin
   assert.equal(leads[0].sourceFamily, 'bibliographic-metadata-index');
   assert.equal(leads[0].sourceRole, 'supporting-literature-index');
   assert.equal(leads[0].causalEffectImported, false);
+});
+
+
+test('cross-domain records do not survive relevance filtering on generic shared nouns', () => {
+  const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
+  assert.equal(interventionMatchesProblem('improve data governance', { name: 'Academy trusts: governance', discoveryText: 'governance guidance for schools' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'National assessment of harmful algal bloom preparedness', discoveryText: 'preparedness and future needs' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('reduce accessibility barriers in digital services', { name: 'A Review of the Measures to Address Prostitution Initiative', discoveryText: 'review of a public initiative' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve remote service delivery', { name: 'Legal aid service delivery by type of lawyer', discoveryText: 'legal aid delivery research' }, 'enterprise'), false);
 });
