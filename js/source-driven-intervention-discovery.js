@@ -38,7 +38,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
-  'climate-resilience':['cooling centre','clean air shelter','home cooling','cooling infrastructure','shade infrastructure','tree canopy','smoke filtration','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
+  'climate-resilience':['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling','cooling infrastructure','shade infrastructure','tree canopy','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
   employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
@@ -439,7 +439,12 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   let familyQueriesAdded=0;
   const familyQueryBudget=6;
   for(const family of families){
-    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[])){
+    const problemTokens = normalized.split(/[^a-z0-9]+/).filter(token => token.length > 2 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study'].includes(token));
+    const familyTerms = [...(INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])].sort((a,b) => {
+      const score = term => problemTokens.reduce((sum, token) => sum + (String(term).toLowerCase().includes(token) ? 1 : 0), 0);
+      return score(b) - score(a);
+    });
+    for(const term of familyTerms){
       if(familyQueriesAdded>=familyQueryBudget) break;
       const query=original+' '+term;
       if(!queries.has(query)){ queries.add(query); familyQueriesAdded++; }
