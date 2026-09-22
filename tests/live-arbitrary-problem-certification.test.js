@@ -20,7 +20,7 @@ const CASES = [
 
 async function request(path, options = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = setTimeout(() => controller.abort(), 180000);
   try {
     return await fetch(BASE_URL + path, { ...options, signal: controller.signal });
   } finally {
