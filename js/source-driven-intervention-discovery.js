@@ -572,10 +572,12 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const candidate = { name, discoveryText: searchable };
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
-      // Query terms improve retrieval recall, but they never bypass the final
-      // intervention/actionability boundary. The source record itself must still
-      // describe a concrete intervention that matches the decision problem.
-      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
+      const queryBackedRelevant = Boolean(queryMatch && domainRelevant && explicitResearchCue && queryBackedTerms.includes(term));
+      // A query-backed taxonomy term is allowed only when the literature record itself
+      // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
+      // are excluded from queryBackedTerms above, so retrieval vocabulary cannot become
+      // an invented intervention name.
+      if (!interventionMatchesProblem(problem, candidate, workspace) && !queryBackedRelevant) continue;
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
       leads.push({
