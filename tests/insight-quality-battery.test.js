@@ -159,7 +159,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
   assert.deepEqual(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination']);
-  assert.deepEqual(taxonomyTerms('improve data governance','enterprise'), ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls']);
+  assert.deepEqual(taxonomyTerms('improve data governance','enterprise'), ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls']);
   assert.equal(isActionableInterventionTitle('Master Data Management','Enterprise master data management capability'), true);
   assert.equal(isActionableInterventionTitle('Incident Command','Incident command and coordination capability'), true);
   assert.equal(isActionableInterventionTitle('National data governance report','Annual findings and recommendations'), false);
