@@ -315,3 +315,9 @@ test('semantic relevance rejects same-domain decoys that do not address the deci
     true
   );
 });
+
+test('municipal worker-displacement recall anchors reach the bounded source-query slice', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce worker displacement', 'municipal');
+  assert.ok(queries.slice(0, 8).some(query => /redeployment|worker transition|displacement support|reskilling/i.test(query)));
+});
