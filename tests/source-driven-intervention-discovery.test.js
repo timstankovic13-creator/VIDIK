@@ -1,4 +1,5 @@
 'use strict';
+// Literature recall regression is intentionally kept in the fast discovery suite.
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -22,6 +23,31 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
+test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'api.openalex.org') {
+        return mockResponse({ results: [{
+          id: 'W-wildfire-smoke',
+          display_name: 'Wildfire smoke exposure and mitigation',
+          abstract_inverted_index: {
+            'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3],
+            'smoke': [4], 'mitigation': [5], 'approaches': [6]
+          }
+        }] });
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
+  assert.ok(result.candidates.every(candidate => candidate.discovery?.leadOnly === true));
+  assert.ok(result.candidates.every(candidate => candidate.discovery?.effectsImported === false));
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('GOV.UK discovery extracts official intervention-program leads without importing effects', () => {
   const leads = extractGovUkInterventionLeads({ results: [
     { title: 'Digital Inclusion Innovation Fund', description: 'Funding for local digital inclusion interventions and projects.', link: '/government/publications/digital-inclusion-innovation-fund', format: 'guidance' }
@@ -40,6 +66,39 @@ test('GOV.UK extraction recognizes schemes and funds when the intervention is de
   ] }, GOVUK_SOURCE, 'reduce digital access gaps', 'municipal');
   assert.equal(leads.length, 2);
   assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
+});
+
+test('OpenAlex literature fallback retains a query-backed wildfire intervention without requiring a separate research cue', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W-WILDFIRE', display_name: 'Wildfire smoke exposure outcomes', abstract_inverted_index: {
+    'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3], 'smoke': [4], 'mitigation': [5], 'measures': [6]
+  } }] }, source, 'reduce wildfire smoke exposure', 'municipal', 'wildfire smoke mitigation');
+  assert.ok(leads.some(lead => lead.name === 'wildfire smoke mitigation'));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('query-backed enterprise intervention terms survive conservative literature domain classification', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'causal-evidence', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{
+      id: 'W-PROCUREMENT',
+      display_name: 'Operational purchasing outcomes',
+      abstract_inverted_index: {
+        'We': [0], 'examined': [1], 'e-procurement': [2],
+        'implementation': [3], 'across': [4], 'organizations': [5]
+      }
+    }]
+  }, source, 'reduce procurement cycle time', 'enterprise', 'reduce procurement cycle time e-procurement');
+  assert.ok(leads.some(lead => lead.name === 'e-procurement'));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('query-backed literature terms still obey enterprise problem relevance', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'causal-evidence', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{ id: 'W-UNRELATED', display_name: 'E-procurement in clinical trials' }]
+  }, source, 'reduce employee burnout', 'enterprise', 'reduce employee burnout e-procurement');
+  assert.equal(leads.length, 0);
 });
 
 test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
@@ -178,7 +237,7 @@ test('legacy intervention classes are a coverage guard, not synthetic candidates
   assert.ok(coverage.missingClasses.length > 0);
   const queries = mod.buildDiscoveryQueries('reduce violent crime', 'municipal');
   assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
-  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion/i.test(q)));
+  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion|focused deterrence/i.test(q)));
 });
 
 
@@ -279,4 +338,10 @@ test('semantic relevance rejects same-domain decoys that do not address the deci
     interventionMatchesProblem('reduce violent crime', { name: 'Community Violence Intervention Program' }, 'municipal'),
     true
   );
+});
+
+test('municipal worker-displacement recall anchors reach the bounded source-query slice', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce worker displacement', 'municipal');
+  assert.ok(queries.slice(0, 8).some(query => /redeployment|worker transition|displacement support|reskilling/i.test(query)));
 });
