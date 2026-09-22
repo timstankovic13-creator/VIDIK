@@ -1,4 +1,5 @@
 'use strict';
+// Literature recall regression is intentionally kept in the fast discovery suite.
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
