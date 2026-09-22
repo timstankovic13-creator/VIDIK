@@ -392,6 +392,20 @@ test('Crossref supporting literature improves provider diversity without becomin
 });
 
 
+test('literature fallback never turns an arbitrary query suffix into a fake intervention name', () => {
+  const { extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads } = require('../js/source-driven-intervention-discovery');
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const payload = { results: [{ id: 'W-query', display_name: 'Evaluation of a real cooling intervention' }] };
+  const leads = extractOpenAlexInterventionLeads(payload, source, 'reduce extreme heat illness', 'research', 'reduce extreme heat illness a completely arbitrary invented phrase');
+  assert.ok(leads.every(lead => !/a completely arbitrary invented phrase/i.test(lead.name)));
+  const crossref = { sourceId: 'crossref-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const crossrefLeads = extractCrossrefInterventionLeads({
+    message: { items: [{ DOI: '10.1234/heat', title: ['Cooling centre evaluation'], abstract: '<jats:p>Cooling centre implementation was evaluated.</jats:p>' }] }
+  }, crossref, 'reduce extreme heat illness', 'research', 'reduce extreme heat illness cooling centre');
+  assert.ok(crossrefLeads.some(lead => lead.name === 'cooling centre'));
+  assert.ok(crossrefLeads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
 test('cross-domain records do not survive relevance filtering on generic shared nouns', () => {
   const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
   assert.equal(interventionMatchesProblem('improve data governance', { name: 'Academy trusts: governance', discoveryText: 'governance guidance for schools' }, 'enterprise'), false);
