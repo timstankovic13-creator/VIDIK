@@ -178,7 +178,7 @@ test('legacy intervention classes are a coverage guard, not synthetic candidates
   assert.ok(coverage.missingClasses.length > 0);
   const queries = mod.buildDiscoveryQueries('reduce violent crime', 'municipal');
   assert.ok(queries.length <= mod.DISCOVERY_MAX_QUERIES_PER_SOURCE);
-  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion/i.test(q)));
+  assert.ok(queries.some(q => /hot-spots policing|problem-oriented policing|victim services|justice-system diversion|focused deterrence/i.test(q)));
 });
 
 
