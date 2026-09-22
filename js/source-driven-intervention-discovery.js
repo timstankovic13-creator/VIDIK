@@ -754,6 +754,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance'],
     ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes','intersection safety','protected intersection','crosswalk','safe crossing','pedestrian safety'],
     ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
+    ['digital access gaps','digital divide','digital exclusion','digital access barriers','broadband access','internet access','broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy'],
     ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling','cool roof','cool-roof','roof retrofit','reflective roof','building retrofit','heat retrofit'],
     ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
     ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine','addiction treatment','substance use treatment','medication treatment','treatment access'],
