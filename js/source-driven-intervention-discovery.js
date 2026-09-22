@@ -595,11 +595,17 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     const queryBackedTerms = [...new Set([
       ...queryTerms,
       ...terms.filter(term => queryLower.includes(term))
-    ])].filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term)).slice(0, 3);
-    // An abstract-only match is retained only when the paper contains a controlled,
-    // query-backed intervention term. This prevents arbitrary abstract words from
-    // becoming intervention candidates.
-    const fallbackTerms = !titleMatched.length && domainRelevant
+    ])]
+      .filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term))
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 3);
+    // A query-backed term is already constrained twice: it must belong to VIDIK's
+    // controlled intervention vocabulary and appear in the actual source query.
+    // Do not require the paper's generic domain classifier to recognize the same
+    // concept; that classifier is intentionally conservative and can miss papers
+    // whose intervention language is operational rather than domain-labeled.
+    // The normal interventionMatchesProblem gate remains authoritative below.
+    const fallbackTerms = !titleMatched.length && queryBackedTerms.length
       ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
       : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
@@ -607,7 +613,11 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const candidate = { name, discoveryText: searchable };
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
-      const queryBackedRelevant = Boolean(queryMatch && domainRelevant && queryBackedTerms.includes(term));
+      const queryBackedRelevant = Boolean(
+        queryMatch &&
+        queryBackedTerms.includes(term) &&
+        interventionMatchesProblem(problem, candidate, workspace)
+      );
       // A query-backed taxonomy term is allowed only when the literature record itself
       // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
       // are excluded from queryBackedTerms above, so retrieval vocabulary cannot become
@@ -650,8 +660,13 @@ function extractCrossrefInterventionLeads(payload, source, problem, workspace = 
     const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
     const queryLower = String(query || '').toLowerCase();
-    const queryBackedTerms = terms.filter(term => queryLower.includes(term)).slice(0, 3);
-    const selectedTerms = titleMatched.length ? titleMatched : (explicitResearchCue && domainRelevant ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3) : []);
+    const queryBackedTerms = terms
+      .filter(term => queryLower.includes(term))
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 3);
+    const selectedTerms = titleMatched.length
+      ? titleMatched
+      : (queryBackedTerms.length ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3) : []);
     for (const term of selectedTerms) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
