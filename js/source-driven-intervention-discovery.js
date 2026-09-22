@@ -639,7 +639,7 @@ function extractCrossrefInterventionLeads(payload, source, problem, workspace = 
 function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
   const normalizedProblem = normalizeText(problem);
   const expectedFamilies = expectedInterventionFamilies(problem, workspace);
-  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 4));
+  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 8));
   const taxonomy = taxonomyTerms(problem, workspace).slice(0, 8);
   return [...new Set([
     normalizedProblem,
