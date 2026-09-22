@@ -42,6 +42,15 @@ test('GOV.UK extraction recognizes schemes and funds when the intervention is de
   assert.deepEqual(leads.map(lead => lead.name), ['Gigabit Broadband Voucher Scheme', 'Digital Inclusion Action Plan']);
 });
 
+test('OpenAlex literature fallback retains a query-backed wildfire intervention without requiring a separate research cue', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W-WILDFIRE', display_name: 'Wildfire smoke exposure outcomes', abstract_inverted_index: {
+    'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3], 'smoke': [4], 'mitigation': [5], 'measures': [6]
+  } }] }, source, 'reduce wildfire smoke exposure', 'municipal', 'wildfire smoke mitigation');
+  assert.ok(leads.some(lead => lead.name === 'wildfire smoke mitigation'));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
 test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
   const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
   const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W1', display_name: 'Youth employment outcomes', abstract_inverted_index: {

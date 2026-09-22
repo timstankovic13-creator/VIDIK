@@ -577,13 +577,12 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     const lower = searchable.toLowerCase();
     const matched = terms.filter(term => lower.includes(term)).sort((x,y)=>y.length-x.length).slice(0, 3);
     const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
-    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|policy evaluation|program evaluation|service evaluation|implementation evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
     const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
     const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
     const queryLower = String(query || '').toLowerCase();
     const queryTerms = terms.filter(term => queryLower.includes(term)).slice(0, 4);
     // A bounded query-backed lead is allowed only when the literature result itself
-    // is relevant and explicitly describes an evaluated/implemented intervention.
+    // is relevant and the matched term is controlled by VIDIK's retrieval vocabulary.
     // The term must come from VIDIK's existing workspace/family vocabulary and be
     // present in the actual source query; arbitrary query text can never become a
     // candidate name.
@@ -596,9 +595,9 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       ...queryTerms,
       ...terms.filter(term => queryLower.includes(term))
     ])].filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term)).slice(0, 3);
-    // An abstract-only match is retained only when the paper actually describes an
-    // implemented/evaluated intervention. This prevents study/report titles from becoming
-    // intervention candidates merely because the abstract mentions a domain word.
+    // An abstract-only match is retained only when the paper contains a controlled,
+    // query-backed intervention term. This prevents arbitrary abstract words from
+    // becoming intervention candidates.
     const fallbackTerms = !titleMatched.length && domainRelevant
       ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
       : [];
