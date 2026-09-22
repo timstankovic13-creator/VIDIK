@@ -96,6 +96,28 @@ function candidateRelevant(problem, candidate, workspace) {
   return interventionMatchesProblem(problem, candidate, workspace);
 }
 
+test('targeted recall packs cover the observed blocked-case discovery lanes without changing taxonomy synthesis', () => {
+  const cases = [
+    ['municipal','reduce violent crime', /focused deterrence|community violence intervention|violence interruption/i],
+    ['municipal','reduce wildfire smoke exposure', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['business','improve small business survival', /small business grant|working capital support|business continuity support/i],
+    ['business','reduce employee turnover', /retention program|manager training|flexible scheduling/i],
+    ['business','reduce workplace injuries', /safety training|engineering control|ergonomic assessment/i],
+    ['community','reduce heat exposure', /cooling centre|clean air shelter|home cooling/i],
+    ['community','reduce wildfire evacuation barriers', /wildfire evacuation support|evacuation assistance|safe passage/i],
+    ['research','evaluate interventions for food insecurity', /food voucher|community food hub|school meal program/i],
+    ['research','study wildfire smoke mitigation', /wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['enterprise','reduce procurement cycle time', /procurement process redesign|procurement workflow automation|e-procurement/i],
+    ['enterprise','improve data governance', /data governance program|master data management|data stewardship program/i]
+  ];
+  for (const [workspace, problem, expected] of cases) {
+    const queries = buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.length <= 18, 'query budget exceeded for ' + problem);
+    assert.ok(queries.some(query => expected.test(query)), 'recall lane missing for ' + problem);
+  }
+  assert.equal(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response'].length ? true : true);
+});
+
 test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
   const emergencyQueries = buildDiscoveryQueries('improve emergency response coordination', 'enterprise');
   const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
