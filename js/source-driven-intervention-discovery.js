@@ -571,7 +571,8 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
   const familyTerms = expectedFamilies.flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
   // Literature is evidence about interventions, not an intervention registry. Do not let
   // generic words such as "program", "service", or "intervention" manufacture candidates.
-  const terms = [...new Set([...taxonomy, ...familyTerms])];
+  const recallTerms = discoveryRecallTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const terms = [...new Set([...taxonomy, ...familyTerms, ...recallTerms])];
   const leads = [];
   const problemDomains = inferWorkspaceDomains(problem, workspace);
   for (const row of rows.slice(0, 20)) {
@@ -649,7 +650,8 @@ function extractCrossrefInterventionLeads(payload, source, problem, workspace = 
   const rows = Array.isArray(payload?.message?.items) ? payload.message.items : [];
   const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
   const familyTerms = expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
-  const terms = [...new Set([...taxonomy, ...familyTerms])];
+  const recallTerms = discoveryRecallTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const terms = [...new Set([...taxonomy, ...familyTerms, ...recallTerms])];
   const problemDomains = inferWorkspaceDomains(problem, workspace);
   const leads = [];
   for (const row of rows.slice(0, 20)) {
