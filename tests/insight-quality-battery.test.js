@@ -115,7 +115,6 @@ test('targeted recall packs cover the observed blocked-case discovery lanes with
     assert.ok(queries.length <= 18, 'query budget exceeded for ' + problem);
     assert.ok(queries.some(query => expected.test(query)), 'recall lane missing for ' + problem);
   }
-  assert.equal(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response'].length ? true : true);
 });
 
 test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
