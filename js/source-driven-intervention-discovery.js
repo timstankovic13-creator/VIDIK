@@ -382,6 +382,7 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'community', match: /wildfire evacuation barriers|bushfire evacuation barriers|evacuation constraints|evacuation access/i, terms: ['wildfire evacuation support','evacuation support','evacuation assistance','safe passage','emergency transportation','community evacuation planning'] },
   { workspace: 'research', match: /food insecurity|hunger|food access gaps/i, terms: ['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'] },
   { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
+  { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
   { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
   { workspace: 'enterprise', match: /data governance|information governance|data stewardship|data quality/i, terms: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment'] }
 ]);
@@ -436,6 +437,12 @@ function classifyDiscoveryQuery(query, problem, workspace='municipal') {
 
 function buildDiscoveryQueries(problem,workspace='municipal'){
   const original=normalizeText(problem),normalized=original.toLowerCase(),queries=new Set([original]);
+  // Put observed blocked-case recall anchors ahead of broad synonym expansion. The source
+  // query budget is finite, so a correct recall lane must actually reach the upstream source
+  // instead of being crowded out by generic vocabulary variants. These remain retrieval
+  // anchors only; external source evidence and the normal extraction/relevance gates decide
+  // whether a candidate exists.
+  for (const term of discoveryRecallTerms(problem, workspace)) queries.add(original + ' ' + term);
   // Expand the user's problem vocabulary before family/taxonomy expansion. These are
   // bounded alternate phrasings, not evidence: they only improve retrieval recall.
   for (const variant of expandDiscoveryVocabulary(original, workspace, 8)) queries.add(variant);
@@ -449,8 +456,6 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   // finite retrieval budget rather than being appended after family/taxonomy terms
   // and silently truncated. These are search anchors only; candidates still have to
   // come from an external source and pass the normal intervention filters.
-  for (const term of discoveryRecallTerms(problem, workspace)) queries.add(original + ' ' + term);
-
   const classQueries=missingInterventionClassSearchQueries(problem,workspace,[])
     .slice(0,6);
   for(const term of classQueries) queries.add(term);
