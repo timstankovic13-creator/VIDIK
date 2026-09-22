@@ -16,6 +16,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+      # Keep the deterministic Insight Quality preflight before any network, database,
+      # browser, or full-battery work. A discovery regression should fail in seconds,
+      # not after consuming the production validation path.
+      - name: Insight Quality fast preflight
+        run: node --test tests/insight-quality-fast-gate.test.js
       - name: PR trigger architecture lock
         run: node --test tests/pr-ci-trigger-architecture.test.js
       - name: Intervention universe hardening
@@ -66,8 +71,6 @@ jobs:
         run: node --test tests/production-deployment-verifier.test.js
       - name: Product usage gamut
         run: npm run test:product-usage-gamut
-      - name: Insight Quality fast preflight
-        run: node --test tests/insight-quality-fast-gate.test.js
       - name: Insight Quality Battery (60 real-world decision problems)
         run: npm run test:insight-quality-battery
       - name: Nonmunicipal workspace integration
@@ -89,7 +92,6 @@ jobs:
           --health-retries 10
         ports:
           - 5432:5432
-    steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
