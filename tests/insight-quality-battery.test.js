@@ -96,6 +96,19 @@ function candidateRelevant(problem, candidate, workspace) {
   return interventionMatchesProblem(problem, candidate, workspace);
 }
 
+test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
+  const emergencyQueries = buildDiscoveryQueries('improve emergency response coordination', 'enterprise');
+  const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
+  const complianceQueries = buildDiscoveryQueries('reduce regulatory compliance delays', 'enterprise');
+  assert.ok(emergencyQueries.some(query => /emergency response coordination|incident command|business continuity response/i.test(query)));
+  assert.ok(dataQueries.some(query => /master data management|data governance program|privacy impact assessment/i.test(query)));
+  assert.ok(complianceQueries.some(query => /compliance automation|internal controls|workflow redesign/i.test(query)));
+  assert.equal(interventionMatchesProblem('reduce regulatory compliance delays', { name: 'Permit Modernization', discoveryText: 'permit modernization service' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve data governance', { name: 'Permit Modernization', discoveryText: 'permit compliance service' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Preventive Maintenance', discoveryText: 'asset maintenance service' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Incident Command', discoveryText: 'enterprise incident command capability' }, 'enterprise'), true);
+});
+
 test('VIDIK discovery quality contracts: records are not interventions and weak searches expose missing option classes', () => {
   assert.equal(isActionableInterventionTitle('Crime Statistics Dataset','Annual crime counts by neighbourhood'), false);
   assert.equal(isActionableInterventionTitle('Rottnest Island Temperature Observations','Hourly temperature measurements'), false);
