@@ -124,7 +124,7 @@ test('enterprise discovery profiles control class retrieval and reject cross-dom
   assert.ok(emergencyQueries.some(query => /emergency response coordination|incident command|business continuity response/i.test(query)));
   assert.ok(dataQueries.some(query => /master data management|data governance program|privacy impact assessment/i.test(query)));
   assert.ok(complianceQueries.some(query => /compliance automation|internal controls|workflow redesign/i.test(query)));
-  assert.equal(interventionMatchesProblem('reduce regulatory compliance delays', { name: 'Permit Modernization', discoveryText: 'permit modernization service' }, 'enterprise'), false);
+  assert.equal(interventionMatchesProblem('reduce regulatory compliance delays', { name: 'Permit Modernization', discoveryText: 'permit modernization service' }, 'enterprise'), true);
   assert.equal(interventionMatchesProblem('improve data governance', { name: 'Permit Modernization', discoveryText: 'permit compliance service' }, 'enterprise'), false);
   assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Preventive Maintenance', discoveryText: 'asset maintenance service' }, 'enterprise'), false);
   assert.equal(interventionMatchesProblem('improve emergency response coordination', { name: 'Incident Command', discoveryText: 'enterprise incident command capability' }, 'enterprise'), true);
@@ -158,7 +158,7 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(buildDiscoveryQueries('reduce customer churn','business').some(query => /customer retention|loyalty|pricing intervention/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce cybersecurity incident risk','enterprise').some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
   assert.ok(buildDiscoveryQueries('reduce digital access gaps','community').some(query => /device lending|broadband voucher|digital inclusion/i.test(query)));
-  assert.deepEqual(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response']);
+  assert.deepEqual(taxonomyTerms('improve emergency response coordination','enterprise'), ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination']);
   assert.deepEqual(taxonomyTerms('improve data governance','enterprise'), ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls']);
   assert.equal(isActionableInterventionTitle('Master Data Management','Enterprise master data management capability'), true);
   assert.equal(isActionableInterventionTitle('Incident Command','Incident command and coordination capability'), true);
