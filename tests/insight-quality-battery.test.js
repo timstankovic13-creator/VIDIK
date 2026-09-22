@@ -199,6 +199,42 @@ test('VIDIK discovery quality contracts: records are not interventions and weak 
   assert.ok(coverage.coverageRatio<1);
 });
 
+test('literature-like administrative titles are not promoted to intervention candidates', () => {
+  const { isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  const rejected = [
+    'Office for Zero Emission Vehicles',
+    'Prevent pollution and reduce harmful emissions at sea',
+    'Air quality: reducing nitrogen dioxide air pollution in 33 local authorities (England)',
+    '£7 million fund for local action to cut air pollution',
+    'Preventing air pollution',
+    'Success Profiles',
+    'PM: From today Britain will value the hard hat as much as the graduation cap',
+    'Education and training: Success Rates in England 2012/13',
+    'Good Work for All programme deep dive',
+    'Government of Canada announces funding to help families',
+    'Supporting vulnerable people before and during cold weather: for those providing services to rough sleepers',
+    'DBS privacy impact assessment',
+    'UK Emissions Trading Scheme for maritime: how to comply',
+    'Residential SolarHomes Program Installations in Nova Scotia',
+    'Minor use pesticide label expansion program'
+  ];
+  for (const title of rejected) {
+    assert.equal(isActionableInterventionTitle(title), false, 'administrative/document-like title leaked: ' + title);
+  }
+  const accepted = [
+    'focused deterrence',
+    'community violence intervention program',
+    'digital permitting',
+    'procurement workflow automation',
+    'broadband subsidy',
+    'preventive maintenance',
+    'manager training'
+  ];
+  for (const title of accepted) {
+    assert.equal(isActionableInterventionTitle(title), true, 'real intervention was rejected: ' + title);
+  }
+});
+
 test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = [];
   for (const [workspace, jurisdiction, problem] of CASES) {
