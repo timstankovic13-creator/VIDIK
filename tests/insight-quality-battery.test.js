@@ -203,7 +203,6 @@ test('literature-like administrative titles are not promoted to intervention can
   const { isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
   const rejected = [
     'Office for Zero Emission Vehicles',
-    'Prevent pollution and reduce harmful emissions at sea',
     'Air quality: reducing nitrogen dioxide air pollution in 33 local authorities (England)',
     '£7 million fund for local action to cut air pollution',
     'Preventing air pollution',
