@@ -77,6 +77,30 @@ test('OpenAlex literature fallback retains a query-backed wildfire intervention 
   assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
 });
 
+test('query-backed enterprise intervention terms survive conservative literature domain classification', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'causal-evidence', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{
+      id: 'W-PROCUREMENT',
+      display_name: 'Operational purchasing outcomes',
+      abstract_inverted_index: {
+        'We': [0], 'examined': [1], 'e-procurement': [2],
+        'implementation': [3], 'across': [4], 'organizations': [5]
+      }
+    }]
+  }, source, 'reduce procurement cycle time', 'enterprise', 'reduce procurement cycle time e-procurement');
+  assert.ok(leads.some(lead => lead.name === 'e-procurement'));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('query-backed literature terms still obey enterprise problem relevance', () => {
+  const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'causal-evidence', url: 'https://api.openalex.org/works?search=' };
+  const leads = extractOpenAlexInterventionLeads({
+    results: [{ id: 'W-UNRELATED', display_name: 'E-procurement in clinical trials' }]
+  }, source, 'reduce employee burnout', 'enterprise', 'reduce employee burnout e-procurement');
+  assert.equal(leads.length, 0);
+});
+
 test('OpenAlex abstract-backed literature retains intervention leads when the title omits the intervention term', () => {
   const source = { sourceId: 'openalex-works', provider: 'OpenAlex', jurisdiction: 'international', domain: 'intervention-universe', url: 'https://api.openalex.org/works?search=' };
   const leads = extractOpenAlexInterventionLeads({ results: [{ id: 'W1', display_name: 'Youth employment outcomes', abstract_inverted_index: {
