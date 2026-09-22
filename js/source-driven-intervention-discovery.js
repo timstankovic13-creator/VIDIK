@@ -129,12 +129,15 @@ function interventionClassCoverage(problem, workspace, candidates = []) {
 
 function missingInterventionClassSearchQueries(problem, workspace, candidates = []) {
   const coverage = interventionClassCoverage(problem, workspace, candidates);
-  const classes = LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal;
+  const profile = workspace === 'enterprise' ? enterpriseProblemProfile(problem) : null;
+  const classes = profile ? Object.fromEntries([['profile', profile.classes]]) : (LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal);
   const domains = inferWorkspaceDomains(problem, workspace);
   const compatibleDomains = domains.flatMap(domain => [...(CROSS_DOMAIN_COMPATIBILITY[domain] || [])]);
   const searchDomains = [...new Set([...domains, ...compatibleDomains])];
   const represented = new Set(coverage.representedClasses);
-  const queues = searchDomains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
+  const queues = profile
+    ? [classes.profile.filter(className => !represented.has(className))]
+    : searchDomains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
   const selected = [];
   // Stratify missing-class searches across relevant domains so the finite budget
   // cannot be consumed by the first domain in the ontology. This is coverage
@@ -613,6 +616,18 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemLower=problemText.toLowerCase(),candidateLower=candidateText.toLowerCase();
   const problemDomains=inferWorkspaceDomains(problemText,workspace),candidateDomains=[...new Set([...discoveryDomains(candidateText),...inferWorkspaceDomains(candidateText,workspace)])];
   const taxonomy=taxonomyTerms(problemText,workspace).map(term=>term.toLowerCase()).filter(Boolean);
+  const enterpriseProfile = workspace === 'enterprise' ? enterpriseProblemProfile(problemText) : null;
+  // Enterprise problem profiles are a hard semantic boundary: generic enterprise
+  // domains must not admit unrelated operational classes merely because they share
+  // a broad noun such as "compliance", "data", or "response".
+  if (enterpriseProfile) {
+    const profileHit = enterpriseProfile.classes.some(term => candidateLower.includes(term.toLowerCase()));
+    if (profileHit) return true;
+    const profileProblemTokens = evidenceConceptTokensForIntervention(problemLower);
+    const profileCandidateTokens = evidenceConceptTokensForIntervention(candidateLower);
+    const profileTokenHit = profileProblemTokens.some(token => profileCandidateTokens.includes(token));
+    if (!profileTokenHit) return false;
+  }
   // A candidate is relevant when it is explicitly named by the problem's workspace taxonomy,
   // shares meaningful problem concepts, or is in the same/cross-compatible intervention domain.
   // Generic words such as "program" or "service" never count as semantic evidence.
