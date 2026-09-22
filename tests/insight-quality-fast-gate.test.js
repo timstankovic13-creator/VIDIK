@@ -57,6 +57,7 @@ test('fast insight-quality preflight: all targeted blocked-case recall anchors r
   const lanes = [
     ['municipal','reduce violent crime',/focused deterrence|community violence intervention|violence interruption/i],
     ['municipal','reduce wildfire smoke exposure',/wildfire smoke mitigation|smoke filtration|clean air shelter/i],
+    ['municipal','reduce food price volatility',/food price stabilization|food price support|food market stabilization/i],
     ['business','improve small business survival',/small business grant|working capital support|business continuity support/i],
     ['business','reduce employee turnover',/retention program|manager training|flexible scheduling/i],
     ['business','reduce workplace injuries',/safety training|engineering control|ergonomic assessment/i],
