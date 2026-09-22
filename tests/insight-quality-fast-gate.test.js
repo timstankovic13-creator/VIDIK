@@ -105,7 +105,7 @@ test('fast insight-quality preflight: actionable intervention corpus survives wh
     ['study wildfire smoke mitigation','research','Smoke Filtration Intervention'],
     ['reduce cybersecurity incident risk','enterprise','Multi Factor Authentication Program'],
     ['reduce procurement cycle time','enterprise','Procurement Workflow Automation'],
-    ['improve data governance','enterprise','Data Stewardship Program'],
+    ['improve data governance','enterprise','Data Governance Program'],
     ['reduce urban flooding','municipal','Stormwater Infrastructure Project'],
   ];
   for (const [problem, workspace, candidate] of actionable) {
