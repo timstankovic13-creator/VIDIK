@@ -564,6 +564,28 @@ function openAlexAbstractText(row) {
   }
   return tokens.sort((x, y) => x[0] - y[0]).map(item => item[1]).join(' ');
 }
+function literatureProblemConceptRelevant(problem, searchable, workspace = 'municipal') {
+  const text = normalizeText(searchable).toLowerCase();
+  const verbs = new Set(['reduce','increase','improve','prevent','study','evaluate','lower','decrease','curb','cut','mitigate','close','narrow','remove','shorten','clear','strengthen']);
+  const stop = new Set(['and','the','for','of','to','in','on','from','with','a','an','intervention','program','programme','service','initiative','ways','effective','effectiveness']);
+  const variants = expandDiscoveryVocabulary(problem, workspace, 12);
+  const anchors = new Set();
+  for (const variant of variants) {
+    const normalized = normalizeText(variant).toLowerCase();
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const anchor = words.filter(word => !verbs.has(word) && !stop.has(word)).join(' ').trim();
+    if (anchor.length > 4) anchors.add(anchor);
+  }
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
+  const domainAnchors = problemDomains.flatMap(domain => {
+    const taxonomy = WORKSPACE_TAXONOMIES[workspace] || {};
+    return (taxonomy[domain] || []).map(term => normalizeText(term).toLowerCase());
+  });
+  for (const anchor of [...anchors, ...domainAnchors]) {
+    if (anchor.length > 4 && text.includes(anchor)) return true;
+  }
+  return false;
+}
 function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
   const rows = Array.isArray(payload?.results) ? payload.results : [];
   const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
@@ -621,7 +643,8 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const queryBackedRelevant = Boolean(
         queryMatch &&
         queryBackedTerms.includes(term) &&
-        domainRelevant
+        domainRelevant &&
+        literatureProblemConceptRelevant(problem, searchable, workspace)
       );
       // A query-backed taxonomy term is allowed only when the literature record itself
       // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
