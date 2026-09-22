@@ -23,14 +23,13 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
-test('literature fallback preserves the live wildfire-smoke recall path', async () => {
+test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
     jurisdiction: 'CA',
-    sources: [SOURCE],
     fetchImpl: async url => {
       const parsed = new URL(url);
-      if (parsed.hostname === 'openalex.org' || parsed.hostname === 'api.openalex.org') {
+      if (parsed.hostname === 'api.openalex.org') {
         return mockResponse({ results: [{
           id: 'W-wildfire-smoke',
           display_name: 'Wildfire smoke exposure and mitigation',
@@ -46,6 +45,7 @@ test('literature fallback preserves the live wildfire-smoke recall path', async 
   assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
   assert.ok(result.candidates.every(candidate => candidate.discovery?.leadOnly === true));
   assert.ok(result.candidates.every(candidate => candidate.discovery?.effectsImported === false));
+  assert.equal(result.recommendationEligible, false);
 });
 
 test('GOV.UK discovery extracts official intervention-program leads without importing effects', () => {
