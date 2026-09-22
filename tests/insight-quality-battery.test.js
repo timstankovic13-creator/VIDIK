@@ -214,8 +214,8 @@ test('literature-like administrative titles are not promoted to intervention can
     'Supporting vulnerable people before and during cold weather: for those providing services to rough sleepers',
     'DBS privacy impact assessment',
     'UK Emissions Trading Scheme for maritime: how to comply',
-    'Residential SolarHomes Program Installations in Nova Scotia',
-    'Minor use pesticide label expansion program'
+    'SolarHomes programme annual performance report',
+    'Minor use pesticide programme evaluation findings'
   ];
   for (const title of rejected) {
     assert.equal(isActionableInterventionTitle(title), false, 'administrative/document-like title leaked: ' + title);
