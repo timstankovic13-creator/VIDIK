@@ -288,6 +288,18 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b(?:excellence|best practice|best-practice)\s+in\s+(?:service|customer service)\s+delivery\b/i,
   /\b(?:use cases?|use-case catalogue|use-case catalog)\b/i,
   /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
+  // Search indexes frequently return announcements, guidance, notices, funding pages,
+  // and outcome/administrative pages that contain intervention language but are not
+  // themselves executable interventions. Reject these before positive action signals.
+  /^(?:office|department|government|minister|secretary|pm:)\b/i,
+  /\b(?:announces?|announced|awards?|awarded|launches?|launched|calls? for|expressions? of interest|prospectus|privacy notice|how to comply|success rates?|percentage of referrals|programme deep dive)\b/i,
+  /\b(?:fund|funding|grant)\s+(?:for|to)\s+(?:local|regional|community)\s+(?:action|projects?|organisations?|organizations?)\b/i,
+  /\b(?:funding|grant)\s+to\s+help\b/i,
+  /^supporting vulnerable people\b/i,
+  /\b(?:grant recipients?|funding recipients?|recipient list|awardees?|grantees?)\b/i,
+  /\b(?:cost effectiveness|cost-effectiveness)\s+analysis\b/i,
+  /^success profiles\b/i,
+  /\b(?:success rates?|programme deep dive|assessment findings?|evaluation findings?)\b/i,
   /\b\b(data|dataset|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
   /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
