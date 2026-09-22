@@ -584,6 +584,20 @@ function literatureProblemConceptRelevant(problem, searchable, workspace = 'muni
   for (const anchor of [...anchors, ...domainAnchors]) {
     if (anchor.length > 4 && text.includes(anchor)) return true;
   }
+  // Also accept a substantive problem concept when the source uses a different
+  // operational phrasing. Require a meaningful token from the problem itself;
+  // generic words (including economic/candidate vocabulary) cannot satisfy this gate.
+  const conceptStop = new Set([
+    ...verbs, ...stop,
+    'address','issue','issues','problem','problems','employee','employees',
+    'cycle','time','gap','gaps','outcome','outcomes','risk','risks',
+    'organization','organizations','organizational','company','companies'
+  ]);
+  const problemTokens = normalizeText(problem).toLowerCase()
+    .split(/[^a-z0-9-]+/)
+    .map(token => token.trim())
+    .filter(token => token.length > 4 && !conceptStop.has(token));
+  if (problemTokens.some(token => text.includes(token))) return true;
   return false;
 }
 function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
