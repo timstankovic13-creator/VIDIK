@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "vidik.municipal.production-decision.v1",
+  "status": "generated-by-ci",
+  "runType": "production-three-city-decision",
+  "cities": ["Ottawa", "Toronto", "Melbourne"],
+  "note": "The canonical artifact is generated from the production decision runner by the Municipal Production Gate and uploaded as a workflow artifact. This tracked file is the schema marker only."
+}

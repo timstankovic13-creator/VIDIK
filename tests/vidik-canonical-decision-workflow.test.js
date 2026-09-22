@@ -1,0 +1,11 @@
+const assert = require('node:assert/strict');
+const { STATES, runDecisionWorkflow } = require('../js/vidik-canonical-decision-workflow');
+assert.equal(STATES.length, 12);
+const blocked = runDecisionWorkflow({ decisionId:'demo-001', question:'Should we add capacity?', decisionDate:'2023-12-06', resourceUnit:'crew-hour', historical:true, evidenceDate:'2023-12-07', evidenceAdmissible:true, modelReady:true, counterfactualReady:true, recommendation:'increase' });
+assert.equal(blocked.status, 'NO_RECOMMENDATION');
+assert.equal(blocked.failedAt, 'ADMISSIBILITY');
+const good = runDecisionWorkflow({ decisionId:'demo-002', question:'Should we add capacity?', decisionDate:'2026-09-02', resourceUnit:'crew-hour', evidenceAdmissible:true, modelReady:true, counterfactualReady:true, recommendation:'increase', why:'Highest defensible marginal benefit', whyNot:['status quo'], uncertainty:'Moderate' });
+assert.equal(good.status, 'RECOMMENDATION');
+assert.equal(good.historicalImmutable, true);
+assert.equal(good.recommendation, 'increase');
+console.log('Canonical decision workflow tests passed');

@@ -1,0 +1,49 @@
+name: VIDIK Validation Pass 2-9
+
+on:
+  push:
+    branches: [main, 'prep/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validation-2-9:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts
+      - name: Outcome learning and quantitative stress
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/rc2-stress-and-learning.test.js tests/rc2-evidence-governance.test.js
+          npm run test:municipal-operational-lifecycle
+          npm run test:municipal-retrospective-shadow
+      - name: Decision-engine and production hostile gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:hostile-readiness
+          npm run test:municipal-contracts
+          npm run test:municipal-production
+      - name: Live municipal validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:municipal-live
+      - name: Full browser acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install chromium
+          npm run test:e2e -- --reporter=line

@@ -1,0 +1,36 @@
+name: VIDIK 9.6.1 Browser Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'prep/**']
+
+permissions:
+  contents: read
+
+jobs:
+  browser-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout canonical 9.6.1 source
+        uses: actions/checkout@v5
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Run VIDIK 9.6.1 browser acceptance
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidik-9.6.1-browser-acceptance-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

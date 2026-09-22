@@ -1,0 +1,25 @@
+name: VIDIK Outsider Adversarial Hardening v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  adversarial-discovery:
+    name: Discovery, jurisdiction, and failure-closed adversarial battery
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install --no-package-lock --no-audit --no-fund
+      - name: Existing source-driven discovery regression
+        run: npm run test:source-driven-discovery
+      - name: New outsider adversarial battery
+        run: node --test tests/outsider-adversarial-hardening-v2.test.js
+      - name: Core discovery and execution regression
+        run: |
+          npm run test:decision-discovery-execution
+          npm run test:source-driven-evidence
+          npm run test:acquisition-canonical-integration

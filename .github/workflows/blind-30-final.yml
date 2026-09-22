@@ -1,0 +1,18 @@
+name: Blind 30 Final Campaign
+on:
+  push:
+    branches: [ blind-30-budget-optimization-v1 ]
+  workflow_dispatch:
+jobs:
+  blind30:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: {node-version: 24}
+      - name: Blind 30 scenarios
+        run: node --test tests/blind-30-budget-optimization-scenario.test.js
+      - name: Quantitative bridge
+        run: node tests/decision-quantification-bridge.test.js
+      - name: Resource optimizer
+        run: node tests/vidik-resource-optimization.test.js

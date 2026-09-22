@@ -1,0 +1,24 @@
+name: Blind End-to-End Decision Tournament
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/blind-end-to-end-decision-tournament.test.js'
+      - 'js/decision-discovery-execution.js'
+      - 'js/decision-discovery-orchestrator.js'
+      - 'js/vidik-arbitrary-decision-governance.js'
+      - 'js/vidik-decision-artifact-closure.js'
+      - 'js/discovery-transfer-intelligence.js'
+      - 'js/vidik-next-phase.js'
+      - '.github/workflows/blind-end-to-end-decision-tournament.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node --test tests/blind-end-to-end-decision-tournament.test.js

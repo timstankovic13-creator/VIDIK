@@ -1,0 +1,25 @@
+name: Decision Quantification Bridge
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  quantitative-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Run quantitative evidence acquisition
+        run: node tests/evidence-acquisition-orchestrator.test.js
+      - name: Run evidence-to-decision bridge
+        run: node tests/decision-quantification-bridge.test.js
+      - name: Run quantitative optimizer regression
+        run: node tests/vidik-resource-optimization.test.js
+      - name: Run independent evidence verification
+        run: node tests/independent-evidence-parameter-verification.test.js
+      - name: Run evidence promotion gate
+        run: node --test tests/evidence-promotion-gate.test.js

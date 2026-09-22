@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: vidik-staging
+    runtime: node
+    region: ohio
+    plan: free
+    branch: main
+    buildCommand: npm install --omit=dev
+    startCommand: node staging/migrate.js && node staging/server.js
+    autoDeployTrigger: off
+    envVars:
+      - key: VIDIK_DATABASE_URL
+        fromDatabase:
+          name: vidik-staging-db
+          property: connectionString

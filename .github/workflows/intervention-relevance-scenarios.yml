@@ -1,0 +1,17 @@
+name: Intervention Relevance Scenarios
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/source-driven-intervention-discovery.js'
+      - 'tests/intervention-relevance-scenarios.test.js'
+      - '.github/workflows/intervention-relevance-scenarios.yml'
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node --test tests/intervention-relevance-scenarios.test.js

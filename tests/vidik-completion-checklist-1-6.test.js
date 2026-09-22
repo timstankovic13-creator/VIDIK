@@ -1,0 +1,1 @@
+const assert=require('node:assert/strict'); const fs=require('node:fs'); const p=fs.readFileSync(require.resolve('../data/VIDIK_COMPLETION_CHECKLIST_1_6.md'),'utf8'); for(let i=1;i<=6;i++) assert.ok(p.includes(`[x] ${i}.`)); assert.ok(p.includes('no CI was triggered')); console.log('Work items 1-6 completion checklist passed');

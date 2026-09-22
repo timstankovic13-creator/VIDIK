@@ -1,0 +1,32 @@
+name: VIDIK Deeper Usage Battery
+
+on:
+  push:
+    branches: [hardening/vidik-deeper-usage]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  deeper-usage-battery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Deeper usage and integrity battery
+        run: node --test tests/decision-discovery-deeper-usage.test.js
+      - name: Existing discovery and artifact regressions
+        run: |
+          npm run test:decision-discovery-orchestration
+          npm run test:decision-discovery-execution
+          npm run test:decision-discovery-internal-battery
+          npm run test:source-acquisition-runner
+          npm run test:evidence-acquisition-orchestrator
+          npm run test:independent-evidence-verification

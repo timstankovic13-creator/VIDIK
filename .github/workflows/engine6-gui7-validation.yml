@@ -1,0 +1,49 @@
+name: VIDIK Engine 1-6 Validation
+
+# Engine certification only. GUI/browser work is intentionally parked until the engine is fully caught up.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/production-decision-pipeline.js'
+      - 'js/source-driven-intervention-discovery.js'
+      - 'js/source-driven-evidence-discovery.js'
+      - 'js/decision-discovery-execution.js'
+      - 'js/evidence-promotion-gate.js'
+      - 'js/decision-discovery-orchestrator.js'
+      - 'js/decision-artifact-store.js'
+      - 'js/config.js'
+      - 'tests/production-decision-pipeline.test.js'
+      - 'tests/decision-discovery-execution.test.js'
+      - 'tests/source-driven-intervention-discovery.test.js'
+      - 'tests/source-driven-evidence-discovery.test.js'
+      - 'tests/intervention-relevance-scenarios.test.js'
+      - 'tests/intervention-relevance-novel-problems.test.js'
+      - '.github/workflows/engine6-gui7-validation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: vidik-engine-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Production decision pipeline
+        run: node --test tests/production-decision-pipeline.test.js
+      - name: Discovery execution
+        run: node --test tests/decision-discovery-execution.test.js
+      - name: Source-driven intervention discovery
+        run: node --test tests/source-driven-intervention-discovery.test.js
+      - name: Source-driven evidence discovery
+        run: node --test tests/source-driven-evidence-discovery.test.js
+      - name: Established intervention relevance
+        run: node --test tests/intervention-relevance-scenarios.test.js
+      - name: Novel-problem intervention relevance
+        run: node --test tests/intervention-relevance-novel-problems.test.js
+      - name: Evidence promotion gate
+        run: node --test tests/evidence-promotion-gate.test.js

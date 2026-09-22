@@ -1,0 +1,25 @@
+{
+  "canonical_version": "9.1.3",
+  "status": "hardened release candidate",
+  "base": "VIDIK 9.1.2",
+  "artifact": "VIDIK__HTML_REFERENCE_V9_1_3_CANONICAL.html",
+  "sha256": "ccc53cbcd728e52dd3b836f490e46a325af95e74852cf1308455caa810dd5553",
+  "validation": {
+    "javascript_syntax": "PASS",
+    "hostile_tests": {"passed": 20, "total": 20},
+    "browser_e2e": "BLOCKED_BY_ENVIRONMENT",
+    "browser_environment": "Chromium installed but headless execution hangs even on about:blank before producing DOM output",
+    "census_expected_records": 12138,
+    "city_checks": ["Ottawa", "Toronto", "Melbourne"],
+    "independent_evidence_review": "OPEN",
+    "formal_pentest": "OPEN",
+    "production_infrastructure": "OPEN"
+  },
+  "hardening": [
+    "corrected optimizer admissible-subset test",
+    "explicit intermediate-outcome ASE scope test",
+    "pool-conservation test exercises uncapped conservation path",
+    "preserved fail-closed optimizer behavior",
+    "preserved evidence, causal, XSS, dependency, EVSI and learning guards"
+  ]
+}

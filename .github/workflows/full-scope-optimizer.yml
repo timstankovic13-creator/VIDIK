@@ -1,0 +1,17 @@
+name: full-scope-optimizer
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/full-scope/optimizer.js'
+      - 'tests/full-scope-optimizer.test.js'
+      - '.github/workflows/full-scope-optimizer.yml'
+jobs:
+  optimizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tests/full-scope-optimizer.test.js

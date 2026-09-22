@@ -1,0 +1,26 @@
+name: VIDIK Intelligence Validation A-E
+
+on:
+  push:
+    branches: [main, intelligence-validation-a-e-v1]
+
+jobs:
+  a-e-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: A-E intelligence validation
+        run: node tests/intelligence-validation-a-e.test.js
+      - name: Existing discovery gauntlet
+        run: node tests/intelligence-discovery-gauntlet.test.js
+      - name: Existing machinery gauntlets
+        run: |
+          node tests/machinery-gauntlet.test.js
+          node tests/machinery-deep-adversarial.test.js
+          node tests/machinery-pipeline-integrity.test.js
+          node tests/machinery-learning-ledger.test.js
+      - name: Blind end-to-end municipal decision tournament
+        run: node --test tests/blind-end-to-end-decision-tournament.test.js

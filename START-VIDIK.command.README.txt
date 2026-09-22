@@ -1,0 +1,8 @@
+VIDIK — START HERE
+
+1. Keep this folder intact.
+2. On Mac/Linux, run START-VIDIK.command.
+3. The launcher starts a tiny local web server and opens VIDIK in your browser.
+4. Do not open index.html directly; VIDIK needs the local server so its data files can load correctly.
+
+For Windows, use the included START-VIDIK.bat launcher when present in the packaged download.

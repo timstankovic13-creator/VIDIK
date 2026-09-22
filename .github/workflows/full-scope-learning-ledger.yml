@@ -1,0 +1,19 @@
+name: full-scope-learning-ledger
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/full-scope/learning-ledger.js'
+      - 'src/full-scope/learning-engine.js'
+      - 'src/full-scope/decision-engine.js'
+      - 'tests/full-scope-learning-ledger.test.js'
+      - '.github/workflows/full-scope-learning-ledger.yml'
+jobs:
+  ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node tests/full-scope-learning-ledger.test.js

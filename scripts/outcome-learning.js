@@ -1,0 +1,199 @@
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+
+const CHECKPOINTS = Object.freeze({ '6-month': 6, '1-year': 12, '2-year': 24, '5-year': 60 });
+const LOCK_STALE_MS = 60_000;
+const LEARNING_SCHEMA = 'VIDIK.OutcomeLearning.v2';
+
+function fail(code, detail) {
+  const error = new Error(detail ? `${code}: ${detail}` : code);
+  error.code = code;
+  throw error;
+}
+function finiteNumber(value, field) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) fail(`invalid-${field}`);
+  return value;
+}
+function iso(value, field) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) fail(`invalid-${field}`);
+  return date.toISOString();
+}
+function validateCheckpoint(checkpoint) {
+  if (!Object.hasOwn(CHECKPOINTS, checkpoint)) fail('invalid-checkpoint');
+  return checkpoint;
+}
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+function sha256(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
+function integrityPayload(state) {
+  const copy = JSON.parse(JSON.stringify(state));
+  delete copy.integrity;
+  return copy;
+}
+function sealState(state, previousHash = '') {
+  const contentHash = sha256(integrityPayload(state));
+  state.integrity = { schema: LEARNING_SCHEMA, algorithm: 'SHA-256', previousHash, contentHash };
+  return state;
+}
+function verifyState(state) {
+  if (!state || state.version !== 2 || state.schema !== LEARNING_SCHEMA || !Array.isArray(state.outcomes) || !Array.isArray(state.recalibrations) || !Array.isArray(state.audit)) fail('invalid-learning-store');
+  if (!state.integrity || state.integrity.algorithm !== 'SHA-256' || typeof state.integrity.contentHash !== 'string') fail('missing-learning-integrity');
+  const actual = sha256(integrityPayload(state));
+  if (actual !== state.integrity.contentHash) fail('learning-store-integrity-mismatch');
+  return state;
+}
+function emptyState() {
+  return sealState({ schema: LEARNING_SCHEMA, version: 2, outcomes: [], recalibrations: [], audit: [] });
+}
+function readState(filePath) {
+  if (!fs.existsSync(filePath)) return emptyState();
+  let parsed;
+  try { parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+  catch (error) { fail('corrupt-learning-store', error.message); }
+  return verifyState(parsed);
+}
+function writeState(filePath, state, previousHash) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temp = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  sealState(state, previousHash);
+  try {
+    fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(temp, filePath);
+  } finally {
+    try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
+  }
+}
+function acquireLock(lockFile, attempts = 400) {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx');
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }));
+      return fd;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      try {
+        const age = Date.now() - fs.statSync(lockFile).mtimeMs;
+        if (age > LOCK_STALE_MS) { fs.unlinkSync(lockFile); continue; }
+      } catch (statError) {
+        if (statError.code === 'ENOENT') continue;
+        throw statError;
+      }
+      const waitMs = Math.min(25, 2 + Math.floor(i / 10));
+      const until = Date.now() + waitMs;
+      while (Date.now() < until) {}
+    }
+  }
+  fail('learning-store-lock-timeout');
+}
+function transactionWithLock(filePath, mutator) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const lockFile = `${filePath}.lock`;
+  const lockFd = acquireLock(lockFile);
+  try {
+    const state = readState(filePath);
+    const previousHash = state.integrity?.contentHash || '';
+    const result = mutator(state);
+    writeState(filePath, state, previousHash);
+    return result;
+  } finally {
+    try { fs.closeSync(lockFd); } catch {}
+    try { fs.unlinkSync(lockFile); } catch {}
+  }
+}
+function addAudit(state, type, payload, at) { state.audit.push({ id: crypto.randomUUID(), type, at, ...payload }); }
+function driftForOutcome(outcome, threshold) {
+  const scale = Math.max(Math.abs(outcome.predicted), 1);
+  const relativeError = Math.abs(outcome.error) / scale;
+  return { flagged: Math.abs(outcome.error) >= threshold.absolute || relativeError >= threshold.relative, absoluteError: Math.abs(outcome.error), relativeError, thresholds: { ...threshold } };
+}
+
+function createOutcomeLearningStore(options = {}) {
+  const filePath = options.filePath || path.join(process.cwd(), 'data', 'outcome-learning.json');
+  const threshold = { absolute: options.driftThreshold?.absolute ?? 10, relative: options.driftThreshold?.relative ?? 0.10 };
+  finiteNumber(threshold.absolute, 'drift-threshold-absolute');
+  finiteNumber(threshold.relative, 'drift-threshold-relative');
+  if (threshold.absolute < 0 || threshold.relative < 0) fail('invalid-drift-threshold');
+  const minimumRecalibrationObservations = 2;
+
+  return {
+    filePath,
+    snapshot() { return readState(filePath); },
+    verifyIntegrity() { const state = readState(filePath); return { ok: true, contentHash: state.integrity.contentHash, previousHash: state.integrity.previousHash }; },
+
+    recordOutcome(input = {}) {
+      if (!input.decisionId || typeof input.decisionId !== 'string') fail('invalid-decision-id');
+      if (!input.parameterName || typeof input.parameterName !== 'string') fail('invalid-parameter-name');
+      if (input.city !== undefined && typeof input.city !== 'string') fail('invalid-city');
+      const predicted = finiteNumber(input.predicted, 'predicted');
+      const observed = finiteNumber(input.observed, 'observed');
+      const checkpoint = validateCheckpoint(input.checkpoint);
+      const decisionAt = iso(input.decisionAt, 'decision-at');
+      const outcomeAt = iso(input.outcomeAt || new Date().toISOString(), 'outcome-at');
+      if (new Date(outcomeAt) < new Date(decisionAt)) fail('outcome-before-decision');
+      const outcome = { id: input.id || crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, city: input.city || null, predicted, observed, error: observed - predicted, checkpoint, checkpointMonths: CHECKPOINTS[checkpoint], decisionAt, outcomeAt };
+      outcome.drift = driftForOutcome(outcome, threshold);
+      return transactionWithLock(filePath, state => {
+        if (state.outcomes.some(item => item.id === outcome.id)) fail('duplicate-outcome-id');
+        if (state.outcomes.some(item => item.decisionId === outcome.decisionId && item.parameterName === outcome.parameterName && item.checkpoint === outcome.checkpoint)) fail('duplicate-outcome-checkpoint');
+        state.outcomes.push(outcome);
+        addAudit(state, 'OUTCOME_RECORDED', { outcomeId: outcome.id, decisionId: outcome.decisionId, checkpoint }, outcomeAt);
+        if (outcome.drift.flagged) addAudit(state, 'DRIFT_SIGNAL', { outcomeId: outcome.id, decisionId: outcome.decisionId, parameterName: outcome.parameterName, drift: outcome.drift }, outcomeAt);
+        return outcome;
+      });
+    },
+
+    lifecycle(decisionId, now = new Date()) {
+      if (!decisionId || typeof decisionId !== 'string') fail('invalid-decision-id');
+      const nowIso = iso(now, 'now');
+      const state = readState(filePath);
+      const outcomes = state.outcomes.filter(item => item.decisionId === decisionId);
+      const latest = new Map(outcomes.map(item => [item.checkpoint, item]));
+      return Object.entries(CHECKPOINTS).map(([checkpoint, months]) => {
+        const outcome = latest.get(checkpoint) || null;
+        let due = false;
+        if (outcomes.length) {
+          const dueAt = new Date(outcomes[0].decisionAt);
+          dueAt.setUTCMonth(dueAt.getUTCMonth() + months);
+          due = new Date(nowIso) >= dueAt;
+        }
+        return { checkpoint, months, due, recorded: Boolean(outcome), outcome };
+      });
+    },
+
+    recalibrationSignal(input = {}) {
+      if (!input.decisionId || typeof input.decisionId !== 'string') fail('invalid-decision-id');
+      if (!input.parameterName || typeof input.parameterName !== 'string') fail('invalid-parameter-name');
+      const currentValue = finiteNumber(input.currentValue, 'current-value');
+      const learningRate = input.learningRate === undefined ? 0.5 : finiteNumber(input.learningRate, 'learning-rate');
+      if (learningRate < 0 || learningRate > 1) fail('invalid-learning-rate');
+      return transactionWithLock(filePath, state => {
+        const outcomes = state.outcomes.filter(item => item.decisionId === input.decisionId && item.parameterName === input.parameterName);
+        if (outcomes.length < minimumRecalibrationObservations) fail('insufficient-observations-for-recalibration');
+        const meanError = outcomes.reduce((sum, item) => sum + item.error, 0) / outcomes.length;
+        const signal = { id: crypto.randomUUID(), decisionId: input.decisionId, parameterName: input.parameterName, currentValue, observations: outcomes.length, meanError, suggestedDelta: meanError * learningRate, suggestedValue: currentValue + meanError * learningRate, learningRate, automaticApply: false, generatedAt: new Date().toISOString() };
+        state.recalibrations.push(signal);
+        addAudit(state, 'RECALIBRATION_SIGNAL', { signalId: signal.id, decisionId: signal.decisionId, parameterName: signal.parameterName, observations: signal.observations, automaticApply: false }, signal.generatedAt);
+        return signal;
+      });
+    },
+
+    driftReport(decisionId) {
+      if (!decisionId || typeof decisionId !== 'string') fail('invalid-decision-id');
+      const state = readState(filePath);
+      const outcomes = state.outcomes.filter(item => item.decisionId === decisionId);
+      const absoluteErrors = outcomes.map(item => Math.abs(item.error));
+      const meanAbsoluteError = absoluteErrors.length ? absoluteErrors.reduce((a, b) => a + b, 0) / absoluteErrors.length : 0;
+      const flagged = outcomes.filter(item => item.drift.flagged);
+      return { decisionId, observations: outcomes.length, meanAbsoluteError, flaggedCount: flagged.length, flaggedOutcomeIds: flagged.map(item => item.id), driftThreshold: { ...threshold } };
+    },
+  };
+}
+
+module.exports = { CHECKPOINTS, LOCK_STALE_MS, LEARNING_SCHEMA, createOutcomeLearningStore };

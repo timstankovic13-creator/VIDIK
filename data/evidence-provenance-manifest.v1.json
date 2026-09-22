@@ -1,0 +1,18 @@
+{
+  "manifest_id": "vidik-evidence-provenance-v1",
+  "version": "1.0.0",
+  "rules": {
+    "required_fields": ["id", "sourceType", "url", "retrievedAt", "status", "transportability", "claims"],
+    "url_policy": "https-only",
+    "status_policy": "verified-required",
+    "freshness_days": 730,
+    "minimum_transportability": 0.5,
+    "claims_required": true
+  },
+  "parameter_lineage": {
+    "required_fields": ["value", "unit", "derivation", "uncertainty", "evidenceIds"],
+    "evidence_gate_required": true,
+    "causal_effect_required": true
+  },
+  "decision_rule": "No recommendation-driving evidence or parameter may bypass its declared validation and provenance gates."
+}

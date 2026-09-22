@@ -1,0 +1,30 @@
+{
+  "schema": "vidik.retrospective.shadow.case-seed.v1",
+  "status": "demonstration-seed-not-live-pilot",
+  "cases": [
+    {
+      "id": "ottawa-housing",
+      "jurisdiction": "Ottawa, Ontario, Canada",
+      "intervention_family": "Housing First / supportive housing",
+      "source_family": "City of Ottawa housing and homelessness reporting",
+      "temporal_rule": "only evidence available on or before decision_date",
+      "outcome_status": "historical observational; not VIDIK-attributed"
+    },
+    {
+      "id": "toronto-housing",
+      "jurisdiction": "Toronto, Ontario, Canada",
+      "intervention_family": "shelter diversion / permanent and supportive housing",
+      "source_family": "City of Toronto Toronto Shelter and Support Services reporting",
+      "temporal_rule": "only evidence available on or before decision_date",
+      "outcome_status": "historical observational; not VIDIK-attributed"
+    },
+    {
+      "id": "melbourne-homelessness",
+      "jurisdiction": "Melbourne, Victoria, Australia",
+      "intervention_family": "homelessness response / supportive housing",
+      "source_family": "City of Melbourne homelessness and Make Room reporting",
+      "temporal_rule": "only evidence available on or before decision_date",
+      "outcome_status": "historical observational; not VIDIK-attributed"
+    }
+  ]
+}
