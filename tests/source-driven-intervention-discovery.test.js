@@ -23,6 +23,31 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
+test('literature fallback preserves the live wildfire-smoke recall path', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'openalex.org' || parsed.hostname === 'api.openalex.org') {
+        return mockResponse({ results: [{
+          id: 'W-wildfire-smoke',
+          display_name: 'Wildfire smoke exposure and mitigation',
+          abstract_inverted_index: {
+            'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3],
+            'smoke': [4], 'mitigation': [5], 'approaches': [6]
+          }
+        }] });
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
+  assert.ok(result.candidates.every(candidate => candidate.discovery?.leadOnly === true));
+  assert.ok(result.candidates.every(candidate => candidate.discovery?.effectsImported === false));
+});
+
 test('GOV.UK discovery extracts official intervention-program leads without importing effects', () => {
   const leads = extractGovUkInterventionLeads({ results: [
     { title: 'Digital Inclusion Innovation Fund', description: 'Funding for local digital inclusion interventions and projects.', link: '/government/publications/digital-inclusion-innovation-fund', format: 'guidance' }
