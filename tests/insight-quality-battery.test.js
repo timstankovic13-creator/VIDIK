@@ -317,6 +317,14 @@ test('literature query-backed intervention leads retain auditable source provena
     'reduce digital access gaps broadband subsidy'
   );
   assert.equal(unrelated.length, 0, 'unrelated literature must not manufacture an intervention lead');
+  const candidateOnly = extractOpenAlexInterventionLeads(
+    { results: [{ id: 'https://openalex.org/W4', display_name: 'Broadband subsidy cost effectiveness analysis' }] },
+    source,
+    'reduce digital access gaps',
+    'research',
+    'reduce digital access gaps broadband subsidy'
+  );
+  assert.equal(candidateOnly.length, 0, 'candidate term plus generic economic relevance must not satisfy problem relevance');
   const municipalLiterature = extractOpenAlexInterventionLeads({ results: [{ id: 'https://openalex.org/W3', display_name: 'Digital divide policy evaluation' }] }, source, 'reduce digital access gaps', 'municipal', 'reduce digital access gaps broadband subsidy');
   assert.equal(municipalLiterature[0]?.name, 'broadband subsidy');
   assert.notEqual(municipalLiterature[0]?.name, 'Digital divide policy evaluation', 'paper titles must never become intervention candidate names');
