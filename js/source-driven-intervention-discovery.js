@@ -698,10 +698,10 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
   const taxonomy = taxonomyTerms(problem, workspace).slice(0, 8);
   return [...new Set([
     normalizedProblem,
-    ...recallTerms.map(term => `"${normalizedProblem}" "${term}"`),
-    `"${normalizedProblem}" intervention`,
-    ...familyTerms.map(term => `"${normalizedProblem}" "${term}"`),
-    ...taxonomy.map(term => `"${normalizedProblem}" "${term}"`)
+    ...recallTerms.map(term => `${normalizedProblem} ${term}`),
+    `${normalizedProblem} intervention`,
+    ...familyTerms.map(term => `${normalizedProblem} ${term}`),
+    ...taxonomy.map(term => `${normalizedProblem} ${term}`)
   ].filter(Boolean))].slice(0, 12);
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
