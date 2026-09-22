@@ -44,7 +44,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
   infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
   'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
-  regulatory:['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform','licensing reform','compliance automation','internal controls'],
+  regulatory:['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform','licensing reform','compliance automation','internal controls','compliance workflow automation','regulatory workflow redesign','regulatory case management'],
   accessibility:['accessible design','assistive technology','accommodation program','inclusive customer service','inclusive service design'],
   cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'],
   'public-service':['library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
@@ -241,10 +241,10 @@ function enterpriseProblemProfile(problem) {
     { match: /procurement.*cycle|cycle.*procurement|procurement cycle time/, classes: ['process automation','workflow redesign','supplier diversification','capacity planning'] },
     { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
     { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
-    { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation'] },
-    { match: /data governance/, classes: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'] },
-    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response'] },
-    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response'] },
+    { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','permit modernization','inspection reform'] },
+    { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls'] },
+    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response','maintenance management system','condition-based maintenance','predictive maintenance','asset renewal'] },
+    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination'] },
     { match: /accessibility barriers.*digital services|digital services.*accessibility barriers/, classes: ['accessible design','assistive technology','service accommodation','inclusive service design'] },
     { match: /digital access gaps/, classes: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'] }
   ];
