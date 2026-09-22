@@ -607,7 +607,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const candidate = { name, discoveryText: searchable };
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
-      const queryBackedRelevant = Boolean(queryMatch && domainRelevant && queryBackedTerms.includes(term));
+      const queryBackedRelevant = Boolean(queryMatch && explicitResearchCue && queryBackedTerms.includes(term));
       // A query-backed taxonomy term is allowed only when the literature record itself
       // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
       // are excluded from queryBackedTerms above, so retrieval vocabulary cannot become
