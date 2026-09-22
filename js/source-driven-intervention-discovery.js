@@ -442,7 +442,14 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   // instead of being crowded out by generic vocabulary variants. These remain retrieval
   // anchors only; external source evidence and the normal extraction/relevance gates decide
   // whether a candidate exists.
-  for (const term of discoveryRecallTerms(problem, workspace)) queries.add(original + ' ' + term);
+  for (const term of discoveryRecallTerms(problem, workspace)) {
+    // CKAN/GOV.UK full-text endpoints can require all query tokens to co-occur. A
+    // recall anchor therefore needs its own source query; the normal candidate
+    // relevance gate still prevents an anchor from becoming an intervention by
+    // itself. Keep the problem+term form as a secondary contextual query.
+    queries.add(term);
+    queries.add(original + ' ' + term);
+  }
   // Expand the user's problem vocabulary before family/taxonomy expansion. These are
   // bounded alternate phrasings, not evidence: they only improve retrieval recall.
   for (const variant of expandDiscoveryVocabulary(original, workspace, 8)) queries.add(variant);
