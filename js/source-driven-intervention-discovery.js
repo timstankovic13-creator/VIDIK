@@ -238,7 +238,11 @@ function enterpriseProblemProfile(problem) {
   const p = normalizeText(problem).toLowerCase();
   const profiles = [
     { match: /cybersecurity|security incident/, classes: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
-    { match: /procurement.*cycle|cycle.*procurement|procurement cycle time/, classes: ['process automation','workflow redesign','supplier diversification','capacity planning'] },
+    { match: /procurement.*cycle|cycle.*procurement|procurement cycle time/, classes: [
+      'procurement process redesign','procurement workflow automation','e-procurement',
+      'digital procurement','procurement modernization','purchase order automation',
+      'process automation','workflow redesign','supplier diversification','capacity planning'
+    ] },
     { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
     { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
     { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation'] },
