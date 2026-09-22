@@ -21,6 +21,8 @@ jobs:
       # not after consuming the production validation path.
       - name: Insight Quality fast preflight
         run: node --test tests/insight-quality-fast-gate.test.js
+      - name: Insight Quality Battery (60 real-world decision problems)
+        run: npm run test:insight-quality-battery
       - name: PR trigger architecture lock
         run: node --test tests/pr-ci-trigger-architecture.test.js
       - name: Intervention universe hardening
@@ -71,8 +73,6 @@ jobs:
         run: node --test tests/production-deployment-verifier.test.js
       - name: Product usage gamut
         run: npm run test:product-usage-gamut
-      - name: Insight Quality Battery (60 real-world decision problems)
-        run: npm run test:insight-quality-battery
       - name: Nonmunicipal workspace integration
         run: npm run test:nonmunicipal-workspace
 
