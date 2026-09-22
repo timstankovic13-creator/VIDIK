@@ -879,7 +879,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         }
         if (deduplicateInterventionLeads(rawCandidates).length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
       }
-      if (deduplicateInterventionLeads(rawCandidates).length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
       const literatureCandidates = deduplicateInterventionLeads(rawCandidates).filter(candidate => ['openalex-works','crossref-works'].includes(candidate.discovery?.source));
       const literatureCoverage = discoveryCoverage(problem, workspace, literatureCandidates);
       sourceSearches.push({sourceId:literatureSource.sourceId,sourceType:'intervention-literature',jurisdiction:literatureSource.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:literatureCandidates.length?(literatureCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:literatureCoverage.expectedFamilies,observedFamilies:literatureCoverage.observedFamilies,missingFamilies:literatureCoverage.missingFamilies,failureReason:literatureCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
