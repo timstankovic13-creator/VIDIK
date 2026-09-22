@@ -243,8 +243,8 @@ function enterpriseProblemProfile(problem) {
     { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
     { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','permit modernization','inspection reform'] },
     { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls'] },
-    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response','maintenance management system','condition-based maintenance','predictive maintenance','asset renewal'] },
-    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination'] },
+    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','condition-based maintenance','predictive maintenance','asset renewal','asset management','capacity expansion','redundancy','incident response','maintenance management system'] },
+    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response'] },
     { match: /accessibility barriers.*digital services|digital services.*accessibility barriers/, classes: ['accessible design','assistive technology','service accommodation','inclusive service design'] },
     { match: /digital access gaps/, classes: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'] }
   ];
