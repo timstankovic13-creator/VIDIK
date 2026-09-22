@@ -640,17 +640,23 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
       const candidate = { name, discoveryText: searchable };
       const titleMatch = title.toLowerCase().includes(term);
       const queryMatch = String(query || '').toLowerCase().includes(term);
+      const queryBackedTerm = queryMatch && queryBackedTerms.includes(term);
       const queryBackedRelevant = Boolean(
-        queryMatch &&
-        queryBackedTerms.includes(term) &&
+        queryBackedTerm &&
         domainRelevant &&
         literatureProblemConceptRelevant(problem, searchable, workspace)
       );
-      // A query-backed taxonomy term is allowed only when the literature record itself
-      // is relevant and explicitly evaluative/implementational. Arbitrary query suffixes
-      // are excluded from queryBackedTerms above, so retrieval vocabulary cannot become
-      // an invented intervention name.
-      if (!interventionMatchesProblem(problem, candidate, workspace) && !queryBackedRelevant) continue;
+      // Query-backed literature candidates require independent problem-concept evidence
+      // from the source itself. This gate is deliberately evaluated even when the
+      // candidate term is already in VIDIK's taxonomy: otherwise interventionMatchesProblem()
+      // can make the candidate appear relevant merely because the candidate name is itself
+      // a known intervention for the problem. Title/abstract relevance must come first;
+      // candidate vocabulary cannot be its own evidence.
+      if (queryBackedTerm) {
+        if (!queryBackedRelevant) continue;
+      } else if (!interventionMatchesProblem(problem, candidate, workspace)) {
+        continue;
+      }
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) continue;
       leads.push({
