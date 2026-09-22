@@ -13,6 +13,18 @@ const WORKSPACE_DEFINITIONS = Object.freeze({
     ],
     output: ['Opportunity / options','Demand and market evidence','Resource and cost constraints','Risk and uncertainty','Decision and next actions']
   },
+  municipal: {
+    label: 'Municipal',
+    purpose: 'Municipal outcomes, public-service interventions, local resource allocation and accountable implementation decisions.',
+    fields: [
+      ['population','Population / affected group','Who is affected and where?'],
+      ['outcome','Target outcome','What measurable local condition should change?'],
+      ['resources','Available public resources','Budget, staffing, capacity or other resources at stake'],
+      ['jurisdiction','Municipal jurisdiction','City, municipality, region or service area'],
+      ['constraints','Implementation constraints','Legal, operational, equity, procurement or delivery constraints']
+    ],
+    output: ['Problem and affected population','Intervention universe','Local and transferable evidence','Resource, equity and implementation constraints','Decision, accountability and review record']
+  },
   community: {
     label: 'Public / Community',
     purpose: 'Community needs, service gaps, program choices and resource allocation.',
