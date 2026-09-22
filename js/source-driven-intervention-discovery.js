@@ -599,7 +599,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // An abstract-only match is retained only when the paper actually describes an
     // implemented/evaluated intervention. This prevents study/report titles from becoming
     // intervention candidates merely because the abstract mentions a domain word.
-    const fallbackTerms = !titleMatched.length && domainRelevant && explicitResearchCue
+    const fallbackTerms = !titleMatched.length && domainRelevant
       ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
       : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
