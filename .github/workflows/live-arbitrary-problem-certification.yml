@@ -1,0 +1,37 @@
+name: VIDIK Live Arbitrary-Problem Certification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vidik-live-arbitrary-problem-certification
+  cancel-in-progress: true
+
+jobs:
+  live-certification:
+    name: Live Render arbitrary-problem certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VIDIK_BASE_URL: https://vidik-staging.onrender.com
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Wait for deployed service readiness
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent --show-error "$VIDIK_BASE_URL/ready" >/tmp/vidik-ready.json; then
+              cat /tmp/vidik-ready.json
+              exit 0
+            fi
+            echo "VIDIK not ready yet (attempt $i/30)"
+            sleep 10
+          done
+          echo "VIDIK did not become ready"
+          exit 1
+      - name: Live arbitrary-problem certification
+        run: node --test tests/live-arbitrary-problem-certification.test.js
