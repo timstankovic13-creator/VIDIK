@@ -444,21 +444,19 @@ function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants
   return [...variants].slice(0, maxVariants);
 }
 
-function expectedInterventionFamilies(problem, workspace='municipal') {
-  const p = normalizeText(problem).toLowerCase();
-  if (/violent crime|serious violence|community violence/.test(p)) return [
-    'community-violence-intervention','focused-deterrence','hot-spots-policing','problem-oriented-policing',
-    'street-lighting','vacant-property-remediation','youth-employment','cognitive-behavioral',
-    'hospital-based-violence-intervention','reentry-support','substance-use-treatment','credible-messenger',
-    'built-environment','firearm-risk-reduction'
-  ];
-  if (/homelessness|housing insecurity/.test(p)) return ['housing-first','rapid-rehousing','supportive-housing','rental-assistance','eviction-prevention','shelter-diversion'];
-  if (/emergency[- ]department|patient[- ]flow|overcrowding/.test(p)) return ['care-navigation','community-paramedicine','primary-care-access','urgent-care','triage','hospital-discharge'];
-  if (/extreme heat|heat-related illness/.test(p)) return ['cooling-centres','shade-infrastructure','tree-canopy','home-cooling','cool-roofs','heat-health-response'];
-  if (/maintenance backlog|critical infrastructure/.test(p)) return ['preventive-maintenance','asset-management','condition-based-maintenance','asset-renewal','infrastructure-repair','lifecycle-asset-management'];
-  return legacyClassTerms(problem, workspace);
+function evidenceConceptTokensForIntervention(value){
+  return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
+    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays','audit','governance','response','delivery','data','customer','customers','digital'].includes(token))
+    .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
 }
-
+function expectedInterventionFamilies(problem,workspace='municipal'){
+  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],publicService:['public-service'],environment:['environmental'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility'],digitalAccess:['digital-access'],energy:['energy'],education:['education'],emergencyResponse:['infrastructure']};
+  return [...new Set(domains.flatMap(domain=>map[domain]||[]))];
+}
+function discoveryCoverage(problem,workspace,candidates){
+  const expected=expectedInterventionFamilies(problem,workspace),observed=[...new Set(candidates.flatMap(candidate=>candidate.interventionFamily||[]))],matched=expected.filter(family=>observed.includes(family));
+  return {expectedFamilies:expected,observedFamilies:observed,missingFamilies:expected.filter(family=>!observed.includes(family)),coverageRatio:expected.length?matched.length/expected.length:1};
+}
 function classifyDiscoveryQuery(query, problem, workspace='municipal') {
   const q=normalizeText(query).toLowerCase(), p=normalizeText(problem).toLowerCase();
   if(q===p) return 'original';
