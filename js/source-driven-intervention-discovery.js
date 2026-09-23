@@ -444,6 +444,21 @@ function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants
   return [...variants].slice(0, maxVariants);
 }
 
+function expectedInterventionFamilies(problem, workspace='municipal') {
+  const p = normalizeText(problem).toLowerCase();
+  if (/violent crime|serious violence|community violence/.test(p)) return [
+    'community-violence-intervention','focused-deterrence','hot-spots-policing','problem-oriented-policing',
+    'street-lighting','vacant-property-remediation','youth-employment','cognitive-behavioral',
+    'hospital-based-violence-intervention','reentry-support','substance-use-treatment','credible-messenger',
+    'built-environment','firearm-risk-reduction'
+  ];
+  if (/homelessness|housing insecurity/.test(p)) return ['housing-first','rapid-rehousing','supportive-housing','rental-assistance','eviction-prevention','shelter-diversion'];
+  if (/emergency[- ]department|patient[- ]flow|overcrowding/.test(p)) return ['care-navigation','community-paramedicine','primary-care-access','urgent-care','triage','hospital-discharge'];
+  if (/extreme heat|heat-related illness/.test(p)) return ['cooling-centres','shade-infrastructure','tree-canopy','home-cooling','cool-roofs','heat-health-response'];
+  if (/maintenance backlog|critical infrastructure/.test(p)) return ['preventive-maintenance','asset-management','condition-based-maintenance','asset-renewal','infrastructure-repair','lifecycle-asset-management'];
+  return legacyClassTerms(problem, workspace);
+}
+
 function classifyDiscoveryQuery(query, problem, workspace='municipal') {
   const q=normalizeText(query).toLowerCase(), p=normalizeText(problem).toLowerCase();
   if(q===p) return 'original';
