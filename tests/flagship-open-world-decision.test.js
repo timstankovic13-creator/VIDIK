@@ -40,7 +40,7 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.ok(run.sourceSearches.length > 0);
   assert.ok(run.candidates.length > 0);
   assert.ok(run.governance.candidateUniverseIntelligence);
-  assert.ok(run.governance.candidateUniverseIntelligence.discoveryCompleteness !== undefined);
+  const universe = run.governance.candidateUniverseIntelligence;\n  assert.ok(['universe-found', 'universe-incomplete'].includes(universe.status));\n  assert.equal(universe.candidatesConsidered, run.candidates.length);\n  assert.ok(universe.uniqueCandidateNames > 0);\n  assert.equal(typeof universe.weakUniverse, 'boolean');\n  assert.equal(typeof universe.sufficientForRecommendation, 'boolean');\n  assert.ok(Array.isArray(universe.missingInterventionFamilies));\n  assert.ok(Array.isArray(universe.missingInterventionClasses));
 
   // The source-driven layer must return actionable interventions, not data artifacts.
   for (const candidate of run.candidates) {
