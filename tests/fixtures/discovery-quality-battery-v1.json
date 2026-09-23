@@ -1,0 +1,1150 @@
+{
+  "version": "vidik.discovery.quality.battery.v1",
+  "status": "validation-design-only",
+  "runNow": false,
+  "flagship": {
+    "id": "municipal-violent-crime-10m-3y",
+    "workspace": "municipal",
+    "objective": "reduce violent crime",
+    "budget": {
+      "amount": 10000000,
+      "currency": "USD",
+      "horizonYears": 3
+    },
+    "purpose": "open-world decision proof"
+  },
+  "dimensions": [
+    "D1-discovery",
+    "D2-actionability",
+    "D3-relevance",
+    "D4-diversity",
+    "D5-evidence-linkage",
+    "D6-transferability",
+    "D7-completeness",
+    "D8-governance",
+    "D9-provenance",
+    "D10-decision-readiness"
+  ],
+  "problems": [
+    {
+      "id": "dq-001",
+      "workspace": "municipal",
+      "domain": "public-safety",
+      "objective": "reduce violent crime",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-002",
+      "workspace": "municipal",
+      "domain": "public-safety",
+      "objective": "reduce youth violence",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-003",
+      "workspace": "municipal",
+      "domain": "public-safety",
+      "objective": "reduce domestic violence",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-004",
+      "workspace": "municipal",
+      "domain": "mobility",
+      "objective": "reduce pedestrian fatalities",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-005",
+      "workspace": "municipal",
+      "domain": "mobility",
+      "objective": "reduce traffic injuries",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-006",
+      "workspace": "municipal",
+      "domain": "health",
+      "objective": "reduce opioid overdose deaths",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-007",
+      "workspace": "municipal",
+      "domain": "health",
+      "objective": "reduce emergency department overcrowding",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-008",
+      "workspace": "municipal",
+      "domain": "housing",
+      "objective": "reduce homelessness",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-009",
+      "workspace": "municipal",
+      "domain": "housing",
+      "objective": "reduce eviction filings",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-010",
+      "workspace": "municipal",
+      "domain": "health",
+      "objective": "reduce extreme-heat illness",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-011",
+      "workspace": "municipal",
+      "domain": "climate",
+      "objective": "reduce wildfire smoke exposure",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-012",
+      "workspace": "municipal",
+      "domain": "climate",
+      "objective": "reduce flood damage",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-013",
+      "workspace": "municipal",
+      "domain": "housing",
+      "objective": "reduce residential energy burden",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-014",
+      "workspace": "municipal",
+      "domain": "climate",
+      "objective": "reduce urban air pollution",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-015",
+      "workspace": "municipal",
+      "domain": "infrastructure",
+      "objective": "reduce drinking-water service interruptions",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-016",
+      "workspace": "municipal",
+      "domain": "governance",
+      "objective": "reduce construction permitting delays",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-017",
+      "workspace": "municipal",
+      "domain": "mobility",
+      "objective": "improve public transit reliability",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-018",
+      "workspace": "municipal",
+      "domain": "mobility",
+      "objective": "reduce traffic congestion",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-019",
+      "workspace": "municipal",
+      "domain": "accessibility",
+      "objective": "improve accessibility of public buildings",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-020",
+      "workspace": "municipal",
+      "domain": "environment",
+      "objective": "reduce illegal dumping",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-021",
+      "workspace": "community",
+      "domain": "housing",
+      "objective": "increase access to affordable housing",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-022",
+      "workspace": "community",
+      "domain": "housing",
+      "objective": "reduce chronic homelessness",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-023",
+      "workspace": "community",
+      "domain": "housing",
+      "objective": "reduce shelter demand",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-024",
+      "workspace": "community",
+      "domain": "food",
+      "objective": "reduce food insecurity",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-025",
+      "workspace": "community",
+      "domain": "employment",
+      "objective": "improve newcomer employment",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-026",
+      "workspace": "community",
+      "domain": "community",
+      "objective": "reduce social isolation among seniors",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-027",
+      "workspace": "community",
+      "domain": "health",
+      "objective": "improve rural healthcare access",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-028",
+      "workspace": "community",
+      "domain": "climate",
+      "objective": "improve disaster preparedness",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-029",
+      "workspace": "community",
+      "domain": "health",
+      "objective": "reduce heat exposure among vulnerable residents",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-030",
+      "workspace": "community",
+      "domain": "community",
+      "objective": "improve access to childcare",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-031",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "reduce hospital readmissions",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-032",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "reduce avoidable emergency-department visits",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-033",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "improve primary-care access",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-034",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "improve medication adherence",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-035",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "reduce preventable falls among older adults",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-036",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "improve prenatal care access",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-037",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "reduce smoking prevalence",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-038",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "improve vaccination uptake",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-039",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "reduce untreated mental-health service gaps",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-040",
+      "workspace": "health",
+      "domain": "health",
+      "objective": "improve continuity of care after hospital discharge",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-041",
+      "workspace": "enterprise",
+      "domain": "employment",
+      "objective": "reduce chronic school absenteeism",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-042",
+      "workspace": "enterprise",
+      "domain": "education",
+      "objective": "improve literacy outcomes",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-043",
+      "workspace": "enterprise",
+      "domain": "education",
+      "objective": "improve high-school graduation",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-044",
+      "workspace": "enterprise",
+      "domain": "employment",
+      "objective": "reduce youth unemployment",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-045",
+      "workspace": "enterprise",
+      "domain": "employment",
+      "objective": "improve apprenticeship completion",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-046",
+      "workspace": "business",
+      "domain": "employment",
+      "objective": "reduce employee turnover",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-047",
+      "workspace": "business",
+      "domain": "safety",
+      "objective": "reduce workplace injuries",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-048",
+      "workspace": "business",
+      "domain": "employment",
+      "objective": "improve employee training completion",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-049",
+      "workspace": "enterprise",
+      "domain": "employment",
+      "objective": "reduce workforce displacement from automation",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-050",
+      "workspace": "business",
+      "domain": "employment",
+      "objective": "improve hiring success",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-051",
+      "workspace": "business",
+      "domain": "economic",
+      "objective": "reduce customer churn",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-052",
+      "workspace": "enterprise",
+      "domain": "governance",
+      "objective": "reduce procurement cycle time",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-053",
+      "workspace": "enterprise",
+      "domain": "cybersecurity",
+      "objective": "reduce cybersecurity incident risk",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-054",
+      "workspace": "enterprise",
+      "domain": "governance",
+      "objective": "improve data governance",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-055",
+      "workspace": "enterprise",
+      "domain": "governance",
+      "objective": "reduce regulatory compliance delays",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-056",
+      "workspace": "enterprise",
+      "domain": "infrastructure",
+      "objective": "reduce infrastructure maintenance backlog",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-057",
+      "workspace": "enterprise",
+      "domain": "safety",
+      "objective": "improve emergency response coordination",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-058",
+      "workspace": "business",
+      "domain": "economic",
+      "objective": "reduce supply-chain disruption",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-059",
+      "workspace": "business",
+      "domain": "mobility",
+      "objective": "reduce delivery delays",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-060",
+      "workspace": "enterprise",
+      "domain": "accessibility",
+      "objective": "improve accessibility of digital services",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-061",
+      "workspace": "research",
+      "domain": "housing",
+      "objective": "evaluate interventions to reduce homelessness",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-062",
+      "workspace": "research",
+      "domain": "health",
+      "objective": "evaluate ways to reduce hospital waiting times",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-063",
+      "workspace": "research",
+      "domain": "food",
+      "objective": "evaluate interventions for food insecurity",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-064",
+      "workspace": "research",
+      "domain": "health",
+      "objective": "study effective heat-health interventions",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-065",
+      "workspace": "research",
+      "domain": "mobility",
+      "objective": "study interventions to reduce pedestrian injuries",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-066",
+      "workspace": "research",
+      "domain": "health",
+      "objective": "study opioid-overdose prevention",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-067",
+      "workspace": "research",
+      "domain": "climate",
+      "objective": "study wildfire-smoke mitigation",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-068",
+      "workspace": "research",
+      "domain": "housing",
+      "objective": "study energy-poverty interventions",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-069",
+      "workspace": "research",
+      "domain": "mobility",
+      "objective": "study interventions to improve rural mobility",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-070",
+      "workspace": "research",
+      "domain": "employment",
+      "objective": "study workforce displacement interventions",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-071",
+      "workspace": "community",
+      "domain": "community",
+      "objective": "reduce social isolation",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-072",
+      "workspace": "community",
+      "domain": "accessibility",
+      "objective": "reduce barriers to digital access",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-073",
+      "workspace": "municipal",
+      "domain": "climate",
+      "objective": "improve disaster evacuation",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-074",
+      "workspace": "enterprise",
+      "domain": "governance",
+      "objective": "reduce public-sector service backlogs",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-075",
+      "workspace": "business",
+      "domain": "economic",
+      "objective": "reduce small-business failure",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-076",
+      "workspace": "community",
+      "domain": "accessibility",
+      "objective": "reduce community-level inequality in service access",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-077",
+      "workspace": "municipal",
+      "domain": "climate",
+      "objective": "improve response to extreme weather",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-078",
+      "workspace": "municipal",
+      "domain": "safety",
+      "objective": "reduce preventable injuries in public spaces",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-079",
+      "workspace": "enterprise",
+      "domain": "safety",
+      "objective": "improve coordination across emergency and social services",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    },
+    {
+      "id": "dq-080",
+      "workspace": "municipal",
+      "domain": "governance",
+      "objective": "allocate scarce funding across competing community priorities",
+      "challengeVariants": [
+        "ordinary",
+        "paraphrase",
+        "sparse-evidence",
+        "contaminated-sources",
+        "cross-domain-leakage",
+        "missing-class"
+      ]
+    }
+  ]
+}
