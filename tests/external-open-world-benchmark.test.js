@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   discoverSourceDrivenInterventions,
-  inferInterventionFamily,
+  classifyCkanRecord,
   NON_INTERVENTION_ARTIFACT_PATTERNS,
 } = require('../js/source-driven-intervention-discovery');
 
@@ -142,9 +142,8 @@ test('external violent-crime benchmark independently compares discovery to a hid
 
 test('external benchmark negative controls remain non-interventions under production classifier', () => {
   for (const [, title] of NEGATIVE_CORPUS) {
-    const families = inferInterventionFamily(title);
-    const matched = families.filter(f => f !== 'other');
-    assert.equal(matched.length, 0, `negative control classified as intervention family: ${title}`);
+    const classified = classifyCkanRecord({ title });
+    assert.equal(classified.accepted, false, `negative control accepted as intervention: ${title}`);
     assert.ok(
       NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => new RegExp(pattern, 'i').test(title)),
       `negative control lacks an explicit non-intervention artifact signal: ${title}`,
