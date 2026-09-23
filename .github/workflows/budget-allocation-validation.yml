@@ -1,0 +1,14 @@
+name: Budget allocation validation
+on:
+  push:
+    branches: [feat/decision-allocation-scale-9-4]
+  workflow_dispatch:
+jobs:
+  budget-allocation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --test tests/budget-optimization.test.js
