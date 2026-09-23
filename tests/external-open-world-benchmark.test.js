@@ -101,7 +101,17 @@ test('external violent-crime benchmark independently compares discovery to a hid
     fetchImpl: mockFetch,
   });
 
-  assert.ok(run.candidates.length >= POSITIVE_CORPUS.length, `expected broad discovery, got ${run.candidates.length}`);
+  const discoveredTitles = run.candidates.map(candidate => candidate.name).sort();
+  const missingPositiveTitles = POSITIVE_CORPUS
+    .map(([, title]) => title)
+    .filter(title => !discoveredTitles.includes(title));
+  console.log(JSON.stringify({
+    benchmarkDiagnostic: 'pre-assertion-discovery',
+    discoveredTitles,
+    missingPositiveTitles,
+  }));
+
+  assert.ok(run.candidates.length >= POSITIVE_CORPUS.length, `expected broad discovery, got ${run.candidates.length}; missing positive corpus titles: ${missingPositiveTitles.join(' | ')}`);
   assert.equal(run.recommendationEligible, false);
 
   const positiveDiscovered = ORACLE.referenceLanes.filter(lane =>
@@ -145,7 +155,7 @@ test('external benchmark negative controls remain non-interventions under produc
     const classified = classifyCkanRecord({ title });
     assert.equal(classified.accepted, false, `negative control accepted as intervention: ${title}`);
     assert.ok(
-      NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => new RegExp(pattern, 'i').test(title)),
+      NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => pattern.test(title)),
       `negative control lacks an explicit non-intervention artifact signal: ${title}`,
     );
   }
