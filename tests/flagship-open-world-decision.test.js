@@ -50,7 +50,7 @@ test('flagship open-world decision traverses the complete governed decision chai
 
   for (const candidate of run.candidates) {
     assert.equal(candidate.discovery?.effectsImported, false);
-    assert.equal(candidate.discovery?.leadOnly, false);
+    assert.equal(candidate.discovery?.leadOnly, true);
     assert.ok(candidate.name);
     assert.doesNotMatch(candidate.name, /^(crime statistics|crime dataset|police annual report|municipal crime dashboard|provider directory)$/i);
   }
