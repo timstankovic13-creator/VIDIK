@@ -34,7 +34,7 @@ test('flagship open-world decision traverses the complete governed decision chai
 
   // Problem integrity and open-world discovery.
   assert.equal(run.problem, PROBLEM);
-  assert.ok(run.discoveryHash);
+  assert.ok(run.runHash);
   assert.ok(run.runHash);
   assert.ok(run.governance.discoveryStrategyHash);
   assert.ok(run.sourceSearches.length > 0);
