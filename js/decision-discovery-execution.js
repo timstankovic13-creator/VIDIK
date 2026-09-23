@@ -40,6 +40,7 @@ async function searchSource(sourceType, problem, searcher) {
       contentHash: result?.contentHash || null,
       freshness: result?.freshness || null,
       validation: result?.validation || null,
+      discoveryAssessment: result?.discoveryAssessment || null,
       failureReason: result?.failureReason || (FAILED.has(rawStatus) ? 'source-search-failed' : null)
     };
   } catch (error) {
@@ -57,6 +58,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
       return {
         sourceId: 'source-driven-intervention-discovery',
         sourceType: 'intervention-library',
+        discoveryAssessment: discovered.interventionUniverse,
         jurisdiction: effectiveDiscoveryJurisdiction,
         status: discovered.sourceSearches.some(search => search.status === 'search-failed') ? 'search-failed' : undefined,
         candidates: discovered.candidates,

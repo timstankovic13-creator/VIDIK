@@ -1,20 +1,16 @@
-name: VIDIK Five Consequential Decisions
-
+name: VIDIK Five Decision Output Audit
 on:
   push:
     branches:
-      - validation/five-consequential-decisions-v1
-      - validation/five-decision-quality-review-v1
+    - validation/five-decision-output-audit-v1
+    - validation/five-decision-quality-review-v1
   workflow_dispatch:
-
 permissions:
   contents: read
-
 env:
   NODE_VERSION: 24
-
 jobs:
-  five-consequential-decisions:
+  audit:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -23,5 +19,5 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install
-      - name: Run five genuinely different consequential decisions
-        run: node --test tests/five-consequential-decisions.test.js
+      - name: Run five-decision output audit
+        run: node --test tests/five-consequential-decision-output-audit.test.js

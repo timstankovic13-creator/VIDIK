@@ -22,35 +22,35 @@ function mockResponse(problem) {
     { id: 'discovered-2', title: `${problem} support service`, notes: 'Source-discovered service lead.', tags: [{ name: 'service' }] },
   ];
   if (normalized.includes('crime')) {
-    candidates[0].title = 'Violence prevention program';
-    candidates[1].title = 'Violence prevention support service';
+    candidates[0].title = 'Community violence intervention program';
+    candidates[1].title = 'Focused deterrence program';
   } else if (normalized.includes('overdose')) {
     candidates[0].title = 'Overdose prevention program';
-    candidates[1].title = 'Addiction treatment support service';
+    candidates[1].title = 'Substance use treatment program';
   } else if (normalized.includes('homeless')) {
-    candidates[0].title = 'Homelessness housing program';
-    candidates[1].title = 'Shelter and rehousing support service';
+    candidates[0].title = 'Housing First program';
+    candidates[1].title = 'Rapid rehousing program';
   } else if (normalized.includes('traffic')) {
     candidates[0].title = 'Traffic safety enforcement program';
-    candidates[1].title = 'Road safety infrastructure project';
+    candidates[1].title = 'Traffic calming project';
   } else if (normalized.includes('flood')) {
     candidates[0].title = 'Urban flood resilience program';
     candidates[1].title = 'Stormwater infrastructure project';
   } else if (normalized.includes('food')) {
-    candidates[0].title = 'Food access program';
-    candidates[1].title = 'Community food support service';
+    candidates[0].title = 'Food voucher program';
+    candidates[1].title = 'Community food hub';
   } else if (normalized.includes('unemployment')) {
-    candidates[0].title = 'Youth employment training program';
-    candidates[1].title = 'Workforce support service';
+    candidates[0].title = 'Youth employment program';
+    candidates[1].title = 'Job placement program';
   } else if (normalized.includes('primary care')) {
     candidates[0].title = 'Primary care clinic program';
-    candidates[1].title = 'Primary care access support service';
+    candidates[1].title = 'Community health worker program';
   }
   return {
     ok: true,
     status: 200,
     headers: { get: key => key === 'content-type' ? 'application/json' : null },
-    arrayBuffer: async () => Buffer.from(JSON.stringify({ result: { results: candidates } })),
+    arrayBuffer: async () => Buffer.from(JSON.stringify({ result: { results: candidates }, results: candidates })),
   };
 }
 
