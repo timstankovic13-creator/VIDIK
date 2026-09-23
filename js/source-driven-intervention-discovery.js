@@ -19,7 +19,7 @@ const INTERVENTION_FAMILIES = [
   ['food-access','food','food bank','food access','food voucher','community food hub','mobile market','community kitchen','school meal'],
   ['public-safety','crime','violence','assault','domestic violence','sexual violence','partner assault','violence response','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
   ['mobility-safety','bike lane','protected lane','bus lane','transit','traffic','traffic calming','pedestrian crossing','signal timing','bus priority'],
-  ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','mobile crisis','community health worker','overdose prevention'],
+  ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','community health worker','mobile crisis','community health worker','overdose prevention'],
   ['climate-resilience','cooling centre','cooling center','cooling infrastructure','shade infrastructure','tree canopy','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
   ['employment','training','worker','employment','staffing','job placement','career pathway','apprenticeship','reskilling','wage subsidy'],
   ['economic-support','grant','funding','subsidy','benefit','voucher','cash transfer','working capital','business financing','utility assistance','energy assistance'],
