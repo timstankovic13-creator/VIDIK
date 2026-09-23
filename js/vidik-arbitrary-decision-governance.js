@@ -8,8 +8,59 @@ function stable(value) { if (Array.isArray(value)) return `[${value.map(stable).
 function sha256(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
 function evidenceRecordStatus(record) { if (!record || typeof record !== 'object') return 'missing'; if (BLOCKING_STATUSES.has(record.status)) return record.status; if (record.freshness?.stale === true || record.freshness?.status === 'stale') return 'stale'; if (record.conflict === true || record.status === 'conflicting') return 'conflicting'; if (record.verified === true || EVIDENCE_STATUSES.has(record.status)) return 'verified'; return 'unverified'; }
 function verifyEvidenceBundle({ candidate, evidence = {}, now = new Date(), requiredEvidence = null } = {}) { const required = Array.isArray(requiredEvidence) && requiredEvidence.length ? requiredEvidence : (candidate?.requiredEvidence || REQUIRED_EVIDENCE); const checks = {}; for (const type of required) { const record = evidence?.[type]; const status = evidenceRecordStatus(record); const independent = Boolean(record?.independentSource || record?.verification?.independent === true || record?.verifiedBy); const causal = type === 'causal' ? Boolean(record?.causal === true || record?.causalIdentification || record?.effectEstimate !== undefined) : true; checks[type] = { status, independent, causal, sourceId: record?.sourceId || record?.provenance?.sourceId || null, retrievedAt: record?.retrievedAt || null }; } const missing = Object.entries(checks).filter(([, c]) => c.status === 'missing').map(([type]) => type); const blocked = Object.entries(checks).filter(([, c]) => BLOCKING_STATUSES.has(c.status) || c.status === 'unverified').map(([type]) => type); const independentMissing = Object.entries(checks).filter(([, c]) => !c.independent).map(([type]) => type); const verified = !missing.length && !blocked.length && !independentMissing.length; return { status: verified ? 'verified' : 'blocked', required, checks, missing, blocked, independentMissing, verified, verifiedAt: now.toISOString() }; }
-function buildCandidateUniverseIntelligence({ candidates = [], sourceSearches = [], statusQuo = null } = {}) { const byKey = new Map(); const provenanceGaps = []; for (const candidate of candidates) { if (!candidate?.id) continue; const key = String(candidate.name || candidate.id).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); const provenance = Array.isArray(candidate.discovery?.provenance) ? candidate.discovery.provenance : []; if (!provenance.length) provenanceGaps.push(candidate.id); const current = byKey.get(key); if (!current) byKey.set(key, { id: candidate.id, name: candidate.name || candidate.id, sourceCount: new Set(provenance.map(p => p.sourceId).filter(Boolean)).size, provenanceCount: provenance.length, evidenceState: candidate.evidenceState || 'unknown', leadOnly: Boolean(candidate.discovery?.leadOnly) }); else { current.sourceCount += new Set(provenance.map(p => p.sourceId).filter(Boolean)).size; current.provenanceCount += provenance.length; current.leadOnly = current.leadOnly || Boolean(candidate.discovery?.leadOnly); } } const searched = sourceSearches.filter(s => s.status && s.status !== 'not-searched'); const failed = searched.filter(s => ['failed', 'search-failed', 'error', 'blocked'].includes(s.status)); const candidateCount = candidates.length; return { status: candidateCount ? (failed.length ? 'universe-incomplete' : 'universe-found') : (failed.length ? 'universe-incomplete' : 'universe-empty'), candidatesConsidered: candidateCount, uniqueCandidateNames: byKey.size, duplicateCandidateGroups: Math.max(0, candidateCount - byKey.size), provenanceGaps, weakUniverse: candidateCount > 0 && (byKey.size < 2 || searched.length < 1), sourceFailures: failed.map(s => ({ sourceId: s.sourceId || null, reason: s.failureReason || 'source-search-failed' })), statusQuoPreserved: Boolean(statusQuo), sufficientForRecommendation: candidateCount > 0 && failed.length === 0 && searched.length > 0 && !provenanceGaps.length && Boolean(statusQuo) }; }
-function normalizeComparableInterventions(city) { const raw = city?.interventions; if (Array.isArray(raw)) return raw; if (raw && typeof raw === 'object') return Object.entries(raw).map(([name, value]) => ({ name, ...(value && typeof value === 'object' ? value : { outcomeStatus: value }) })); return []; }
+function buildCandidateUniverseIntelligence({ candidates = [], sourceSearches = [], statusQuo = null } = {}) {
+  const byKey = new Map();
+  const provenanceGaps = [];
+  for (const candidate of candidates) {
+    if (!candidate?.id) continue;
+    const key = String(candidate.name || candidate.id).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const provenance = Array.isArray(candidate.discovery?.provenance) ? candidate.discovery.provenance : [];
+    if (!provenance.length) provenanceGaps.push(candidate.id);
+    const current = byKey.get(key);
+    if (!current) byKey.set(key, {
+      id: candidate.id,
+      name: candidate.name || candidate.id,
+      sourceCount: new Set(provenance.map(p => p.sourceId).filter(Boolean)).size,
+      provenanceCount: provenance.length,
+      evidenceState: candidate.evidenceState || 'unknown',
+      leadOnly: Boolean(candidate.discovery?.leadOnly)
+    });
+    else {
+      current.sourceCount += new Set(provenance.map(p => p.sourceId).filter(Boolean)).size;
+      current.provenanceCount += provenance.length;
+      current.leadOnly = current.leadOnly || Boolean(candidate.discovery?.leadOnly);
+    }
+  }
+  const searched = sourceSearches.filter(s => s.status && s.status !== 'not-searched');
+  const failed = searched.filter(s => ['failed', 'search-failed', 'error', 'blocked'].includes(s.status));
+  const assessments = sourceSearches.map(s => s.discoveryAssessment).filter(Boolean);
+  const missingFamilies = [...new Set(assessments.flatMap(a => a.missingInterventionFamilies || []))];
+  const missingClasses = [...new Set(assessments.flatMap(a => a.missingInterventionClasses || []))];
+  const semanticWeak = assessments.some(a =>
+    a.diagnosticCounts?.candidateUniverseWeak ||
+    a.diagnosticCounts?.classCoverageWeak ||
+    (Array.isArray(a.missingInterventionFamilies) && a.missingInterventionFamilies.length > 0)
+  );
+  const candidateCount = candidates.length;
+  const weakUniverse = candidateCount === 0 ||
+    byKey.size < 2 ||
+    searched.length < 1 ||
+    provenanceGaps.length > 0 ||
+    semanticWeak;
+  return {
+    status: candidateCount ? (failed.length || weakUniverse ? 'universe-incomplete' : 'universe-found') : (failed.length ? 'universe-incomplete' : 'universe-empty'),
+    candidatesConsidered: candidateCount,
+    uniqueCandidateNames: byKey.size,
+    duplicateCandidateGroups: Math.max(0, candidateCount - byKey.size),
+    provenanceGaps,
+    weakUniverse,
+    missingInterventionFamilies: missingFamilies,
+    missingInterventionClasses: missingClasses,
+    sourceFailures: failed.map(s => ({ sourceId: s.sourceId || null, reason: s.failureReason || 'source-search-failed' })),
+    statusQuoPreserved: Boolean(statusQuo),
+    sufficientForRecommendation: candidateCount > 0 && failed.length === 0 && searched.length > 0 && !weakUniverse
+  };
+}function normalizeComparableInterventions(city) { const raw = city?.interventions; if (Array.isArray(raw)) return raw; if (raw && typeof raw === 'object') return Object.entries(raw).map(([name, value]) => ({ name, ...(value && typeof value === 'object' ? value : { outcomeStatus: value }) })); return []; }
 function buildLearningDiscoveryLeads({ problem, learning = {}, comparableCities = [] } = {}) { const cityLeads = Array.isArray(comparableCities) ? comparableCities.flatMap(city => normalizeComparableInterventions(city).map(item => typeof item === 'string' ? ({ name: item, city: city.city, jurisdiction: city.jurisdiction, outcomeStatus: city.outcomeStatus }) : ({ ...item, city: item.city || city.city, jurisdiction: item.jurisdiction || city.jurisdiction, outcomeStatus: item.outcomeStatus || city.outcomeStatus }))) : []; const raw = [...(Array.isArray(learning.successfulInterventions) ? learning.successfulInterventions : []), ...(Array.isArray(learning.comparableCityInterventions) ? learning.comparableCityInterventions : []), ...cityLeads]; const seen = new Set(); const leads = []; for (const item of raw) { const name = String(item?.name || item?.intervention || '').trim(); if (!name) continue; const key = `${name.toLowerCase()}::${String(item.city || item.jurisdiction || '').toLowerCase()}`; if (seen.has(key)) continue; seen.add(key); leads.push({ id: `learning-lead:${sha256(key).slice(0, 16)}`, name, problemTags: [], domains: [], evidenceStatus: 'potential', discovery: { source: 'vidik-learning', sourceType: 'comparable-city', comparableCity: item.city || null, jurisdiction: item.jurisdiction || null, leadOnly: true, effectsImported: false, provenance: [{ sourceId: 'vidik-learning', sourceType: 'learning', jurisdiction: item.jurisdiction || null, outcomeStatus: item.outcomeStatus || 'unverified' }] }, transferability: { status: 'lead-only', effectsImported: false } }); } return { status: leads.length ? 'learning-leads-found' : 'no-learning-leads', leads, effectsImported: false, recommendationEligible: false, learningHash: sha256({ problem, leads }) }; }
 function buildDecisionLifecycle({ problem, discovery, evidenceVerification, universe, learningDiscovery, downstream = {} } = {}) { const phases = [['problem', Boolean(problem)], ['discovery', Boolean(discovery)], ['intervention-universe', Boolean(universe && universe.candidatesConsidered >= 0)], ['evidence-verification', Boolean(evidenceVerification)], ['parameters', Boolean(downstream.parameters)], ['marginal-resource-effect', Boolean(downstream.marginal)], ['uncertainty', Boolean(downstream.uncertainty)], ['voi', Boolean(downstream.voi)], ['optimization', Boolean(downstream.optimization)], ['why-why-not', Boolean(downstream.whyWhyNot)], ['transferability', Boolean(downstream.transferability)], ['decision', Boolean(downstream.decision)], ['override', Boolean(downstream.override)], ['audit', Boolean(downstream.audit)], ['outcome-review', Boolean(downstream.outcomeReview)], ['learning', Boolean(learningDiscovery)]]; return { schemaVersion: 'vidik.arbitrary-decision-lifecycle.v1', problem, phases: phases.map(([id, present]) => ({ id, status: present ? 'present' : 'not-yet-present' })), complete: phases.every(([, present]) => present), nextRequiredPhase: phases.find(([, present]) => !present)?.[0] || null, hash: sha256(phases) }; }
 function buildEvidenceToDecisionGate({ candidate, evidence = {}, parameter = null, marginal = null, uncertainty = null, voi = null, optimization = null, statusQuo = null } = {}) { const verification = verifyEvidenceBundle({ candidate, evidence }); const finite = value => Number.isFinite(Number(value)); const A = verification.status === 'verified'; const B = Boolean(parameter && finite(parameter.value) && parameter.unit); const C = Boolean(marginal && finite(marginal.resource) && finite(marginal.effect) && marginal.resource > 0); const D = Boolean(uncertainty && uncertainty.stable === true && voi && finite(voi.value) && optimization && optimization.validated === true); const E = Boolean(statusQuo?.explicit === true && A && B && C && D); return { gates: { A_evidenceQuality: A, B_candidateParameter: B, C_marginalResourceEffect: C, D_uncertaintyVOIOptimization: D, E_decisionReadiness: E }, recommendationEligible: A && B && C && D && E, verification }; }
