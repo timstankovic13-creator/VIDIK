@@ -24,6 +24,8 @@ jobs:
         run: node --test tests/intelligence-completion-intervention-universe.test.js tests/intelligence-completion-arbitrary-problem.integration.test.js tests/intelligence-generalization-blind-tournament.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
       - name: Intervention relevance scenario battery
         run: node --test tests/intervention-relevance-scenarios.test.js
+      - name: External open-world benchmark
+        run: node --test tests/external-open-world-benchmark.test.js
       - name: Insight Quality Battery (60 real-world decision problems)
         run: npm run test:insight-quality-battery
       - name: Evidence sufficiency hardening
