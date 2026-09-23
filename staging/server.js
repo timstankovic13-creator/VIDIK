@@ -22,6 +22,8 @@ function loadPostgres() {
 const { Pool } = loadPostgres();
 const { executeFullCapacityDecision } = require('../js/decision-discovery-execution');
 const { buildWorkspaceContext, workspaceOutputTemplate } = require('../js/domain-workspaces');
+const { detectBudgetIntent } = require('../js/budget-scope');
+const { buildAllocationDecision } = require('../js/budget-optimization');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8080);
@@ -127,11 +129,12 @@ const server = http.createServer(async (req, res) => {
         if (typeof input.problem !== 'string' || !input.problem.trim()) throw new Error('decision-problem-required');
         const audience = input.audience || 'business';
         const workspace = buildWorkspaceContext(audience, input.workspace || {});
+        const budgetIntent = detectBudgetIntent(input.problem);
         const result = await executeFullCapacityDecision({
           problem: input.problem.trim(),
           discoveryJurisdiction: input.jurisdiction || 'international',
           statusQuo: { explicit: true, id: 'status-quo', description: input.statusQuo || 'Continue current practice' },
-          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace }
+          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace, budgetIntent }
         });
         res.writeHead(200, {'content-type':'application/json'});
         return res.end(JSON.stringify({
@@ -150,7 +153,9 @@ const server = http.createServer(async (req, res) => {
             whyNotAvailable: result.governance?.whyNotAvailable === true,
             learningDiscoveryLeadOnly: result.governance?.learningDiscoveryLeadOnly === true
           },
-          runHash: result.runHash
+          runHash: result.runHash,
+          budget: budgetIntent,
+          allocation: buildAllocationDecision({ budgetIntent, rows: input.allocationRows || [], committedAmount: input.committedAmount || 0, constraints: input.allocationConstraints || {} })
         }));
       } catch (error) {
         res.writeHead(400, {'content-type':'application/json'});
