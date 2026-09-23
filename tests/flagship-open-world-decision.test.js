@@ -32,17 +32,22 @@ test('flagship open-world decision traverses the complete governed decision chai
     discoveryJurisdiction: 'CA'
   });
 
-  // Problem integrity and open-world discovery.
   assert.equal(run.problem, PROBLEM);
-  assert.ok(run.runHash);
-  assert.ok(run.runHash);
-  assert.ok(run.governance.discoveryStrategyHash);
+  assert.match(run.runHash, /^[a-f0-9]{64}$/);
+  assert.match(run.governance.discoveryStrategyHash, /^[a-f0-9]{64}$/);
   assert.ok(run.sourceSearches.length > 0);
   assert.ok(run.candidates.length > 0);
-  assert.ok(run.governance.candidateUniverseIntelligence);
-  const universe = run.governance.candidateUniverseIntelligence;\n  assert.ok(['universe-found', 'universe-incomplete'].includes(universe.status));\n  assert.equal(universe.candidatesConsidered, run.candidates.length);\n  assert.ok(universe.uniqueCandidateNames > 0);\n  assert.equal(typeof universe.weakUniverse, 'boolean');\n  assert.equal(typeof universe.sufficientForRecommendation, 'boolean');\n  assert.ok(Array.isArray(universe.missingInterventionFamilies));\n  assert.ok(Array.isArray(universe.missingInterventionClasses));
 
-  // The source-driven layer must return actionable interventions, not data artifacts.
+  const universe = run.governance.candidateUniverseIntelligence;
+  assert.ok(universe);
+  assert.ok(['universe-found', 'universe-incomplete'].includes(universe.status));
+  assert.equal(universe.candidatesConsidered, run.candidates.length);
+  assert.ok(universe.uniqueCandidateNames > 0);
+  assert.equal(typeof universe.weakUniverse, 'boolean');
+  assert.equal(typeof universe.sufficientForRecommendation, 'boolean');
+  assert.ok(Array.isArray(universe.missingInterventionFamilies));
+  assert.ok(Array.isArray(universe.missingInterventionClasses));
+
   for (const candidate of run.candidates) {
     assert.equal(candidate.discovery?.leadOnly, true);
     assert.equal(candidate.discovery?.effectsImported, false);
@@ -51,8 +56,6 @@ test('flagship open-world decision traverses the complete governed decision chai
     assert.doesNotMatch(candidate.name, /^(crime statistics|crime dataset|police annual report|municipal crime dashboard|provider directory)$/i);
   }
 
-  // Evidence is searched per discovered option, but discovery-only evidence cannot
-  // silently become verified decision evidence or unlock a recommendation.
   assert.equal(run.evidenceSearches.length, run.candidates.length);
   assert.ok(run.evidenceDiscovery.length > 0);
   assert.equal(run.governance.evidenceDiscoveryOnly, true);
@@ -61,8 +64,6 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.equal(run.decision.recommendation, null);
   assert.equal(run.decision.status, 'recommendation-blocked');
 
-  // Evidence-to-decision bridge exists for every option and exposes the downstream
-  // parameter, marginal-effect, uncertainty/VOI, and optimization gates.
   const gates = Object.values(run.governance.evidenceToDecisionGates);
   assert.equal(gates.length, run.candidates.length);
   assert.ok(gates.length > 0);
@@ -74,8 +75,6 @@ test('flagship open-world decision traverses the complete governed decision chai
     assert.ok(Object.hasOwn(gate.gates, 'D_uncertaintyVOIOptimization'));
   }
 
-  // Why/Why-not, transferability, knowledge graph, and external source network
-  // must all be present before a decision can be considered complete.
   assert.equal(run.governance.whyNotAvailable, true);
   assert.equal(run.governance.knowledgeGraphPresent, true);
   assert.equal(run.governance.externalSourceNetworkPresent, true);
@@ -85,18 +84,21 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.ok(run.intelligence?.governance);
   assert.ok(run.intelligence?.governance?.learning);
 
-  // Status quo remains first-class and the lifecycle records the full chain,
-  // including uncertainty/VOI/optimization and outcome-learning stages.
-  assert.equal(run.governance.outcomeClosure?.decisionArtifactHash, run.runHash);
+  assert.ok(run.governance.outcomeClosure?.baselineHash);
+  assert.match(run.governance.outcomeClosure.baselineHash, /^[a-f0-9]{64}$/);
   assert.ok(run.governance.reviewPlan);
   assert.ok(run.governance.decisionLifecycle);
-  for (const stage of ['discovery','evidenceVerification','universe','learningDiscovery','downstream','whyWhyNot','transferability','audit','outcomeReview','learning']) {
-    assert.ok(Object.hasOwn(run.governance.decisionLifecycle, stage), `missing lifecycle stage: ${stage}`);
+  const lifecycleIds = new Set(run.governance.decisionLifecycle.phases.map(phase => phase.id));
+  for (const id of [
+    'problem', 'discovery', 'intervention-universe', 'evidence-verification',
+    'parameters', 'marginal-resource-effect', 'uncertainty', 'voi',
+    'optimization', 'why-why-not', 'transferability', 'decision',
+    'override', 'audit', 'outcome-review', 'learning'
+  ]) {
+    assert.ok(lifecycleIds.has(id), `missing lifecycle phase: ${id}`);
   }
   assert.equal(run.governance.counterfactualRequired, true);
 
-  // Every discovered option gets an immutable candidate artifact, but none is
-  // recommendation-eligible while evidence remains discovery-only.
   const artifacts = Object.values(run.governance.decisionArtifacts);
   assert.equal(artifacts.length, run.candidates.length);
   assert.ok(artifacts.length > 0);
@@ -105,8 +107,6 @@ test('flagship open-world decision traverses the complete governed decision chai
     assert.equal(artifact.recommendationAllowed, false);
   }
 
-  // Query expansion must move beyond the literal problem into public-safety
-  // intervention vocabulary rather than depending on a curated candidate list.
   const queryText = [
     ...(run.discoveryQueries || []),
     ...run.sourceSearches.flatMap(s => [s.query || '', ...(s.attempts || []).map(a => a.query || '')])
@@ -120,7 +120,7 @@ test('flagship open-world decision traverses the complete governed decision chai
     evidenceLeads: run.evidenceDiscovery.reduce((n, item) => n + (item.evidenceLeads?.length || 0), 0),
     recommendationAllowed: run.governance.recommendationAllowed,
     decisionStatus: run.decision.status,
-    lifecycleStages: Object.keys(run.governance.decisionLifecycle),
+    lifecycleStages: run.governance.decisionLifecycle.phases.map(p => p.id),
     runHash: run.runHash
   }, null, 2));
 });
