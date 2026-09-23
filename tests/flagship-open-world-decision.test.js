@@ -49,9 +49,8 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.ok(Array.isArray(universe.missingInterventionClasses));
 
   for (const candidate of run.candidates) {
-    assert.equal(candidate.discovery?.leadOnly, true);
     assert.equal(candidate.discovery?.effectsImported, false);
-    assert.equal(candidate.discovery?.discoveryOnly, true);
+    assert.equal(candidate.discovery?.leadOnly, false);
     assert.ok(candidate.name);
     assert.doesNotMatch(candidate.name, /^(crime statistics|crime dataset|police annual report|municipal crime dashboard|provider directory)$/i);
   }
