@@ -1,0 +1,143 @@
+{
+  "version": "vidik.open-world.external-benchmark.v1",
+  "status": "evaluation-oracle-design",
+  "purpose": "Independent reference universe for the flagship violent-crime open-world validation. This is an evaluation oracle, not a production candidate registry.",
+  "flagship": {
+    "id": "municipal-violent-crime-10m-3y",
+    "objective": "reduce violent crime",
+    "budget": {
+      "amount": 10000000,
+      "currency": "USD",
+      "horizonYears": 3
+    },
+    "target": "municipality"
+  },
+  "rules": [
+    "Do not expose this fixture to production discovery.",
+    "Score intervention families/mechanisms, not exact names or counts.",
+    "A discovered intervention must still pass actionability, evidence, relevance, transferability and governance gates.",
+    "Partial discovery counts as partial only when the mechanism/family is materially recoverable.",
+    "Missing a lane is a discovery failure only when the lane is plausibly relevant to the defined outcome and jurisdictional constraints.",
+    "The oracle itself must not imply that any lane is effective or recommended."
+  ],
+  "referenceLanes": [
+    {
+      "id": "cv-intervention",
+      "family": "community violence intervention",
+      "mechanism": "credible-messenger/community outreach",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "focused-deterrence",
+      "family": "focused deterrence/group-violence intervention",
+      "mechanism": "targeted deterrence + service linkage",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "hot-spots",
+      "family": "hot-spot/place-based policing",
+      "mechanism": "concentrated deployment in high-risk places",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "problem-oriented-policing",
+      "family": "problem-oriented policing",
+      "mechanism": "place/problem-specific policing + problem solving",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "street-lighting",
+      "family": "street lighting/place-based environmental change",
+      "mechanism": "environmental modification",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "vacant-property",
+      "family": "vacant-property/blight remediation",
+      "mechanism": "built-environment remediation",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "youth-employment",
+      "family": "youth employment/paid summer employment",
+      "mechanism": "employment + structured activity",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "cbt-behavioral",
+      "family": "cognitive behavioral/behavioral intervention",
+      "mechanism": "behavioral skill development",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "hospital-cvi",
+      "family": "hospital/community violence intervention",
+      "mechanism": "post-injury intervention + navigation",
+      "expectedDiscoverability": "medium"
+    },
+    {
+      "id": "dv-prevention",
+      "family": "domestic/intimate-partner violence prevention",
+      "mechanism": "prevention/support intervention",
+      "expectedDiscoverability": "medium"
+    },
+    {
+      "id": "reentry-support",
+      "family": "reentry/post-release support",
+      "mechanism": "transition support + service linkage",
+      "expectedDiscoverability": "medium"
+    },
+    {
+      "id": "substance-use",
+      "family": "substance-use treatment/diversion",
+      "mechanism": "treatment/diversion reducing violence-related risk",
+      "expectedDiscoverability": "medium"
+    },
+    {
+      "id": "credible-messenger",
+      "family": "credible-messenger/place-based outreach",
+      "mechanism": "trusted messenger engagement",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "public-space",
+      "family": "built-environment/public-space intervention",
+      "mechanism": "environmental risk modification",
+      "expectedDiscoverability": "high"
+    },
+    {
+      "id": "firearm-risk-reduction",
+      "family": "firearm-risk reduction",
+      "mechanism": "lawful risk reduction/secure-storage or analogous prevention",
+      "expectedDiscoverability": "medium"
+    },
+    {
+      "id": "social-service-prevention",
+      "family": "prevention-oriented social-service intervention",
+      "mechanism": "social/economic risk reduction",
+      "expectedDiscoverability": "medium"
+    }
+  ],
+  "negativeControls": [
+    "crime statistics dataset",
+    "police department annual report",
+    "research evaluation paper",
+    "provider directory",
+    "nonprofit organization profile",
+    "municipal crime dashboard",
+    "news article",
+    "grant announcement",
+    "geographic boundary dataset"
+  ],
+  "requiredComparisons": [
+    "discovered",
+    "partially-discovered",
+    "missed",
+    "false-inclusion",
+    "evidence-qualified",
+    "evidence-insufficient",
+    "transferability-qualified",
+    "transferability-insufficient",
+    "provenance-failure"
+  ]
+}
