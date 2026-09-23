@@ -1,0 +1,21 @@
+name: VIDIK Five Decision Output Audit
+on:
+  push:
+    branches: [validation/five-decision-output-audit-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  NODE_VERSION: 24
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Run five-decision output audit
+        run: node --test tests/five-consequential-decision-output-audit.test.js
