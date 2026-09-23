@@ -1,6 +1,5 @@
 name: VIDIK Five Decision Output Audit
 on:
-  pull_request:
   push:
     branches:
     - validation/five-decision-output-audit-v1
