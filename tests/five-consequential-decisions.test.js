@@ -64,7 +64,7 @@ function normalizedQueryText(run) {
 
 function assertArchitecture(caseDef, run) {
   assert.equal(run.problem, caseDef.problem, `${caseDef.id}: problem was altered`);
-  assert.ok(run.discoveryHash, `${caseDef.id}: missing discovery hash`);
+  assert.ok(run.governance.discoveryStrategyHash, `${caseDef.id}: missing discovery strategy hash`);
   assert.ok(run.sourceSearches.length > 0, `${caseDef.id}: no intervention source searches`);
   assert.ok(run.candidates.length > 0, `${caseDef.id}: no intervention universe discovered`);
   assert.ok(run.evidenceSearches.length === run.candidates.length, `${caseDef.id}: evidence search count does not cover candidates`);
