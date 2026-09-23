@@ -71,12 +71,12 @@ for (const { problem, expectedFamilies } of PROBLEMS) {
 
 test('blind tournament rejects a pure data result instead of treating it as an intervention', async () => {
   const discovery = await discoverSourceDrivenInterventions({
-    problem: 'novel municipal problem',
+    problem: 'improve community library access',
     jurisdiction: 'CA',
     sources: [CA],
     fetchImpl: async () => response({ result: { results: [
-      { id: 'data-only', title: 'Novel Problem Statistics Dataset', notes: 'Data only.' },
-      { id: 'real', title: 'Community support service program', notes: 'Direct service intervention.' }
+      { id: 'data-only', title: 'Community Library Access Statistics Dataset', notes: 'Data only.' },
+      { id: 'real', title: 'Community library service program', notes: 'Direct service intervention.' }
     ] } })
   });
   assert.equal(discovery.candidates.length, 1);
