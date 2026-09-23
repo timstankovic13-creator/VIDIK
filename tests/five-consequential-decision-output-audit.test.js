@@ -9,31 +9,36 @@ const CASES = Object.freeze([
     id: 'violent-crime',
     problem: 'How should a municipality allocate $10M of new spending over three years to reduce violent crime?',
     objective: 'reduce violent crime',
-    vocabulary: /violent|crime|violence|policing|deterrence/i
+    vocabulary: /violent|crime|violence|policing|deterrence/i,
+    candidateQuality: /violence|crime|policing|deterrence|outreach|lighting|remediation|diversion|reentry|violence prevention/i
   },
   {
     id: 'chronic-homelessness',
     problem: 'How should a municipality allocate $10M of new spending over three years to reduce chronic homelessness?',
     objective: 'reduce chronic homelessness',
-    vocabulary: /homeless|housing|shelter|rehousing|supportive/i
+    vocabulary: /homeless|housing|shelter|rehousing|supportive/i,
+    candidateQuality: /homeless|housing|shelter|rehousing|supportive|tenant legal|rental assistance/i
   },
   {
     id: 'emergency-department-congestion',
     problem: 'How should a municipality and its health-system partners use $10M over three years to reduce emergency-department overcrowding and patient-flow delays?',
     objective: 'reduce emergency department overcrowding',
-    vocabulary: /emergency|department|overcrowd|patient|flow|triage|hospital/i
+    vocabulary: /emergency|department|overcrowd|patient|flow|triage|hospital/i,
+    candidateQuality: /emergency|hospital|patient|care navigation|community paramedicine|primary care|mobile clinic|triage/i
   },
   {
     id: 'extreme-heat',
     problem: 'How should a municipality allocate $10M over three years to reduce heat-related illness during extreme heat events?',
     objective: 'reduce extreme heat illness',
-    vocabulary: /heat|cooling|shade|thermal|temperature|heatwave|weather/i
+    vocabulary: /heat|cooling|shade|thermal|temperature|heatwave|weather/i,
+    candidateQuality: /heat|cooling|shade|tree canopy|thermal|cool roof/i
   },
   {
     id: 'infrastructure-backlog',
     problem: 'How should a municipality allocate $10M of new spending over three years to reduce its critical infrastructure maintenance backlog while protecting essential service levels?',
     objective: 'reduce critical infrastructure maintenance backlog',
-    vocabulary: /infrastructure|maintenance|asset|backlog|renewal|repair|capital|service level/i
+    vocabulary: /infrastructure|maintenance|asset|backlog|renewal|repair|capital|service level/i,
+    candidateQuality: /maintenance|asset management|condition-based|renewal|replacement|repair|lifecycle|resurfacing|rehabilitation/i
   }
 ]);
 
@@ -74,6 +79,8 @@ function assertArchitecture(caseDef, run) {
   assert.equal(run.decision.status, 'recommendation-blocked', `${caseDef.id}: decision did not fail closed`);
 
   assert.ok(run.governance.candidateUniverseIntelligence, `${caseDef.id}: missing candidate-universe intelligence`);
+  assert.equal(run.governance.candidateUniverseIntelligence.weakUniverse, false, `${caseDef.id}: discovery marked universe weak`);
+  assert.equal(run.governance.candidateUniverseIntelligence.sufficientForRecommendation, true, `${caseDef.id}: candidate universe is not sufficient for evidence-stage decision work`);
   assert.ok(run.governance.whyNotAvailable, `${caseDef.id}: missing why-not layer`);
   assert.ok(run.governance.knowledgeGraphPresent, `${caseDef.id}: missing knowledge graph`);
   assert.ok(run.governance.externalSourceNetworkPresent, `${caseDef.id}: missing external source network`);
@@ -84,6 +91,7 @@ function assertArchitecture(caseDef, run) {
   assert.ok(run.governance.decisionLifecycle, `${caseDef.id}: missing decision lifecycle`);
 
   for (const candidate of run.candidates) {
+    assert.match(candidate.name, caseDef.candidateQuality, `${caseDef.id}: cross-domain or generic candidate leaked into intervention universe: ${candidate.name}`);
     assert.equal(candidate.discovery?.leadOnly, true, `${caseDef.id}: candidate escaped lead-only boundary: ${candidate.name}`);
     assert.equal(candidate.discovery?.effectsImported, false, `${caseDef.id}: candidate imported effects: ${candidate.name}`);
     const artifact = run.governance.decisionArtifacts[candidate.id];
