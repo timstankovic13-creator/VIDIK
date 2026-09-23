@@ -1,15 +1,10 @@
 name: VIDIK Five Consequential Decisions
 
 on:
-  pull_request:
-    paths:
-      - 'tests/five-consequential-decisions.test.js'
-      - 'js/**'
-      - 'tests/**'
-      - 'package.json'
   push:
     branches:
       - validation/five-consequential-decisions-v1
+      - validation/five-decision-quality-review-v1
   workflow_dispatch:
 
 permissions:
