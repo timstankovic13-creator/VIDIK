@@ -91,6 +91,9 @@ test('external violent-crime benchmark compares production discovery to external
     fetchImpl: mockFetch,
   });
 
+  const diagnosticRows = POSITIVE_CORPUS.map(([family, title, sourceUrl, description]) => ({ title, description, notes: 'externally sourced intervention evidence', tags: [{ name: 'violent crime' }], sourceUrl }));
+  const diagnosticLeads = diagnosticRows.map(row => ({ title: row.title, leads: require('../js/source-driven-intervention-discovery').extractCkanInterventionLeads({ result: { results: [row] } }, { sourceId: 'benchmark', domain: 'intervention-universe', jurisdiction: 'CA' }, 'reduce violent crime') }));
+  console.log(JSON.stringify({ benchmarkDiagnostic: 'record-level-extraction', diagnosticLeads }));
   const discoveredTitles = run.candidates.map(candidate => candidate.name).sort();
   const missingPositiveTitles = POSITIVE_CORPUS
     .map(([, title]) => title)
