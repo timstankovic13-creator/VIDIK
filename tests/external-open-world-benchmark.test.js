@@ -13,6 +13,7 @@ const POSITIVE_CORPUS = ORACLE.externalReferenceRecords.map((record, i) => [
   record.family,
   record.title,
   record.sourceUrl,
+  record.description || '',
 ]);
 
 const NEGATIVE_CORPUS = [
@@ -29,10 +30,10 @@ const NEGATIVE_CORPUS = [
 
 function corpus() {
   return [
-    ...POSITIVE_CORPUS.map(([family, title, sourceUrl], i) => ({
+    ...POSITIVE_CORPUS.map(([family, title, sourceUrl, description], i) => ({
       id: `external-positive-${i}`,
       title,
-      description: `Externally published evidence record describing or evaluating an actionable intervention in the ${family} family.`,
+      description: description || `Externally published evidence record describing or evaluating an actionable intervention in the ${family} family.`,
       notes: 'externally sourced intervention evidence',
       tags: [{ name: 'violent crime' }, { name: 'external evidence' }],
       sourceUrl,
