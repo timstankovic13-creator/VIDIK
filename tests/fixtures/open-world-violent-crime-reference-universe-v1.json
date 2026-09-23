@@ -169,14 +169,16 @@
       "title": "Hot spots policing of small geographic areas effects on crime",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/37133274/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The review describes police-led prevention efforts focused on high-activity crime places, including directed patrol, heightened enforcement and problem-oriented policing."
     },
     {
       "family": "problem-oriented policing",
       "title": "Problem-oriented policing for reducing crime and disorder",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/37133256/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The review describes problem-oriented policing using scanning, analysis, tailored response and assessment to address underlying conditions contributing to crime and disorder."
     },
     {
       "family": "street lighting/place-based environmental change",
@@ -190,7 +192,8 @@
       "title": "Greening vacant lots to reduce violent crime",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/22871378/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The trial describes restoring vacant land by cleaning lots, planting vegetation and improving the physical environment as a place-based violence and crime intervention."
     },
     {
       "family": "youth employment/paid summer employment",
@@ -218,14 +221,16 @@
       "title": "Intimate partner violence prevention programs",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/35427459/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The review describes primary and secondary intimate-partner-violence prevention programs, including bystander interventions and skill-building around healthy relationships and conflict resolution."
     },
     {
       "family": "reentry/post-release support",
       "title": "Rehabilitation and re-entry programmes",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/41506656/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The review covers prison rehabilitation and community re-entry programs delivered during incarceration or the transition after release, including psychosocial, health and vocational services."
     },
     {
       "family": "substance-use treatment/diversion",
@@ -239,14 +244,16 @@
       "title": "Hospital violence intervention peer support and navigation",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/38742726/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The review describes hospital-based violence intervention programs using peer-support specialists or navigators to coordinate services for people injured by violence and continue support after discharge."
     },
     {
       "family": "built-environment/public-space intervention",
       "title": "Restoration of blighted vacant land",
       "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/29483246/",
       "sourceType": "external-published-evidence",
-      "externallySourced": true
+      "externallySourced": true,
+      "description": "The randomized trial describes standardized restoration of blighted vacant land as an infrastructure intervention intended to change environmental conditions associated with violence, crime and fear."
     },
     {
       "family": "firearm-risk reduction",
@@ -284,5 +291,6 @@
     "transferability-qualified",
     "transferability-insufficient",
     "provenance-failure"
-  ]
+  ],
+  "provenanceNote": "External reference records are derived from the cited PubMed records; descriptions are concise evaluation metadata/paraphrases, not copied abstracts."
 }
