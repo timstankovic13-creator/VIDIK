@@ -805,7 +805,7 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   const rules = [
     {
       match: /violent crime|serious violence|community violence/,
-      terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','community violence prevention','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
+      terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','community violence prevention','violence intervention','supportive housing','housing first','housing stabilization','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
     },
     {
       match: /chronic homelessness|homelessness|rough sleeping|housing insecurity/,
