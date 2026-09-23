@@ -832,6 +832,17 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   const hit = rule.terms.some(term => name.includes(term) || text.includes(term));
   if (!hit) return false;
 
+  // Eviction prevention is an actionable housing intervention, but it targets
+  // homelessness inflow rather than chronic homelessness itself. Keep it out of
+  // the direct intervention universe for this consequential decision unless the
+  // source record explicitly ties the intervention to people experiencing chronic
+  // homelessness; otherwise it belongs in an upstream/adjacent option class.
+  if (/chronic homelessness|homelessness|rough sleeping|housing insecurity/.test(p) &&
+      /^(eviction prevention|eviction diversion)$/.test(name) &&
+      !/chronic homelessness|people experiencing homelessness|people who are homeless|homeless population/.test(text)) {
+    return false;
+  }
+
   // For broad multi-domain interventions, require the candidate title itself to
   // expose an actionable mechanism. This blocks generic grants, casework, reports,
   // and service records whose descriptions merely mention the target problem.
