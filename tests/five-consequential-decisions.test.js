@@ -58,7 +58,7 @@ function statusQuo(id) {
 
 function normalizedQueryText(run) {
   return (run.discoveryQueries || [])
-    .concat((run.sourceSearches || []).flatMap(search => (search.attempts || []).map(attempt => attempt.query || '')))
+    .concat((run.sourceSearches || []).flatMap(search => [search.query || '', ...(search.attempts || []).map(attempt => attempt.query || '')]))
     .join(' ');
 }
 
