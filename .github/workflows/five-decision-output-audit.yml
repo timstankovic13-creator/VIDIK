@@ -1,7 +1,9 @@
 name: VIDIK Five Decision Output Audit
 on:
   push:
-    branches: [validation/five-decision-output-audit-v1]
+    branches:
+    - validation/five-decision-output-audit-v1
+    - validation/five-decision-quality-review-v1
   workflow_dispatch:
 permissions:
   contents: read
