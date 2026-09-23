@@ -1,0 +1,32 @@
+name: VIDIK Five Consequential Decisions
+
+on:
+  pull_request:
+    paths:
+      - 'tests/five-consequential-decisions.test.js'
+      - 'js/**'
+      - 'tests/**'
+      - 'package.json'
+  push:
+    branches:
+      - validation/five-consequential-decisions-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  five-consequential-decisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Run five genuinely different consequential decisions
+        run: node --test tests/five-consequential-decisions.test.js
