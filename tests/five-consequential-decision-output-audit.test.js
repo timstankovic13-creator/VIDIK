@@ -155,7 +155,7 @@ test('five consequential decisions run through the same production architecture 
   console.log(JSON.stringify({
     validation: 'five-consequential-decisions-v1',
     architecture: 'executeFullCapacityDecision',
-    cases: summaries
+    cases: summaries,
     audit
   }, null, 2));
 });
