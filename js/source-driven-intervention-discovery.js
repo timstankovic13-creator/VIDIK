@@ -803,6 +803,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
+  if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
   // Bounded problem-to-intervention concept bridges improve recall when the
   // intervention uses operational language rather than the user's problem wording.
   // These are explicit semantic relationships, not same-domain shortcuts.
