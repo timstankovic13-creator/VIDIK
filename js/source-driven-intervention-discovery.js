@@ -813,7 +813,7 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
     },
     {
       match: /emergency[- ]department|hospital overcrowding|patient[- ]flow|ed crowding/,
-      terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','mobile health outreach','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
+      terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','mobile health outreach','primary care clinic','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
     },
     {
       match: /extreme heat|heat-related illness|heat illness/,
