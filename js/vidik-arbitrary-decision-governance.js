@@ -36,9 +36,13 @@ function buildCandidateUniverseIntelligence({ candidates = [], sourceSearches = 
   const assessments = sourceSearches.map(s => s.discoveryAssessment).filter(Boolean);
   const missingFamilies = [...new Set(assessments.flatMap(a => a.missingInterventionFamilies || []))];
   const missingClasses = [...new Set(assessments.flatMap(a => a.missingInterventionClasses || []))];
+  // Class coverage is a diagnostic, not proof of universe failure. Once the
+  // discovery engine has explicitly searched for missing classes, unresolved
+  // classes remain unknown/missing-option diagnostics rather than becoming a
+  // hard universe failure. Family-level weakness and unsearched gaps still fail.
   const semanticWeak = assessments.some(a =>
     a.diagnosticCounts?.candidateUniverseWeak ||
-    a.diagnosticCounts?.classCoverageWeak ||
+    ((a.diagnosticCounts?.classCoverageWeak === true) && a.diagnosticCounts?.missingOptionSearchUsed !== true) ||
     (Array.isArray(a.missingInterventionFamilies) && a.missingInterventionFamilies.length > 0)
   );
   const candidateCount = candidates.length;
