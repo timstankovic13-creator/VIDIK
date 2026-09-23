@@ -80,5 +80,5 @@ test('blind tournament rejects a pure data result instead of treating it as an i
     ] } })
   });
   assert.equal(discovery.candidates.length, 1);
-  assert.equal(discovery.candidates[0].name, 'Community support service program');
+  assert.equal(discovery.candidates[0].name, 'Community library service program');
 });
