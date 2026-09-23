@@ -294,6 +294,7 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   // themselves executable interventions. Reject these before positive action signals.
   /^(?:office|department|government|minister|secretary|pm:)\b/i,
   /\b(?:announces?|announced|awards?|awarded|launches?|launched|calls? for|expressions? of interest|prospectus|privacy notice|how to comply|success rates?|percentage of referrals|programme deep dive)\b/i,
+  /\b(?:grant|funding)\s+announcement\b/i,
   /\b(?:fund|funding|grant)\s+(?:for|to)\s+(?:local|regional|community)\s+(?:action|projects?|organisations?|organizations?)\b/i,
   /\b(?:funding|grant)\s+to\s+help\b/i,
   /^supporting vulnerable people\b/i,
@@ -807,7 +808,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // These are explicit semantic relationships, not same-domain shortcuts.
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
-    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance'],
+    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance','public space','environmental safety','street lighting','vacant property','blight remediation','built environment'],
     ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes','intersection safety','protected intersection','crosswalk','safe crossing','pedestrian safety'],
     ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
     ['digital access gaps','digital divide','digital exclusion','digital access barriers','broadband access','internet access','broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy'],
