@@ -47,6 +47,8 @@
     answer.appendChild(section);
   }
 
+  window.VIDIKRenderBudget = render;
+
   async function run(problem, audience, jurisdiction, statusQuo, workspace) {
     const response = await fetch('/api/decision/discover', {
       method: 'POST',
@@ -78,20 +80,4 @@
     });
   }
 
-  const generalButton = document.getElementById('runGeneralDecision');
-  const generalProblem = document.getElementById('generalProblem');
-  if (generalButton && generalProblem) {
-    generalButton.addEventListener('click', async function () {
-      const problem = generalProblem.value.trim();
-      if (!problem) return;
-      try {
-        const audience = document.querySelector('.audience-card.selected')?.dataset.audience || 'business';
-        const workspace = {};
-        document.querySelectorAll('[data-workspace-field]').forEach(el => { if (el.value.trim()) workspace[el.dataset.workspaceField] = el.value.trim(); });
-        await run(problem, audience, document.getElementById('generalJurisdiction')?.value || 'international', document.getElementById('generalStatusQuo')?.value || 'Continue current practice', workspace);
-      } catch (error) {
-        render({ budget: { requested: true, scope: 'single-decision' }, allocation: { status: 'blocked', reason: error.message } });
-      }
-    });
-  }
 })();
