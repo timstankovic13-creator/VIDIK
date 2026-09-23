@@ -280,7 +280,8 @@ function taxonomyTerms(problem, workspace = 'municipal') {
 }
 
 const NON_INTERVENTION_ARTIFACT_PATTERNS = [
-  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,\n  /\b(?:provider directory|service provider directory|provider list|service provider list|list of providers)\b/i,
+  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
+  /\b(?:provider directory|service provider directory|provider list|service provider list|list of providers)\b/i,
   /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
   /\b(?:service|services)\s+delivery\s+by\s+type\s+of\b/i,
   /\b(?:national|regional|annual|community|local)\s+assessment\s+of\b/i,
