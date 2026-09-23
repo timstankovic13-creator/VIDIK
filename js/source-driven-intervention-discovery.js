@@ -552,7 +552,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
-    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : (recordLike ? [] : []));
+    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (!recordLike && descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
     return names.map((item, extractedIndex) => {
       const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
       const canonicalName = normalizeInterventionName(item.name);
