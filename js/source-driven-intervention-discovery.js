@@ -805,7 +805,7 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   const rules = [
     {
       match: /violent crime|serious violence|community violence/,
-      terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
+      terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','community violence prevention','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
     },
     {
       match: /chronic homelessness|homelessness|rough sleeping|housing insecurity/,
@@ -813,7 +813,7 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
     },
     {
       match: /emergency[- ]department|hospital overcrowding|patient[- ]flow|ed crowding/,
-      terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
+      terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','mobile health outreach','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
     },
     {
       match: /extreme heat|heat-related illness|heat illness/,
