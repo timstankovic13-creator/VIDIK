@@ -17,6 +17,8 @@ assert.match(html, /interface-variants\.js\?v=20260924-interface-v3/);
 assert.match(html, /js\/interface-variants\.js/);
 assert.match(js, /localStorage\.setItem\(['"]vidik-interface-mode/);
 assert.match(js, /document\.body\.dataset\.interface/);
+assert.match(js, /document\.documentElement\.dataset\.vidikInterface/);
+for (const mode of requiredModes) assert.match(css, new RegExp('body\\[data-interface="' + mode + '"\\]'));
 assert.match(css, /body\[data-interface="brief"\]/);
 assert.match(css, /body\[data-interface="workbench"\]/);
 assert.match(css, /body\[data-interface="investigate"\]/);

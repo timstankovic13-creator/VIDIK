@@ -43,6 +43,7 @@
   function applyMode(mode) {
     const config = modes[mode] || modes.cockpit;
     document.body.dataset.interface = mode;
+    document.documentElement.dataset.vidikInterface = mode;
     document.querySelectorAll('.interface-mode, .quick-mode').forEach(button => {
       button.classList.toggle('active', button.dataset.interface === mode);
       button.setAttribute('aria-pressed', button.dataset.interface === mode ? 'true' : 'false');
@@ -78,7 +79,26 @@
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
+  function installFinishLineExperience() {
+    if (document.getElementById('experienceContext')) return;
+    const main = document.getElementById('top');
+    const hero = document.getElementById('decision');
+    if (!main || !hero) return;
+
+    const style = document.createElement('link');
+    style.rel = 'stylesheet';
+    style.href = 'styles/finish-line-experience.css?v=20260924-finish-line-v1';
+    document.head.appendChild(style);
+
+    hero.insertAdjacentHTML('beforebegin', '<section id="experienceContext" class="experience-context" aria-label="VIDIK workspace context"><img id="experienceContextImage" src="https://commons.wikimedia.org/wiki/Special:FilePath/Montreal%20Skyline.jpg" alt="Montreal skyline from Mount Royal"><div class="experience-context-copy"><span class="eyebrow">CITY CONTEXT · MUNICIPAL EXPERIENCE</span><strong id="experienceContextTitle">Decisions for a city and the people in it.</strong><span id="experienceContextSubtitle">Place-aware intelligence for public resources, services and outcomes.</span></div><button id="experienceContextChange" class="experience-context-change" type="button">Change experience</button><span id="experienceContextCity" hidden>Ottawa</span><span id="experienceContextScene" hidden>City context</span></section>');
+
+    const script = document.createElement('script');
+    script.src = 'js/interface-experience.js?v=20260924-finish-line-v1';
+    document.body.appendChild(script);
+  }
+
   function bind() {
+    installFinishLineExperience();
     document.querySelectorAll('.interface-mode, .quick-mode').forEach(button => {
       button.addEventListener('click', () => applyMode(button.dataset.interface));
     });
