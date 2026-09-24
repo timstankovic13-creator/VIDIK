@@ -48,6 +48,17 @@
   <div class="answer-actions"><button id="seeAnalysis" class="primary" type="button">Open decision analysis</button><button id="compareOptions" class="secondary" type="button">Compare options</button><button id="challengeDecision" class="secondary" type="button">Challenge the reasoning</button></div>
 </section>
 
+<section class="interface-switcher" aria-label="VIDIK interface modes">
+  <div class="interface-switcher-head"><div><span class="eyebrow">INTERFACE EXPERIMENT</span><b>Choose how you want to work the decision.</b></div><span id="interfaceModeLabel">Decision Cockpit</span></div>
+  <div class="interface-modes">
+    <button class="interface-mode active" data-interface="cockpit"><strong>01</strong><span>Cockpit</span><small>Decide fast</small></button>
+    <button class="interface-mode" data-interface="brief"><strong>02</strong><span>Executive Brief</span><small>Communicate</small></button>
+    <button class="interface-mode" data-interface="workbench"><strong>03</strong><span>Analyst</span><small>Investigate</small></button>
+    <button class="interface-mode" data-interface="investigate"><strong>04</strong><span>Investigation</span><small>Interrogate</small></button>
+    <button class="interface-mode" data-interface="map"><strong>05</strong><span>Decision Map</span><small>See the chain</small></button>
+  </div>
+</section>
+
 <nav class="decision-nav" aria-label="Decision views">
   <button class="nav-tab active" data-view="overview">Overview</button>
   <button class="nav-tab" data-view="optionsSection">Options</button>
@@ -94,7 +105,7 @@
 
 <script src="js/config.js?v=20260923-cockpit-v2"></script>
 <script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260923-cockpit-v2"></script>
-<script src="js/live-decision-experience.js"></script>
+<script src="js/live-decision-experience.js"></script>\n<script src="js/interface-variants.js"></script>
 <script>
 (function(){
   const input=document.getElementById('decisionProblem');
