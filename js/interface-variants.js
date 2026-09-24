@@ -43,12 +43,14 @@
   function applyMode(mode) {
     const config = modes[mode] || modes.cockpit;
     document.body.dataset.interface = mode;
-    document.querySelectorAll('.interface-mode').forEach(button => {
+    document.querySelectorAll('.interface-mode, .quick-mode').forEach(button => {
       button.classList.toggle('active', button.dataset.interface === mode);
       button.setAttribute('aria-pressed', button.dataset.interface === mode ? 'true' : 'false');
     });
     const label = document.getElementById('interfaceModeLabel');
+    const quickLabel = document.getElementById('quickInterfaceLabel');
     if (label) label.textContent = config.label;
+    if (quickLabel) quickLabel.textContent = config.label;
 
     const intro = document.querySelector('.interface-mode-intro');
     if (intro) intro.innerHTML = '<strong>' + escapeHtml(config.title) + '</strong><span>' + escapeHtml(config.intro) + '</span>';
@@ -77,7 +79,7 @@
   }
 
   function bind() {
-    document.querySelectorAll('.interface-mode').forEach(button => {
+    document.querySelectorAll('.interface-mode, .quick-mode').forEach(button => {
       button.addEventListener('click', () => applyMode(button.dataset.interface));
     });
 
