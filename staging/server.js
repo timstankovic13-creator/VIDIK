@@ -25,7 +25,7 @@ const { buildWorkspaceContext, workspaceOutputTemplate } = require('../js/domain
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8080);
-const VERSION = '9.2.0';
+const VERSION = '9.2.1-gui-live';
 
 let ready = true;
 let pool = null;
@@ -186,7 +186,11 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(err.code === 'ENOENT' ? 404 : 500);
       return res.end('not found');
     }
-    res.writeHead(200, {'content-type': mime[path.extname(target)] || 'application/octet-stream'});
+    const contentType = mime[path.extname(target)] || 'application/octet-stream';
+    const cacheControl = path.extname(target) === '.html' || path.extname(target) === '.js' || path.extname(target) === '.css'
+      ? 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0'
+      : 'public, max-age=60';
+    res.writeHead(200, {'content-type': contentType, 'cache-control': cacheControl, 'pragma': 'no-cache', 'expires': '0'});
     res.end(data);
   });
 });
