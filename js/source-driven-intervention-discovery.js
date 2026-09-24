@@ -305,6 +305,7 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b\b(data|dataset|statistical|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series|case study|case-study)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
   /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
+  /\bprivacy impact assessment\b/i,
   /\bpre-?application\s+advice\b/i,
   /\b(?:project|programme|program)\s+area\b/i
 ];
@@ -320,9 +321,16 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(food bank|food pantry|community food hub|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|hot spots policing|problem-oriented policing|directed patrol|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|primary care clinic|community health worker|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|smoke filtration|wildfire smoke mitigation|wildfire evacuation support|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program|e-procurement|digital procurement|procurement workflow automation|procurement process redesign|purchase order automation|digital permitting|online permitting|permit streamlining|public space|environmental safety|street lighting|vacant property remediation|blight remediation|built environment|vacant lot greening|lot greening|vacant land restoration|blighted vacant land restoration|reentry support|rehabilitation and re-entry|hospital violence intervention|intimate partner violence prevention|domestic violence prevention)\b/i.test(titleText);
+  // Controlled recall anchors are executable intervention vocabulary, not arbitrary
+  // search text. Allow them through the actionable gate so a recovered option such as
+  // route optimization or demand-responsive transit is not discarded merely because its
+  // title lacks the generic word "program".
+  const controlledRecallAction = DISCOVERY_RECALL_PACKS.some(pack =>
+    pack.terms.some(term => titleText.includes(String(term).toLowerCase()))
+  );
   // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
 
-  return explicitProgram || concreteAction || concreteServiceObject;
+  return explicitProgram || concreteAction || concreteServiceObject || controlledRecallAction;
 }
 const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
   municipal: [
@@ -394,6 +402,7 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'municipal', match: /violent crime|serious violence|community violence/i, terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hospital-based violence intervention','street outreach','problem-oriented policing','vacant property remediation','vacant lot greening','youth violence prevention','credible messenger','firearm violence prevention'] },
   { workspace: 'municipal', match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/i, terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management'] },
   { workspace: 'municipal', match: /wildfire smoke exposure|bushfire smoke exposure|smoke exposure/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling'] },
+  { workspace: 'municipal', match: /extreme heat illness|heat-related illness|heat illness/i, terms: ['cooling centre','cooling infrastructure','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
   { workspace: 'municipal', match: /worker displacement|workforce displacement|job displacement|displaced workers/i, terms: ['worker transition','redeployment','displacement support','reskilling','job placement','wage subsidy'] },
   { workspace: 'municipal', match: /food price volatility|food price instability|volatile food prices/i, terms: ['food price stabilization','food price support','food market stabilization','food price subsidy','food supply support','food affordability program'] },
   { workspace: 'business', match: /small business survival|business survival|business continuity/i, terms: ['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service'] },
@@ -405,7 +414,33 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
   { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
   { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
-  { workspace: 'enterprise', match: /data governance|information governance|data stewardship|data quality/i, terms: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment'] }
+  { workspace: 'enterprise', match: /data governance|information governance|data stewardship|data quality/i, terms: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment'] },
+  // Recall packs for the remaining blocked cases from the 60-problem battery. These are
+  // retrieval anchors only: they never synthesize an option; a source-backed record must
+  // still pass the normal actionable/relevance gates below.
+  { workspace: 'municipal', match: /traffic congestion|traffic delays|congestion/i, terms: ['traffic signal timing','traffic signal priority','adaptive signal control','congestion pricing','bus priority','transit signal priority'] },
+  { workspace: 'municipal', match: /gun violence|firearm violence/i, terms: ['focused deterrence','community violence intervention','violence interruption','hospital-based violence intervention','credible messenger','firearm violence prevention'] },
+  { workspace: 'municipal', match: /school absenteeism|student absenteeism|chronic absenteeism/i, terms: ['attendance mentoring','school attendance intervention','family outreach','early warning system','school transportation support','student engagement program'] },
+  { workspace: 'business', match: /delivery delays|delivery delay|late deliveries|delivery reliability/i, terms: ['route optimization','delivery scheduling','fleet optimization','dispatch optimization','delivery tracking','warehouse automation'] },
+  { workspace: 'business', match: /employee training completion|training completion|training participation/i, terms: ['learning management system','mandatory training program','manager coaching','microlearning','skills training','training incentives'] },
+  { workspace: 'community', match: /social isolation among seniors|social isolation|loneliness among older adults/i, terms: ['befriending program','senior social prescribing','community connection program','peer support','senior centre outreach','group social activities'] },
+  { workspace: 'community', match: /access to affordable housing|affordable housing access|housing affordability/i, terms: ['rental assistance','housing navigation','rapid rehousing','supportive housing','community land trust','affordable housing development'] },
+  { workspace: 'community', match: /youth violence|youth firearm violence/i, terms: ['youth violence interruption','credible messenger','youth mentoring','focused deterrence','hospital-based violence intervention','summer youth employment'] },
+  { workspace: 'community', match: /disaster preparedness|emergency preparedness/i, terms: ['community emergency preparedness','emergency preparedness training','evacuation planning','community resilience hub','early warning system','emergency supplies program'] },
+  { workspace: 'community', match: /heat exposure|extreme heat|heat illness/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','cooling infrastructure'] },
+  { workspace: 'community', match: /wildfire evacuation barriers|bushfire evacuation barriers|evacuation constraints|evacuation access/i, terms: ['wildfire evacuation support','evacuation support','evacuation assistance','safe passage','emergency transportation','community evacuation planning'] },
+  { workspace: 'community', match: /rural healthcare access|rural health access|rural healthcare/i, terms: ['mobile clinic','community paramedicine','telehealth service','rural health outreach','community health worker','transportation to care'] },
+  { workspace: 'research', match: /evaluate interventions to reduce homelessness|interventions to reduce homelessness|reduce homelessness/i, terms: ['housing first','rapid rehousing','supportive housing','rental assistance','shelter diversion','permanent supportive housing'] },
+  { workspace: 'research', match: /heat-health interventions|heat health interventions|reduce heat illness/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
+  { workspace: 'research', match: /interventions to reduce pedestrian injuries|pedestrian injury prevention|pedestrian injuries/i, terms: ['traffic calming','protected bike lane','pedestrian crossing','safe routes','protected intersection','road diet'] },
+  { workspace: 'research', match: /workforce displacement from automation|worker displacement from automation|automation displacement/i, terms: ['worker transition','redeployment','reskilling','job placement','wage subsidy','career pathway'] },
+  { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
+  { workspace: 'research', match: /interventions to improve rural mobility|rural mobility|rural transportation access/i, terms: ['demand responsive transit','community transportation','rural transit service','transit subsidy','community shuttle','non-emergency medical transportation'] },
+  { workspace: 'enterprise', match: /digital access gaps|digital access barriers|digital divide/i, terms: ['digital inclusion','broadband subsidy','internet access support','device lending','digital literacy','accessible digital channel'] },
+  { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+  { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
+  { workspace: 'enterprise', match: /regulatory compliance delays|compliance delays|regulatory compliance/i, terms: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','inspection reform'] },
+  { workspace: 'enterprise', match: /infrastructure maintenance backlog|maintenance backlog|critical infrastructure maintenance/i, terms: ['preventive maintenance','asset management','condition-based maintenance','predictive maintenance','maintenance management system','asset renewal'] }
 ]);
 function discoveryRecallTerms(problem, workspace) {
   const normalized = normalizeText(problem);
@@ -801,6 +836,15 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   const p = normalizeText(problem).toLowerCase();
   const name = normalizeText(candidate?.name || '').toLowerCase();
   const text = normalizeText((candidate?.name || '') + ' ' + (candidate?.discoveryText || '')).toLowerCase();
+
+  // Reuse the same controlled recall vocabulary used to retrieve weak/blocked lanes.
+  // This keeps retrieval and relevance aligned without allowing arbitrary query text to
+  // manufacture a candidate. The source record still has to pass actionable filtering.
+  const recallPack = DISCOVERY_RECALL_PACKS.find(pack => pack.workspace === workspace && pack.match.test(p));
+  if (recallPack) {
+    const recallHit = recallPack.terms.some(term => name.includes(String(term).toLowerCase()) || text.includes(String(term).toLowerCase()));
+    if (recallHit) return true;
+  }
 
   const rules = [
     {
