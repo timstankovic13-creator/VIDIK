@@ -320,9 +320,16 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
   const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
   const concreteServiceObject=/\b(food bank|food pantry|community food hub|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|hot spots policing|problem-oriented policing|directed patrol|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|primary care clinic|community health worker|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|smoke filtration|wildfire smoke mitigation|wildfire evacuation support|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program|e-procurement|digital procurement|procurement workflow automation|procurement process redesign|purchase order automation|digital permitting|online permitting|permit streamlining|public space|environmental safety|street lighting|vacant property remediation|blight remediation|built environment|vacant lot greening|lot greening|vacant land restoration|blighted vacant land restoration|reentry support|rehabilitation and re-entry|hospital violence intervention|intimate partner violence prevention|domestic violence prevention)\b/i.test(titleText);
+  // Controlled recall anchors are executable intervention vocabulary, not arbitrary
+  // search text. Allow them through the actionable gate so a recovered option such as
+  // route optimization or demand-responsive transit is not discarded merely because its
+  // title lacks the generic word "program".
+  const controlledRecallAction = DISCOVERY_RECALL_PACKS.some(pack =>
+    pack.terms.some(term => titleText.includes(String(term).toLowerCase()))
+  );
   // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
 
-  return explicitProgram || concreteAction || concreteServiceObject;
+  return explicitProgram || concreteAction || concreteServiceObject || controlledRecallAction;
 }
 const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
   municipal: [
