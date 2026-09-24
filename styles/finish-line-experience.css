@@ -81,3 +81,21 @@ body[data-workspace="enterprise"] .journey-stage{background:linear-gradient(145d
  .journey-stage-track{margin-top:30px}
  .journey-stage-steps{font-size:7px;gap:4px}
 }
+
+/* TRUE FIRST SCREEN: the opening experience is intentionally a single decision question. */
+/* Before analysis begins, VIDIK is a decision prompt—not a dashboard. */
+body:not([data-interface-journey="active"]) .interface-quickbar,
+body:not([data-interface-journey="active"]) .answer-card,
+body:not([data-interface-journey="active"]) .interface-switcher,
+body:not([data-interface-journey="active"]) .decision-nav,
+body:not([data-interface-journey="active"]) #analysis{display:none!important}
+body:not([data-interface-journey="active"]) .hero{min-height:calc(100vh - 78px);display:flex;align-items:center;padding-top:clamp(28px,8vh,90px);padding-bottom:clamp(40px,10vh,110px)}
+body:not([data-interface-journey="active"]) .hero-copy{max-width:760px}
+body:not([data-interface-journey="active"]) .hero-copy h1{font-size:clamp(48px,8vw,92px);line-height:.94;letter-spacing:-.065em;max-width:780px}
+body:not([data-interface-journey="active"]) .hero-copy p{max-width:620px;font-size:clamp(15px,1.8vw,19px);line-height:1.55}
+body:not([data-interface-journey="active"]) .decision-composer{max-width:900px;margin-top:28px;border-radius:30px;padding:clamp(20px,3vw,34px);box-shadow:0 28px 80px rgba(31,52,42,.11)}
+body:not([data-interface-journey="active"]) .example-row{margin-top:12px}
+body:not([data-interface-journey="active"]) .composer-controls{margin-top:18px}
+body[data-journey-state="decision"] .journey-stage{display:block}
+body[data-journey-state="decision"] .journey-stage.complete{opacity:.92}
+@media(max-width:800px){body:not([data-interface-journey="active"]) .hero{min-height:calc(100vh - 68px);display:block;padding-top:34px}.hero-copy h1{font-size:clamp(42px,12vw,64px)}}
