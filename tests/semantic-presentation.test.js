@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const js=fs.readFileSync('js/semantic-presentation.js','utf8');
+const css=fs.readFileSync('styles/semantic-presentation.css','utf8');
+const variants=fs.readFileSync('js/interface-variants.js','utf8');
+for(const type of ['options','allocation','trend','evidence']) assert.ok(js.includes(type+':'), 'missing semantic type: '+type);
+for(const format of ['cards','compare','flow','pie','bars','line','matrix']) assert.ok(js.includes("id:'"+format+"'"), 'missing representation: '+format);
+assert.ok(js.includes('MutationObserver'),'presentation must react to live decision output');
+assert.ok(js.includes('Decision Object'),'semantic layer must declare its presentation boundary');
+assert.ok(js.includes('window.VIDIKSemanticPresentation'),'public presentation API missing');
+assert.ok(variants.includes('semantic-presentation.css'),'semantic CSS not wired');
+assert.ok(variants.includes('semantic-presentation.js'),'semantic JS not wired');
+for(const selector of ['.semantic-presentation','.semantic-card-grid','.semantic-compare','.semantic-flow','.semantic-controls']) assert.ok(css.includes(selector),'missing semantic styling: '+selector);
+console.log('semantic presentation: one Decision Object, multiple dynamic representations, live output sync');
