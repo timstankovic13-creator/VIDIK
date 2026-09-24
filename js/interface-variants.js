@@ -87,14 +87,23 @@
 
     const style = document.createElement('link');
     style.rel = 'stylesheet';
-    style.href = 'styles/finish-line-experience.css?v=20260924-finish-line-v1';
+    style.href = 'styles/finish-line-experience.css?v=20260924-finish-line-v2';
     document.head.appendChild(style);
 
     hero.insertAdjacentHTML('beforebegin', '<section id="experienceContext" class="experience-context" aria-label="VIDIK workspace context"><img id="experienceContextImage" src="https://commons.wikimedia.org/wiki/Special:FilePath/Montreal%20Skyline.jpg" alt="Montreal skyline from Mount Royal"><div class="experience-context-copy"><span class="eyebrow">CITY CONTEXT · MUNICIPAL EXPERIENCE</span><strong id="experienceContextTitle">Decisions for a city and the people in it.</strong><span id="experienceContextSubtitle">Place-aware intelligence for public resources, services and outcomes.</span></div><button id="experienceContextChange" class="experience-context-change" type="button">Change experience</button><span id="experienceContextCity" hidden>Ottawa</span><span id="experienceContextScene" hidden>City context</span></section>');
 
     const script = document.createElement('script');
-    script.src = 'js/interface-experience.js?v=20260924-finish-line-v1';
+    script.src = 'js/interface-experience.js?v=20260924-finish-line-v2';
     document.body.appendChild(script);
+
+    const semanticStyle = document.createElement('link');
+    semanticStyle.rel = 'stylesheet';
+    semanticStyle.href = 'styles/semantic-presentation.css?v=20260924-semantic-v1';
+    document.head.appendChild(semanticStyle);
+
+    const semanticScript = document.createElement('script');
+    semanticScript.src = 'js/semantic-presentation.js?v=20260924-semantic-v1';
+    document.body.appendChild(semanticScript);
   }
 
   function bind() {
