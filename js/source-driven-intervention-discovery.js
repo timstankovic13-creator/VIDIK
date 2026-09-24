@@ -246,7 +246,7 @@ function enterpriseProblemProfile(problem) {
     { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
     { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
     { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','permit modernization','inspection reform'] },
-    { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','data quality controls','compliance automation','internal controls'] },
+    { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls'] },
     { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response','maintenance management system','condition-based maintenance','predictive maintenance','asset renewal'] },
     { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination'] },
     { match: /accessibility barriers.*digital services|digital services.*accessibility barriers/, classes: ['accessible design','assistive technology','service accommodation','inclusive service design'] },
@@ -305,6 +305,7 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b\b(data|dataset|statistical|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series|case study|case-study)\b/i,
   /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
   /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
+  /\bprivacy impact assessment\b/i,
   /\bpre-?application\s+advice\b/i,
   /\b(?:project|programme|program)\s+area\b/i
 ];
