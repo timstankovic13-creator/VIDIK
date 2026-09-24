@@ -20,12 +20,14 @@
     const city=document.getElementById('experienceContextCity');
     const scene=document.getElementById('experienceContextScene');
     const identity=document.getElementById('workspaceIdentity');
+    const heroEyebrow=document.querySelector('.hero-copy > .eyebrow');
     if(img){img.src=data.image;img.alt=data.imageAlt}
     if(title) title.textContent=data.title;
     if(sub) sub.textContent=data.subtitle;
     if(city) city.textContent=data.city;
     if(scene) scene.textContent=data.scene;
     if(identity) identity.innerHTML='<i></i><strong>'+data.label+'</strong> experience';
+    if(heroEyebrow) heroEyebrow.textContent='START WITH THE '+data.label.toUpperCase()+' DECISION';
   }
 
   function imageForCandidate(name,kind){
@@ -53,6 +55,12 @@
     });
   }
 
+  function applyWorkspaceDefault(kind){
+    const defaults={municipal:'cockpit',business:'brief',community:'cockpit',research:'workbench',enterprise:'brief'};
+    const mode=defaults[kind]||'cockpit';
+    document.querySelector('.quick-mode[data-interface="'+mode+'"]')?.click();
+  }
+
   function startJourney(){
     document.body.dataset.interfaceJourney='active';
     document.querySelector('.decision-composer')?.classList.add('journey-running');
@@ -66,7 +74,8 @@
     const audience=document.getElementById('audienceSelect');
     if(!audience) return;
     renderContext(workspace());
-    audience.addEventListener('change',()=>renderContext(workspace()));
+    applyWorkspaceDefault(workspace());
+    audience.addEventListener('change',()=>{renderContext(workspace());applyWorkspaceDefault(workspace());});
     document.getElementById('experienceContextChange')?.addEventListener('click',()=>{audience.focus();audience.scrollIntoView({behavior:'smooth',block:'center'});});
     document.getElementById('runDecision')?.addEventListener('click',startJourney);
 
