@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="VIDIK — decision intelligence for consequential resource decisions.">
 <title>VIDIK — Decision Intelligence</title>
-<link rel="stylesheet" href="styles.css?v=20260923-cockpit-v2">
+<link rel="stylesheet" href="styles.css?v=20260924-interface-v3">
 </head>
 <body>
 <div class="app-shell">
@@ -35,6 +35,8 @@
     <div id="gate" class="status hold">Ready to analyze</div>
   </div>
 </section>
+
+<section class="interface-quickbar" aria-label="Interface controls"><div class="quickbar-copy"><span class="eyebrow">INTERFACE SYSTEM</span><strong id="quickInterfaceLabel">Decision Cockpit</strong><small>Change the way VIDIK presents the same decision — no change to the underlying intelligence.</small></div><div class="quickbar-controls"><div class="quick-modes" role="group" aria-label="Interface mode"><button class="quick-mode active" type="button" data-interface="cockpit">Cockpit</button><button class="quick-mode" type="button" data-interface="brief">Brief</button><button class="quick-mode" type="button" data-interface="workbench">Analyst</button><button class="quick-mode" type="button" data-interface="investigate">Investigate</button><button class="quick-mode" type="button" data-interface="map">Map</button></div><label class="skin-picker">Skin<select id="skinSelectTop" aria-label="Visual skin"><option value="civic">Civic</option><option value="studio">Studio</option><option value="field">Field</option><option value="night">Night</option></select></label></div></section>
 
 <section id="answerFirst" class="answer-card">
   <div class="answer-meta"><span class="eyebrow">DECISION BRIEF</span><span id="topImpact" class="signal">WAITING</span></div>
@@ -104,24 +106,25 @@
 <div id="lifecycleStatus"></div><input id="lifecycleActor"><input id="lifecycleOverride"><input id="lifecycleRationale"><button id="persistDecision"></button><button id="snapshotDecision"></button><button id="applyOverride"></button><button id="verifyDecision"></button><div id="lifecycleVerify"></div><pre id="decisionMemory"></pre><input id="lifecyclePredicted"><input id="lifecycleObserved"><select id="lifecycleCheckpoint"><option>6-month</option></select><button id="recordLifecycleOutcome"></button><div id="v96Status"></div><input id="v96Predicted"><input id="v96Observed"><select id="v96Checkpoint"><option>6-month</option></select><input id="v96CalibrationTarget"><button id="v96ReviewOutcome"></button><button id="v96Recalibrate"></button><button id="v96DetectDrift"></button></details>
 
 <script src="js/config.js?v=20260923-cockpit-v2"></script>
-<script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260923-cockpit-v2"></script>
-<script src="js/live-decision-experience.js"></script>\n<script src="js/interface-variants.js"></script>
+<script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260924-interface-v3"></script>
+<script src="js/live-decision-experience.js?v=20260924-interface-v3"></script>\n<script src="js/interface-variants.js?v=20260924-interface-v3"></script>
 <script>
 (function(){
-  const select=document.getElementById('skinSelect');
+  const selects=[document.getElementById('skinSelect'),document.getElementById('skinSelectTop')];
   const skins=['civic','studio','field','night'];
   let saved='civic';
   try{saved=localStorage.getItem('vidik-skin')||'civic'}catch(_){}
   if(!skins.includes(saved)) saved='civic';
   document.body.dataset.skin=saved;
-  if(select) {
+  selects.filter(Boolean).forEach(select=>{
     select.value=saved;
     select.addEventListener('change',()=>{
       const skin=skins.includes(select.value)?select.value:'civic';
       document.body.dataset.skin=skin;
+      selects.filter(Boolean).forEach(other=>{other.value=skin});
       try{localStorage.setItem('vidik-skin',skin)}catch(_){}
     });
-  }
+  });
 })();
 </script>
 <script>
