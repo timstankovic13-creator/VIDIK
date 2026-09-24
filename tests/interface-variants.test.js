@@ -8,12 +8,11 @@ const js = fs.readFileSync('js/interface-variants.js', 'utf8');
 const css = fs.readFileSync('styles.css', 'utf8');
 
 const requiredModes = ['cockpit', 'brief', 'workbench', 'investigate', 'map'];
-for (const mode of requiredModes) {
-  assert.match(js, new RegExp("data-interface=.?['\"]?" + mode));
-}
-assert.match(html, /interface-switcher/);
+for (const mode of requiredModes) assert.match(js, new RegExp('^  ' + mode + ':', 'm'));
+assert.equal((html.match(/class="interface-mode"/g) || []).length, 5);
 assert.match(html, /js\/interface-variants\.js/);
 assert.match(js, /localStorage\.setItem\(['"]vidik-interface-mode/);
+assert.match(js, /document\.body\.dataset\.interface/);
 assert.match(css, /body\[data-interface="brief"\]/);
 assert.match(css, /body\[data-interface="workbench"\]/);
 assert.match(css, /body\[data-interface="investigate"\]/);
