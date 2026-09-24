@@ -3,97 +3,114 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="VIDIK — decision intelligence that turns objectives and resource constraints into explainable, auditable decisions.">
+<meta name="description" content="VIDIK — decision intelligence for consequential resource decisions.">
 <title>VIDIK — Decision Intelligence</title>
-<link rel="stylesheet" href="styles.css?v=20260922-decision-experience">
+<link rel="stylesheet" href="styles.css?v=20260923-cockpit-v2">
 </head>
 <body>
-<div class="site-shell">
+<div class="app-shell">
 <header class="topbar">
-<a class="brand" href="#top" aria-label="VIDIK home"><span class="brand-mark">V</span><span><strong>VIDIK</strong><small>Decision Intelligence</small></span></a>
-<div class="header-status"><span class="live-dot"></span><span>Decision workspace</span></div>
+  <a class="brand" href="#decision" aria-label="VIDIK home"><span class="brand-mark">V</span><span><b>VIDIK</b><small>Decision intelligence</small></span></a>
+  <div class="top-actions"><span class="workspace-pill"><i></i> Workspace</span><button class="quiet" type="button" data-scroll="challengeSection">Challenge</button></div>
 </header>
+
 <main id="top">
-<section class="hero"><div class="eyebrow">DECISION INTELLIGENCE</div><h1>What do you need<br><em>to change?</em></h1><p>Start with the outcome. VIDIK finds relevant options, tests the evidence, exposes uncertainty and helps you decide how to use the resources you have.</p></section>
-
-<section class="start-card card" aria-labelledby="startTitle">
-<div class="start-top"><div><div class="eyebrow">BUILD A DECISION</div><h2 id="startTitle">Tell VIDIK what you're trying to accomplish.</h2></div><span class="privacy-note">Evidence constrained</span></div>
-<div class="audience-switch" role="tablist" aria-label="Decision context">
-<button class="audience-card selected" data-audience="municipal" role="tab"><span>City</span><b>Municipal</b></button>
-<button class="audience-card" data-audience="business" role="tab"><span>Business</span><b>Business</b></button>
-<button class="audience-card" data-audience="community" role="tab"><span>Public</span><b>Community</b></button>
-<button class="audience-card" data-audience="research" role="tab"><span>Research</span><b>Research</b></button>
-<button class="audience-card" data-audience="enterprise" role="tab"><span>Enterprise</span><b>Enterprise</b></button>
-</div>
-<div id="audienceNotice" class="context-note">City decision selected. VIDIK will not assume the intervention.</div>
-
-<div id="municipalWorkspace" class="workspace">
-<div class="input-label"><label for="decisionProblem">What outcome do you want to change?</label><span>Required</span></div>
-<div class="problem-row"><input id="decisionProblem" type="text" autocomplete="off" placeholder="e.g. reduce violent crime" aria-label="Problem or outcome to address"><button id="runDecision" class="primary" type="button">Analyze decision <span>→</span></button></div>
-<div class="examples"><button type="button" class="example-chip" data-problem="Reduce violent crime">Violent crime</button><button type="button" class="example-chip" data-problem="Reduce homelessness">Homelessness</button><button type="button" class="example-chip" data-problem="Improve road safety">Road safety</button><button type="button" class="example-chip" data-problem="Reduce food insecurity">Food insecurity</button><button type="button" class="example-chip" data-problem="Something else">Something else</button></div>
-<div class="decision-inputs">
-<div class="field"><label for="city">Where?</label><select id="city"><option>Ottawa</option><option>Toronto</option><option>Melbourne</option></select></div>
-<div class="field"><label for="pool">Resources available</label><div class="money-input"><span>$</span><input id="pool" type="number" value="25000000" min="0" step="10000" aria-label="Resource pool in Canadian dollars"></div></div>
-<div class="field"><label for="risk">Risk ceiling</label><input id="risk" type="number" value="0.75" min="0" max="1" step=".01"></div>
-</div>
-<div class="advanced-link"><span>Current baseline: <b>Status quo / current approach</b></span><button type="button" data-scroll="analysis">Inspect the framework</button></div>
-<div class="decision-context"><div><span>Decision ID</span><b id="did"></b></div><div><span>Objective</span><b id="objective"></b></div></div>
-<span id="gate" class="status hold">Ready</span>
-</div>
-
-<section id="nonMunicipal" class="nonmunicipal" hidden>
-<div class="eyebrow">GENERAL DECISION WORKSPACE</div><h2 id="nonMunicipalTitle">Decision intelligence</h2><p id="nonMunicipalText">Choose the workspace that matches the job.</p>
-<div id="workspaceFields" class="controls"></div><div id="workspaceOutputs" class="answer-action"></div>
-<div class="input-label"><label for="generalProblem">What are you trying to accomplish?</label><span>Required</span></div>
-<div class="problem-row"><input id="generalProblem" placeholder="Describe the outcome or decision"><button id="runGeneralDecision" class="primary" type="button">Analyze decision <span>→</span></button></div>
-<div class="controls"><div class="field"><label for="generalJurisdiction">Jurisdiction</label><select id="generalJurisdiction"><option value="CA">Canada</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="international">International</option></select></div><div class="field"><label for="generalStatusQuo">Current approach</label><input id="generalStatusQuo" value="Continue current practice"></div></div>
-<div id="generalDecisionStatus" class="status hold">Ready</div>
-<section class="card result-card"><h3>Decision answer</h3><div id="generalDecisionAnswer">Enter a problem and run VIDIK.</div></section>
-<section class="card result-card"><h3>Options</h3><div id="generalCandidates"></div></section>
-<section class="card result-card"><h3>Evidence</h3><div id="generalEvidence"></div></section>
-<section class="card result-card"><h3>Governance</h3><pre id="generalGovernance"></pre></section>
-</section>
+<section id="decision" class="hero">
+  <div class="hero-copy">
+    <div class="eyebrow">START WITH THE DECISION</div>
+    <h1>What are you<br><em>trying to change?</em></h1>
+    <p>Describe the outcome. VIDIK discovers the relevant intervention universe, tests the evidence and shows you what is known, uncertain and still missing.</p>
+  </div>
+  <div class="decision-composer">
+    <div class="composer-head"><span>Decision problem</span><b>Required</b></div>
+    <textarea id="decisionProblem" rows="2" autocomplete="off" placeholder="e.g. How should Ottawa allocate $10M over three years to reduce violent crime?"></textarea>
+    <div class="example-row"><button class="example-chip" data-problem="How should Ottawa allocate $10M over three years to reduce violent crime?">Violent crime</button><button class="example-chip" data-problem="How should Ottawa allocate $10M over three years to reduce chronic homelessness?">Homelessness</button><button class="example-chip" data-problem="How should Ottawa allocate $10M to improve road safety?">Road safety</button><button class="example-chip" data-problem="How should Ottawa allocate $10M to reduce food insecurity?">Food insecurity</button></div>
+    <div class="composer-controls">
+      <label>Context<select id="audienceSelect"><option value="municipal">Municipal</option><option value="business">Business</option><option value="community">Community</option><option value="research">Research</option><option value="enterprise">Enterprise</option></select></label>
+      <label>Place<select id="city"><option>Ottawa</option><option>Toronto</option><option>Melbourne</option></select></label>
+      <label>Resource pool<div class="money"><span>$</span><input id="pool" type="number" value="10000000" min="0" step="10000"></div></label>
+      <label>Risk ceiling<input id="risk" type="number" value="0.75" min="0" max="1" step=".01"></label>
+    </div>
+    <div class="composer-footer"><span>Baseline: <strong>Status quo / current approach</strong></span><button id="runDecision" class="primary" type="button">Analyze decision <span>↗</span></button></div>
+    <div id="gate" class="status hold">Ready to analyze</div>
+  </div>
 </section>
 
-<section class="decision-surface">
-<div id="answerFirst" class="card answer-first"><div class="answer-kicker">YOUR DECISION</div><h2>Define the problem to begin.</h2><p class="answer-main">No intervention is assumed.</p><div class="answer-grid"><div class="answer-tile"><span>Baseline</span><b>Status quo / current approach</b></div><div class="answer-tile"><span>Next step</span><b>Define the outcome you want to change</b></div></div></div>
-<div class="analysis-tabs" role="navigation" aria-label="Decision details"><button class="tab active" data-scroll="analysis">Decision</button><button class="tab" data-scroll="optionsSection">Options</button><button class="tab" data-scroll="evidence">Evidence</button><button class="tab" data-scroll="uncertaintySection">Uncertainty</button><button class="tab" data-scroll="auditSection">Audit</button></div>
-<section id="analysis" class="analysis-area">
-<div class="analysis-heading"><div class="eyebrow">UNDER THE ANSWER</div><h2>Decision analysis</h2><p>Inspect the reasoning when you need to understand, challenge or defend the decision.</p></div>
-<section class="card insight-card"><h3>Readiness</h3><div class="row"><span>Evidence records</span><b id="evcount"></b></div><div class="row"><span>Verified sources</span><b id="verified"></b></div><div class="row"><span>Lineage</span><b id="lineage"></b></div><div class="row"><span>Admissible</span><b id="admissible"></b></div><div class="row"><span>Recommendation</span><b id="rec"></b></div></section>
-<section class="card wide"><h3>Evidence → Claim → Parameter → Decision</h3><div id="pipeline"></div></section>
-<section class="card wide"><h3>Recommendation / optimizer</h3><div id="recommendation" class="status fail">NO RECOMMENDATION</div><div id="frontier"></div></section>
-<section class="card"><h3>Why / Why not</h3><div id="why"></div></section><section id="uncertaintySection" class="card"><h3>Uncertainty</h3><div id="uncertainty"></div></section><section class="card"><h3>Value of information</h3><div id="voi"></div></section><section class="card"><h3>Learning</h3><div id="learning"></div></section>
-<section id="evidence" class="card wide"><h3>Evidence registry</h3><div class="table-wrap"><table><tbody id="evidenceTable"></tbody></table></div></section>
-<section id="optionsSection" class="card wide"><h3>Candidate options</h3><div id="candidates"></div></section>
+<section id="answerFirst" class="answer-card">
+  <div class="answer-meta"><span class="eyebrow">DECISION BRIEF</span><span id="topImpact" class="signal">WAITING</span></div>
+  <h2 id="topRecommendation">Define the problem to evaluate the decision.</h2>
+  <p id="topSummary">VIDIK will not assume an intervention before the problem and constraints are defined.</p>
+  <div class="answer-facts">
+    <div><span>Baseline</span><b>Status quo / current approach</b></div>
+    <div><span>Evidence integrity</span><b id="topIntegrity">—</b></div>
+    <div><span>Resources</span><b id="topResources">—</b></div>
+  </div>
+  <div class="answer-actions"><button id="seeAnalysis" class="primary" type="button">Open decision analysis</button><button id="compareOptions" class="secondary" type="button">Compare options</button><button id="challengeDecision" class="secondary" type="button">Challenge the reasoning</button></div>
+</section>
 
-<details class="advanced card wide"><summary>Scenario & outcome workspace</summary><p class="muted">Change decision inputs above and VIDIK recomputes the recommendation. Record predicted and observed outcomes to continue the lifecycle.</p><div class="controls"><input id="predictedOutcome" type="number" placeholder="Predicted"><input id="observedOutcome" type="number" placeholder="Observed"><select id="learningCheckpoint"><option>6-month</option><option>1-year</option><option>2-year</option><option>5-year</option></select></div><div class="learning-actions"><button id="recordOutcome">Record outcome</button><button id="recalculateModel">Recalculate</button><button id="exportLearning">Export</button><button id="clearLearning">Clear</button></div><div id="learningStoreStatus" class="status hold"></div><pre id="learningLedger"></pre></details>
+<nav class="decision-nav" aria-label="Decision views">
+  <button class="nav-tab active" data-view="overview">Overview</button>
+  <button class="nav-tab" data-view="optionsSection">Options</button>
+  <button class="nav-tab" data-view="evidence">Evidence</button>
+  <button class="nav-tab" data-view="uncertaintySection">Uncertainty</button>
+  <button class="nav-tab" data-view="challengeSection">Challenge</button>
+  <button class="nav-tab" data-view="auditSection">Audit</button>
+</nav>
 
-<details class="advanced card wide"><summary>Decision lifecycle & governance</summary><h3>Decision lifecycle</h3><div id="lifecycleStatus" class="status hold">Lifecycle: NOT PERSISTED</div><div class="controls"><input id="lifecycleActor" placeholder="Decision actor"><input id="lifecycleOverride" placeholder="Override / adopted action"><input id="lifecycleRationale" placeholder="Required override rationale"></div><div class="learning-actions"><button id="persistDecision">Persist decision</button><button id="snapshotDecision">Create snapshot</button><button id="applyOverride">Adopt / override</button><button id="verifyDecision">Verify integrity</button></div><div class="controls"><input id="lifecyclePredicted" type="number" placeholder="Predicted outcome"><input id="lifecycleObserved" type="number" placeholder="Observed outcome"><select id="lifecycleCheckpoint"><option>6-month</option><option>1-year</option><option>2-year</option><option>5-year</option></select><button id="recordLifecycleOutcome">Record lifecycle outcome</button></div><div id="lifecycleVerify" class="status hold"></div><pre id="decisionMemory"></pre><h3>Decision memory → outcome review → recalibration / drift</h3><div id="v96Status" class="status hold">V9.6.1: READY</div><div class="controls"><input id="v96Predicted" type="number" placeholder="Predicted outcome"><input id="v96Observed" type="number" placeholder="Observed outcome"><select id="v96Checkpoint"><option>6-month</option><option>1-year</option><option>2-year</option><option>5-year</option></select><input id="v96CalibrationTarget" placeholder="Calibration target parameter ID (explicit)"></div><div class="learning-actions"><button id="v96ReviewOutcome">Review outcome</button><button id="v96Recalibrate">Recalibrate</button><button id="v96DetectDrift">Detect drift</button></div></details>
+<section id="analysis" class="analysis">
+  <div id="overview" class="section-head"><div><span class="eyebrow">THE REASONING</span><h2>Decision analysis</h2></div><p>Everything below the brief is there to answer one question: <b>why this decision, and what could change it?</b></p></div>
 
-<section class="card wide challenge" id="challengeSection"><div class="challenge-head"><div><div class="eyebrow">HUMAN OVERRIDE</div><h3>Challenge VIDIK</h3><p>You stay in control. Change an assumption, add an option or question the reasoning.</p></div></div><div class="challenge-grid"><button type="button"><b>Challenge an assumption</b><span>Inspect uncertainty and transportability.</span></button><button type="button"><b>Add an option</b><span>Introduce an alternative VIDIK should consider.</span></button><button type="button"><b>Change the budget</b><span>Test how the allocation changes.</span></button></div></section>
+  <div class="analysis-grid">
+    <section class="panel readiness"><div class="panel-head"><span>Decision integrity</span><span class="tiny">LIVE</span></div><div class="metric-list"><div><span>Evidence records</span><b id="evcount">—</b></div><div><span>Verified sources</span><b id="verified">—</b></div><div><span>Lineage</span><b id="lineage">—</b></div><div><span>Admissible</span><b id="admissible">—</b></div><div><span>Recommendation</span><b id="rec">—</b></div></div></section>
+    <section class="panel pipeline"><div class="panel-head"><span>How VIDIK gets there</span><span class="tiny">CHAIN</span></div><div id="pipeline" class="chain"><div>Problem</div><i>→</i><div>Options</div><i>→</i><div>Evidence</div><i>→</i><div>Model</div><i>→</i><div>Decision</div></div><p class="muted">A missing link blocks the recommendation rather than being filled with an assumption.</p></section>
+  </div>
 
-<details class="advanced card wide"><summary>Security, acceptance & adapters</summary><div id="secXss"></div><div id="secNumeric"></div><div id="secLinks"></div><div id="secIds"></div><button id="runAcceptance">Run acceptance hardening checks</button><pre id="acceptanceLog"></pre><h3>Adapters</h3><div id="adapterRegistry"></div></details>
-<section id="auditSection" class="card wide"><h3>Decision audit</h3><pre id="audit"></pre></section>
-<details class="advanced card wide"><summary>Hostile validation</summary><div id="tests" class="status hold"></div><pre id="testlog"></pre></details>
-</section></section>
-</main>
-<footer><strong>VIDIK</strong><span>Decision intelligence from problem to evidence to outcome.</span></footer>
-</div>
+  <section class="panel recommendation-panel"><div class="panel-head"><div><span>Decision</span><h3 id="recommendation">NO RECOMMENDATION</h3></div><span class="status fail">EVIDENCE-GATED</span></div><div id="frontier"></div></section>
 
-<script src="js/config.js?v=20260922-decision-experience"></script>
-<script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260922-decision-experience"></script>
+  <div class="two-col">
+    <section class="panel"><div class="panel-head"><span>Why / Why not</span><span class="tiny">DEFEND</span></div><div id="why" class="content-slot"><p class="muted">Run a decision to populate the reasoning.</p></div></section>
+    <section id="uncertaintySection" class="panel"><div class="panel-head"><span>Uncertainty</span><span class="tiny">CHANGE THE ANSWER</span></div><div id="uncertainty" class="content-slot"><p class="muted">VIDIK will surface ranges and decision-sensitive unknowns here.</p></div></section>
+  </div>
+
+  <section class="panel"><div class="panel-head"><span>Value of information</span><span class="tiny">WHAT TO LEARN NEXT</span></div><div id="voi" class="content-slot"></div></section>
+  <section class="panel"><div class="panel-head"><span>Outcome learning</span><span class="tiny">AFTER THE DECISION</span></div><div id="learning" class="content-slot"></div></section>
+
+  <section id="optionsSection" class="panel wide-panel"><div class="panel-head"><div><span>Options</span><h3>What could actually be done?</h3></div><span class="tiny">UNIVERSE</span></div><div id="candidates" class="candidate-grid"></div></section>
+
+  <section id="evidence" class="panel wide-panel"><div class="panel-head"><div><span>Evidence</span><h3>What supports each option?</h3></div><span class="tiny">PROVENANCE</span></div><div class="table-wrap"><table><tbody id="evidenceTable"></tbody></table></div></section>
+
+  <section id="challengeSection" class="panel wide-panel challenge"><div class="challenge-copy"><span class="eyebrow">HUMAN CONTROL</span><h3>Don't just accept the answer.</h3><p>VIDIK is designed to be interrogated. Change an assumption, add an option, alter the budget or question the evidence.</p></div><div class="challenge-grid"><button type="button"><b>Challenge an assumption</b><span>Inspect uncertainty and transferability.</span></button><button type="button"><b>Add an option</b><span>Introduce an alternative VIDIK should consider.</span></button><button type="button"><b>Change the budget</b><span>Test whether the decision moves.</span></button></div></section>
+
+  <section id="auditSection" class="panel wide-panel"><div class="panel-head"><div><span>Audit</span><h3>Decision record</h3></div><span class="tiny">IMMUTABLE TRACE</span></div><pre id="audit">Run a decision to create an audit view.</pre></section>
+</section>
+
+<!-- Compatibility surfaces for the existing intelligence engine. They are intentionally not part of the primary product surface. -->
+<section id="nonMunicipal" hidden><div id="workspaceFields"></div><div id="workspaceOutputs"></div><div id="audienceNotice"></div><input id="generalProblem"><button id="runGeneralDecision"></button><select id="generalJurisdiction"><option value="CA">Canada</option></select><input id="generalStatusQuo" value="Continue current practice"><div id="generalDecisionStatus"></div><div id="generalDecisionAnswer"></div><div id="generalCandidates"></div><div id="generalEvidence"></div><pre id="generalGovernance"></pre></section>
+<div hidden><span id="censusStatus"></span><span id="censusCount"></span><input id="readinessCity"><input id="readinessCountry"><select id="readinessLimit"><option>5</option></select><div id="readinessResults"></div><div id="secXss"></div><div id="secNumeric"></div><div id="secLinks"></div><div id="secIds"></div><button id="runAcceptance"></button><pre id="acceptanceLog"></pre><div id="adapterRegistry"></div><div id="tests"></div><pre id="testlog"></pre></div>
+
+<details class="advanced"><summary>Lifecycle, scenario and governance</summary>
+<div class="controls"><input id="predictedOutcome"><input id="observedOutcome"><select id="learningCheckpoint"><option>6-month</option><option>1-year</option><option>2-year</option><option>5-year</option></select></div><button id="recordOutcome"></button><button id="recalculateModel"></button><button id="exportLearning"></button><button id="clearLearning"></button><div id="learningStoreStatus"></div><pre id="learningLedger"></pre>
+<div id="lifecycleStatus"></div><input id="lifecycleActor"><input id="lifecycleOverride"><input id="lifecycleRationale"><button id="persistDecision"></button><button id="snapshotDecision"></button><button id="applyOverride"></button><button id="verifyDecision"></button><div id="lifecycleVerify"></div><pre id="decisionMemory"></pre><input id="lifecyclePredicted"><input id="lifecycleObserved"><select id="lifecycleCheckpoint"><option>6-month</option></select><button id="recordLifecycleOutcome"></button><div id="v96Status"></div><input id="v96Predicted"><input id="v96Observed"><select id="v96Checkpoint"><option>6-month</option></select><input id="v96CalibrationTarget"><button id="v96ReviewOutcome"></button><button id="v96Recalibrate"></button><button id="v96DetectDrift"></button></details>
+
+<script src="js/config.js?v=20260923-cockpit-v2"></script>
+<script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260923-cockpit-v2"></script>
+<script src="js/live-decision-experience.js"></script>
 <script>
 (function(){
-const notice=document.getElementById('audienceNotice'),municipal=document.getElementById('municipalWorkspace'),nonMunicipal=document.getElementById('nonMunicipal'),title=document.getElementById('nonMunicipalTitle'),desc=document.getElementById('nonMunicipalText'),problem=document.getElementById('decisionProblem');
-const labels={business:['Business decision intelligence','Strategy, operating and resource-allocation decisions.'],community:['Public / Community decision intelligence','Public-interest decisions with governed discovery and evidence boundaries.'],research:['Research decision intelligence','Questions, evidence and reproducible research decisions.'],enterprise:['Enterprise decision intelligence','Operating, portfolio, technology, workforce and capital decisions.']};
-function selectAudience(a){document.querySelectorAll('[data-audience]').forEach(x=>x.classList.toggle('selected',x.dataset.audience===a));if(a==='municipal'){municipal.hidden=false;nonMunicipal.hidden=true;notice.textContent='City decision selected. VIDIK will not assume the intervention.';municipal.scrollIntoView({behavior:'smooth',block:'nearest'});}else{municipal.hidden=true;nonMunicipal.hidden=false;title.textContent=labels[a][0];desc.textContent=labels[a][1];notice.textContent=labels[a][0]+' selected.';renderWorkspace(a);nonMunicipal.scrollIntoView({behavior:'smooth',block:'nearest'});}}
-const workspaceFields=document.getElementById('workspaceFields'),workspaceOutputs=document.getElementById('workspaceOutputs');
-function renderWorkspace(a){const d=window.WORKSPACE_DEFINITIONS?.[a];if(!d)return;workspaceFields.innerHTML=d.fields.map(([k,l,p])=>'<div class="field"><label for="ws_'+k+'">'+hEsc(l)+'</label><input id="ws_'+k+'" data-workspace-field="'+k+'" placeholder="'+hEsc(p)+'"></div>').join('');workspaceOutputs.innerHTML='<strong>VIDIK will produce</strong><div class="answer-muted">'+d.output.map(hEsc).join(' · ')+'</div>';}renderWorkspace('business');
-const gp=document.getElementById('generalProblem'),gj=document.getElementById('generalJurisdiction'),gs=document.getElementById('generalStatusQuo'),gr=document.getElementById('runGeneralDecision'),st=document.getElementById('generalDecisionStatus'),ga=document.getElementById('generalDecisionAnswer'),gc=document.getElementById('generalCandidates'),ge=document.getElementById('generalEvidence'),gg=document.getElementById('generalGovernance');
-gr.addEventListener('click',async function(){const v=gp.value.trim();if(!v){st.textContent='Enter a problem first.';return;}st.textContent='VIDIK is searching sources and acquiring evidence…';gr.disabled=true;try{const audience=document.querySelector('.audience-card.selected')?.dataset.audience||'business',workspace={};document.querySelectorAll('[data-workspace-field]').forEach(el=>{if(el.value.trim())workspace[el.dataset.workspaceField]=el.value.trim();});const response=await fetch('/api/decision/discover',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({problem:v,jurisdiction:gj.value,statusQuo:gs.value,audience,workspace})});const result=await response.json();if(!response.ok)throw new Error(result.error||'decision-analysis-failed');st.textContent=result.status==='recommendation-ready'?'Recommendation ready':'Recommendation blocked — evidence boundary preserved';const rec=result.decision?.recommendation;ga.innerHTML='<strong>'+(rec?'Recommendation: '+hEsc(rec):'No recommendation yet')+'</strong><p>'+hEsc(result.decision?.status||result.governance?.decisionStatus||'')+'</p>';gc.innerHTML=(result.candidates||[]).map(x=>'<div class="row"><span>'+hEsc(x.name||x.id)+'</span><b>'+hEsc(x.evidenceState||x.discovery?.sourceType||'discovered')+'</b></div>').join('')||'<p>No candidates returned. VIDIK records the empty source state rather than inventing options.</p>';ge.innerHTML=(result.evidenceSearches||[]).map(x=>'<div class="row"><span>'+hEsc(x.candidateId)+'</span><b>'+hEsc(x.status)+'</b></div>').join('')||'<p>No evidence searches were completed.</p>';gg.textContent=JSON.stringify({recommendationAllowed:result.governance?.recommendationAllowed,candidateUniverseIntelligence:result.governance?.candidateUniverseIntelligence,whyNotAvailable:result.governance?.whyNotAvailable,runHash:result.runHash},null,2);}catch(e){st.textContent='VIDIK could not complete the analysis: '+e.message;}finally{gr.disabled=false;}});
-document.querySelectorAll('[data-audience]').forEach(x=>x.addEventListener('click',()=>selectAudience(x.dataset.audience)));document.querySelectorAll('[data-scroll]').forEach(x=>x.addEventListener('click',()=>document.getElementById(x.dataset.scroll)?.scrollIntoView({behavior:'smooth',block:'start'})));
-const run=document.getElementById('runDecision');run.addEventListener('click',()=>{problem.focus();document.getElementById('answerFirst')?.scrollIntoView({behavior:'smooth',block:'start'});});problem.addEventListener('keydown',e=>{if(e.key==='Enter')run.click()});document.querySelectorAll('.example-chip').forEach(x=>x.addEventListener('click',()=>{problem.value=x.dataset.problem||'';problem.focus();problem.dispatchEvent(new Event('input',{bubbles:true}));}));
+  const input=document.getElementById('decisionProblem');
+  const audience=document.getElementById('audienceSelect');
+  const chips=document.querySelectorAll('.example-chip');
+  const nav=document.querySelectorAll('.nav-tab');
+  function syncAudience(){document.querySelector('.workspace-pill').lastChild.textContent=' '+audience.options[audience.selectedIndex].text+' workspace';}
+  audience.addEventListener('change',syncAudience);syncAudience();
+  chips.forEach(c=>c.addEventListener('click',()=>{input.value=c.dataset.problem;input.focus();}));
+  document.getElementById('seeAnalysis').addEventListener('click',()=>document.getElementById('analysis').scrollIntoView({behavior:'smooth'}));
+  document.getElementById('compareOptions').addEventListener('click',()=>document.getElementById('optionsSection').scrollIntoView({behavior:'smooth'}));
+  document.getElementById('challengeDecision').addEventListener('click',()=>document.getElementById('challengeSection').scrollIntoView({behavior:'smooth'}));
+  nav.forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.view)?.scrollIntoView({behavior:'smooth',block:'start'})));
+  document.querySelectorAll('[data-scroll]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.scroll)?.scrollIntoView({behavior:'smooth'})));
+  input.addEventListener('keydown',e=>{if(e.key==='Enter' && !e.shiftKey){e.preventDefault();document.getElementById('runDecision').click();}});
 })();
 </script>
-</body></html>
+</body>
+</html>
