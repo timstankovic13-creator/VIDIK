@@ -1,0 +1,41 @@
+/* Progressive decision journey: structural composition, not a dashboard skin. */
+#vidikJourney{display:none}
+body[data-journey-state="ask"] #vidikJourney{display:block}
+body[data-journey-state="processing"] #vidikJourney{display:flex}
+body[data-journey-state="decision"] #vidikJourney{display:none}
+body[data-journey-state="processing"] .topbar,
+body[data-journey-state="processing"] #decision,
+body[data-journey-state="processing"] .interface-quickbar,
+body[data-journey-state="processing"] #answerFirst,
+body[data-journey-state="processing"] .interface-switcher,
+body[data-journey-state="processing"] .decision-nav,
+body[data-journey-state="processing"] #analysis{display:none}
+body[data-journey-state="decision"] #top{display:block}
+body[data-journey-state="ask"] #top{display:block}
+body[data-journey-state="ask"] #answerFirst,
+body[data-journey-state="ask"] .interface-quickbar,
+body[data-journey-state="ask"] .interface-switcher,
+body[data-journey-state="ask"] .decision-nav,
+body[data-journey-state="ask"] #analysis,
+body[data-journey-state="ask"] #semanticPresentation{display:none}
+body[data-journey-state="processing"]{background:linear-gradient(145deg,#f6f8f5,#edf2ee)}
+.journey-screen{min-height:72vh;align-items:center;justify-content:center;padding:34px 20px}
+.journey-inner{width:min(760px,100%);text-align:center}
+.journey-kicker{font-size:10px;font-weight:900;letter-spacing:.14em;color:#718078;text-transform:uppercase}
+.journey-title{font-size:clamp(30px,7vw,58px);line-height:.98;letter-spacing:-.055em;margin:16px 0 12px;color:#18221e}
+.journey-subtitle{font-size:15px;line-height:1.6;color:#68756e;max-width:580px;margin:0 auto 30px}
+.journey-steps{display:grid;gap:9px;text-align:left;margin:26px auto 0;max-width:560px}
+.journey-step{display:flex;align-items:center;gap:14px;padding:15px 17px;border:1px solid #dfe6e1;border-radius:17px;background:rgba(255,255,255,.72);transition:.35s ease}
+.journey-step .num{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#e8eee9;color:#718078;font-size:10px;font-weight:900}
+.journey-step strong{font-size:13px;color:#26322c}
+.journey-step span{margin-left:auto;font-size:10px;color:#9aa49e}
+.journey-step.active{border-color:#b9cec0;background:#fff;box-shadow:0 10px 30px rgba(34,63,48,.07);transform:translateY(-1px)}
+.journey-step.active .num{background:#2f7359;color:white}
+.journey-step.done .num{background:#d7e8de;color:#2f7359}
+.journey-step.done span{color:#4f806a}
+body[data-workspace="business"] .journey-step.active{border-color:#c4d0df}body[data-workspace="community"] .journey-step.active{border-color:#dfcdb8}body[data-workspace="research"] .journey-step.active{border-color:#d1c6e2}body[data-workspace="enterprise"] .journey-step.active{border-color:#bfd4d6}
+body[data-journey-state="decision"] #decision{animation:journeyReveal .65s ease}
+body[data-journey-state="decision"] .answer-card{animation:decisionArrival .75s cubic-bezier(.2,.8,.2,1)}
+@keyframes journeyReveal{from{opacity:.15;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes decisionArrival{from{opacity:0;transform:translateY(24px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:600px){.journey-screen{min-height:78vh;padding:25px 14px}.journey-title{font-size:38px}.journey-step{padding:14px}.journey-step span{display:none}}
