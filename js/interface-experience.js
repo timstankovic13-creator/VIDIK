@@ -61,13 +61,53 @@
     document.querySelector('.quick-mode[data-interface="'+mode+'"]')?.click();
   }
 
+  function createJourneyStage(){
+    if(document.getElementById('journeyStage')) return;
+    const composer=document.querySelector('.decision-composer');
+    if(!composer) return;
+    composer.insertAdjacentHTML('afterend','<section id="journeyStage" class="journey-stage" aria-live="polite"><div class="journey-stage-inner"><div class="journey-stage-kicker">VIDIK IS BUILDING THE DECISION</div><h2 id="journeyStageTitle">Understanding the decision</h2><p id="journeyStageText">We are turning the question into a structured decision object.</p><div class="journey-stage-track"><span class="journey-stage-progress"></span></div><div class="journey-stage-steps"><span data-step="0" class="current">Understand</span><span data-step="1">Discover</span><span data-step="2">Evidence</span><span data-step="3">Uncertainty</span><span data-step="4">Decision</span></div></div></section>');
+  }
+
+  function setJourneyStep(step){
+    const stage=document.getElementById('journeyStage');
+    if(!stage) return;
+    const titles=[
+      ['Understanding the decision','We are turning the question into a structured decision object.'],
+      ['Finding possible interventions','We are opening the intervention universe instead of assuming a shortlist.'],
+      ['Checking the evidence','We are separating evidence from discovery leads and testing what can actually support a decision.'],
+      ['Testing uncertainty','We are identifying what could change the answer, including missing evidence and trade-offs.'],
+      ['Building the decision','The decision view is ready. Start with the answer, then open the reasoning when you need it.']
+    ];
+    const item=titles[step]||titles[0];
+    document.getElementById('journeyStageTitle').textContent=item[0];
+    document.getElementById('journeyStageText').textContent=item[1];
+    stage.style.setProperty('--journey-progress', ((step+1)/5*100)+'%');
+    stage.querySelectorAll('[data-step]').forEach(el=>el.classList.toggle('current',Number(el.dataset.step)===step));
+    stage.dataset.step=String(step);
+  }
+
   function startJourney(){
+    createJourneyStage();
     document.body.dataset.interfaceJourney='active';
+    document.body.dataset.journeyState='building';
     document.querySelector('.decision-composer')?.classList.add('journey-running');
-    const shell=document.getElementById('experienceContext');
-    shell?.classList.add('hidden-context');
-    window.setTimeout(()=>document.getElementById('answerFirst')?.scrollIntoView({behavior:'smooth',block:'start'}),220);
-    window.setTimeout(decorateCandidates,1400);
+    const stage=document.getElementById('journeyStage');
+    stage?.classList.add('visible');
+    const quickbar=document.querySelector('.interface-quickbar');
+    const switcher=document.querySelector('.interface-switcher');
+    const nav=document.querySelector('.decision-nav');
+    [quickbar,switcher,nav].forEach(el=>el?.classList.add('journey-hidden'));
+    setJourneyStep(0);
+    const timings=[700,1700,2900,4100];
+    timings.forEach((delay,index)=>window.setTimeout(()=>setJourneyStep(index+1),delay));
+    window.setTimeout(()=>{
+      document.body.dataset.journeyState='decision';
+      stage?.classList.add('complete');
+      [quickbar,switcher,nav].forEach(el=>el?.classList.remove('journey-hidden'));
+      document.getElementById('answerFirst')?.classList.add('journey-answer-arrival');
+      document.getElementById('answerFirst')?.scrollIntoView({behavior:'smooth',block:'start'});
+      decorateCandidates();
+    },5000);
   }
 
   function bind(){
