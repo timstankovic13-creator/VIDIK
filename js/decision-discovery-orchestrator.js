@@ -256,7 +256,7 @@ function buildDiscoveryRun({ problem, acquisitionSources = [], researchLeads = [
   const governance = {
     recommendationAllowed, decisionStatus, blockedCandidates, noCandidatesFound: candidates.length === 0, sourceSearchFailures: failedSources, unsearchedSourceTypes: unsearchedSources,
     effectsImportedFromComparableCities: false, unknownIsNotZero: true, requiresHumanReviewWhenEvidenceIncomplete: true,
-    recommendationRequiresExplicitStatusQuo: true, statusQuoExplicit, recommendationRequiresStableSensitivity: true, recommendationRequiresVOI: true, historyRewrite: false
+    recommendationRequiresExplicitStatusQuo: true, statusQuoExplicit, recommendationRequiresStableSensitivity: true, recommendationRequiresVOI: true, historyRewrite: false, learningEffectsImported: false
   };
   const run = {
     schemaVersion: 'vidik.decision-discovery.v2', problem, problemSignals: Discovery.normalizeProblemTags(problem), discoveryAudit: audit, sourceSearches, candidates, evidenceGaps,
