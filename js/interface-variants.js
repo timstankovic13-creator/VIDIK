@@ -43,6 +43,7 @@
   function applyMode(mode) {
     const config = modes[mode] || modes.cockpit;
     document.body.dataset.interface = mode;
+    document.documentElement.dataset.vidikInterface = mode;
     document.querySelectorAll('.interface-mode, .quick-mode').forEach(button => {
       button.classList.toggle('active', button.dataset.interface === mode);
       button.setAttribute('aria-pressed', button.dataset.interface === mode ? 'true' : 'false');
