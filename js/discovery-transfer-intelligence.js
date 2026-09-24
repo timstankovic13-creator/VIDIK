@@ -44,28 +44,33 @@ function normalizeCandidate(candidate, source) {
 }
 function candidateKey(candidate) { return `${tokens(candidate?.name || candidate?.id).join(' ')}::${unique(candidate?.problemTags || []).map(x => tokens(x).join(' ')).sort().join('|')}`; }
 
-function buildCandidateUniverse(sourceResults = [], comparableCities = []) {
-  const normalized = [];
-  for (const source of sourceResults) for (const candidate of Array.isArray(source?.candidates) ? source.candidates : []) { const item = normalizeCandidate(candidate, source); if (item) normalized.push(item); }
-  for (const city of comparableCities) for (const intervention of Array.isArray(city?.interventions) ? city.interventions : []) {
-    const item = normalizeCandidate({ id: `${city.city || city.jurisdiction || 'city'}-${intervention}`, name: intervention, problemTags: city.problemTags || city.matchedSignals || [] },
-      { sourceId: city.sourceId || 'comparable-city-learning', sourceType: 'comparable-city', jurisdiction: city.jurisdiction || city.city });
-    if (item) normalized.push(item);
+function comparableCityDiscoveryLeads(problem, comparableCities = []) {
+  const problemTokens = new Set(tokens(problem));
+  const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
+  const leads = [];
+  for (const city of Array.isArray(comparableCities) ? comparableCities : []) {
+    const contextTokens = tokens([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
+    const contextMatch = contextTokens.some(token => problemTokens.has(token));
+    for (const field of interventionFields) {
+      const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
+      for (const value of values) {
+        const name = typeof value === 'string' ? value.trim() : String(value?.name || value?.title || '').trim();
+        if (!name) continue;
+        const description = typeof value === 'object' ? String(value.description || value.notes || '').trim() : '';
+        const directMatch = tokens(name + ' ' + description).some(token => problemTokens.has(token));
+        if (!contextMatch && !directMatch) continue;
+        leads.push({ id: `comparable:${String(city.city || city.jurisdiction || 'city').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`, name, description, problemTags: unique([...(city.problemTags || []), ...(city.matchedSignals || [])]), domains: unique(city.domains || []), transferability: city.transferability || city.context || null, discoveryRoute: 'comparable-city', comparableCity: city.city || city.jurisdiction || null, sourceId: city.sourceId || 'comparable-city-learning', jurisdiction: city.jurisdiction || city.city || null, leadOnly: true, effectsImported: false });
+      }
+    }
   }
-  const byKey = new Map();
-  for (const item of normalized) {
-    const key = candidateKey(item), existing = byKey.get(key);
-    if (!existing) { byKey.set(key, item); continue; }
-    existing.problemTags = unique([...existing.problemTags, ...item.problemTags]);
-    existing.domains = unique([...existing.domains, ...item.domains]);
-    existing.leadOnly = existing.leadOnly || item.leadOnly;
-    existing.effectsImported = false;
-    existing.provenance = [...existing.provenance, ...item.provenance].filter((record, index, all) => index === all.findIndex(other => stable(other) === stable(record)));
-  }
-  const candidates = [...byKey.values()].sort((a, b) => candidateKey(a).localeCompare(candidateKey(b)));
-  return { candidates, candidateUniverseHash: hash(candidates), countsBySourceType: Object.fromEntries(SOURCE_ORDER.map(type => [type, candidates.filter(candidate => candidate.source.sourceType === type).length])), discoveredAt: null };
+  return leads;
 }
 
+function buildCandidateUniverse(sourceResults = [], comparableCities = [], problem = '') {
+  const normalized = [];
+  for (const source of sourceResults) for (const candidate of Array.isArray(source?.candidates) ? source.candidates : []) { const item = normalizeCandidate(candidate, source); if (item) normalized.push(item); }
+  for (const lead of comparableCityDiscoveryLeads(problem, comparableCities)) { const item = normalizeCandidate(lead, { sourceId: lead.sourceId, sourceType: 'comparable-city', jurisdiction: lead.jurisdiction }); if (item) { item.discoveryRoute = 'comparable-city'; item.comparableCity = lead.comparableCity; item.transferability = lead.transferability; normalized.push(item); } }
+  const byKey = new Map();
 function auditSearchCoverage(strategy, sourceResults = []) {
   const byType = new Map();
   for (const result of sourceResults) {
@@ -135,7 +140,7 @@ function proposeRecalibration(outcomeRecords = [], policy = {}) {
 
 function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], comparableCities = [], candidates = null, evidenceIndex = {}, analysis = {}, statusQuo = null } = {}) {
   const strategy = buildSearchStrategy(problem, context);
-  const universe = candidates ? { candidates, candidateUniverseHash: hash(candidates) } : buildCandidateUniverse(sourceResults, comparableCities);
+  const universe = candidates ? { candidates, candidateUniverseHash: hash(candidates) } : buildCandidateUniverse(sourceResults, comparableCities, problem);
   const coverageInputs = [...sourceResults];
   if (comparableCities.length) coverageInputs.push({ sourceType: 'comparable-city', sourceId: 'comparable-city-learning', status: 'candidates-found', candidates: comparableCities.flatMap(city => city.interventions || []) });
   const coverage = auditSearchCoverage(strategy, coverageInputs);
@@ -151,4 +156,4 @@ function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], 
   } };
 }
 
-module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
+module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
