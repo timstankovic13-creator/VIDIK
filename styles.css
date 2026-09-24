@@ -78,7 +78,7 @@ body[data-skin="studio"] .primary{background:linear-gradient(145deg,#394b67,#586
 /* Field — more operational, compact and information-forward. */
 body[data-skin="field"]{--ink:#1e2924;--muted:#68736e;--paper:#fdfcf7;--canvas:#eef1ed;--line:#d3ddd6;--green:#355d49;--green2:#e6eee8;--warm:#e5dac1}
 body[data-skin="field"] .panel{border-radius:12px}
-body[data-skin="field"] .decision-composer,.body[data-skin="field"] .answer-card{border-radius:14px}
+body[data-skin="field"] .decision-composer,body[data-skin="field"] .answer-card{border-radius:14px}
 body[data-skin="field"] .eyebrow{letter-spacing:.13em}
 
 /* Night — command-center presentation for low-light work. */
