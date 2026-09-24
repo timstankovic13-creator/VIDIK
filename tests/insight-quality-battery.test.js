@@ -490,3 +490,37 @@ test('cross-domain records do not survive relevance filtering on generic shared 
   assert.equal(interventionMatchesProblem('reduce accessibility barriers in digital services', { name: 'A Review of the Measures to Address Prostitution Initiative', discoveryText: 'review of a public initiative' }, 'enterprise'), false);
   assert.equal(interventionMatchesProblem('improve remote service delivery', { name: 'Legal aid service delivery by type of lawyer', discoveryText: 'legal aid delivery research' }, 'enterprise'), false);
 });
+
+test('blocked-case recall lanes are explicit, source-backed, and semantically aligned', () => {
+  const blockedLanes = [
+    ['municipal','reduce traffic congestion','traffic signal timing'],
+    ['municipal','reduce gun violence','focused deterrence'],
+    ['municipal','reduce school absenteeism','attendance mentoring'],
+    ['business','reduce delivery delays','route optimization'],
+    ['business','increase employee training completion','learning management system'],
+    ['community','reduce social isolation among seniors','befriending program'],
+    ['community','increase access to affordable housing','rental assistance'],
+    ['community','reduce youth violence','youth violence interruption'],
+    ['community','improve disaster preparedness','community emergency preparedness'],
+    ['community','reduce heat exposure','cooling centre'],
+    ['community','reduce wildfire evacuation barriers','wildfire evacuation support'],
+    ['community','improve rural healthcare access','mobile clinic'],
+    ['research','evaluate interventions to reduce homelessness','housing first'],
+    ['research','study effective heat-health interventions','cooling centre'],
+    ['research','study interventions to reduce pedestrian injuries','traffic calming'],
+    ['research','study workforce displacement from automation','worker transition'],
+    ['research','study wildfire smoke mitigation','smoke filtration'],
+    ['research','study interventions to improve rural mobility','demand responsive transit'],
+    ['enterprise','reduce digital access gaps','digital inclusion'],
+    ['enterprise','reduce cybersecurity incident risk','zero trust'],
+    ['enterprise','reduce procurement cycle time','procurement process redesign'],
+    ['enterprise','reduce regulatory compliance delays','compliance automation'],
+    ['enterprise','reduce infrastructure maintenance backlog','preventive maintenance'],
+    ['municipal','reduce extreme heat illness','cooling centre']
+  ];
+  for (const [workspace, problem, anchor] of blockedLanes) {
+    const queries = buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.some(query => query.toLowerCase() === anchor.toLowerCase() || query.toLowerCase().includes(' ' + anchor.toLowerCase())), workspace + ': missing recall anchor for ' + problem);
+    assert.equal(interventionMatchesProblem(problem, { name: anchor, discoveryText: anchor }, workspace), true, workspace + ': recall anchor rejected for ' + problem);
+  }
+});
