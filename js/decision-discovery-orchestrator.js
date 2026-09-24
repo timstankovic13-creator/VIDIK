@@ -150,15 +150,36 @@ function buildSearchManifest({ problem, acquisitionSources = [], localCandidates
 
 function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
   const problemSignals = new Set(Discovery.normalizeProblemTags(problem));
+  const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
   return cities.map(city => {
-    const citySignals = Discovery.normalizeProblemTags(`${city.problem || ''} ${Array.isArray(city.interventions) ? city.interventions.join(' ') : city.interventions || ''}`);
-    const signals = citySignals.filter(signal => problemSignals.has(signal));
+    const contextText = [
+      city.problem,
+      ...(Array.isArray(city.problemTags) ? city.problemTags : []),
+      ...(Array.isArray(city.matchedSignals) ? city.matchedSignals : [])
+    ].filter(Boolean).join(' ');
+    const contextSignals = Discovery.normalizeProblemTags(contextText);
+    const signals = contextSignals.filter(signal => problemSignals.has(signal));
+    const interventions = interventionFields.flatMap(field => {
+      const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
+      return values.map(value => typeof value === 'string'
+        ? value.trim()
+        : String(value?.name || value?.title || '').trim()).filter(Boolean);
+    });
+    const directMatches = interventions.filter(name => Discovery.normalizeProblemTags(name).some(signal => problemSignals.has(signal)));
+    const matchedInterventions = [...new Set(interventions)];
+    const matchedSignals = [...new Set(signals)];
+
     return {
-      city: city.city || null, jurisdiction: city.jurisdiction || city.city || null, matchedSignals: [...new Set(signals)],
-      interventions: Array.isArray(city.interventions) ? city.interventions : [city.interventions].filter(Boolean), leadOnly: true,
-      effectsImported: false, provenance: city.provenance || null
+      city: city.city || null,
+      jurisdiction: city.jurisdiction || city.city || null,
+      matchedSignals,
+      interventions: matchedInterventions,
+      leadOnly: true,
+      effectsImported: false,
+      provenance: city.provenance || null
     };
-  }).filter(item => item.city && item.matchedSignals.length >= minSignals && item.interventions.length);
+  }).filter(item => item.city && item.interventions.length &&
+    (item.matchedSignals.length >= minSignals || item.interventions.some(name => Discovery.normalizeProblemTags(name).some(signal => problemSignals.has(signal)))));
 }
 
 function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } = {}) {
