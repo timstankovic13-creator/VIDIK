@@ -117,3 +117,44 @@ test('integrated intelligence object exposes strategy, universe, transfer, why-n
   assert.equal(result.governance.comparableEffectsImported, false);
   assert.equal(result.governance.learning.automaticParameterMutation, false);
 });
+
+test('8. comparable-city discovery expands beyond the legacy interventions field and preserves lead-only boundaries', () => {
+  const leads = I.comparableCityDiscoveryLeads('reduce violent crime', [
+    {
+      city: 'Toronto',
+      jurisdiction: 'Ontario',
+      problemTags: ['violent crime'],
+      programs: [
+        { name: 'Community violence interruption', description: 'Neighbourhood violence prevention program' }
+      ],
+      strategies: ['Focused deterrence']
+    },
+    {
+      city: 'Melbourne',
+      jurisdiction: 'Victoria',
+      problemTags: ['road safety'],
+      programs: ['Unrelated road program']
+    }
+  ]);
+  assert.equal(leads.length, 2);
+  assert.ok(leads.some(lead => lead.name === 'Community violence interruption'));
+  assert.ok(leads.some(lead => lead.name === 'Focused deterrence'));
+  assert.ok(leads.every(lead => lead.discoveryRoute === 'comparable-city'));
+  assert.ok(leads.every(lead => lead.leadOnly === true));
+  assert.ok(leads.every(lead => lead.effectsImported === false));
+
+  const universe = I.buildCandidateUniverse([
+    { sourceType: 'local-program', sourceId: 'local', candidates: [{ id: 'local-1', name: 'Community violence interruption', problemTags: ['violent crime'] }] }
+  ], [
+    { city: 'Toronto', problemTags: ['violent crime'], programs: ['Community violence interruption', 'Focused deterrence'] }
+  ], 'reduce violent crime');
+
+  assert.equal(universe.candidates.length, 2);
+  const focused = universe.candidates.find(candidate => candidate.name === 'Focused deterrence');
+  assert.ok(focused);
+  assert.equal(focused.discovery.sourceType, 'comparable-city');
+  assert.equal(focused.discovery.effectsImported, false);
+  assert.equal(focused.discovery.leadOnly, true);
+  const shared = universe.candidates.find(candidate => candidate.name === 'Community violence interruption');
+  assert.equal(shared.provenance.length, 2);
+});
