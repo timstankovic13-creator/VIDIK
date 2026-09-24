@@ -96,6 +96,15 @@
     script.src = 'js/interface-experience.js?v=20260924-finish-line-v2';
     document.body.appendChild(script);
 
+    const journeyStyle = document.createElement('link');
+    journeyStyle.rel = 'stylesheet';
+    journeyStyle.href = 'styles/progressive-decision-journey.css?v=20260924-journey-v1';
+    document.head.appendChild(journeyStyle);
+
+    const journeyScript = document.createElement('script');
+    journeyScript.src = 'js/progressive-decision-journey.js?v=20260924-journey-v1';
+    document.body.appendChild(journeyScript);
+
     const semanticStyle = document.createElement('link');
     semanticStyle.rel = 'stylesheet';
     semanticStyle.href = 'styles/semantic-presentation.css?v=20260924-semantic-v1';

@@ -62,6 +62,7 @@
   }
 
   function startJourney(){
+    if(window.VIDIKDecisionJourney?.run){ window.VIDIKDecisionJourney.run(); return; }
     document.body.dataset.interfaceJourney='active';
     document.querySelector('.decision-composer')?.classList.add('journey-running');
     const shell=document.getElementById('experienceContext');
