@@ -38,32 +38,106 @@ function normalizeCandidate(candidate, source) {
   const id = String(candidate.id || candidate.interventionId || candidate.name || candidate.title || '').trim();
   if (!id) return null;
   const sourceType = source?.sourceType || 'unknown', sourceId = source?.sourceId || sourceType;
-  return { id, name: candidate.name || candidate.title || id, problemTags: unique(candidate.problemTags || []), domains: unique(candidate.domains || []),
-    source: { sourceId, sourceType, jurisdiction: source?.jurisdiction || null }, provenance: [{ sourceId, sourceType, jurisdiction: source?.jurisdiction || null }],
-    leadOnly: sourceType === 'comparable-city', effectsImported: false };
+  const leadOnly = sourceType === 'comparable-city';
+  return {
+    id,
+    name: candidate.name || candidate.title || id,
+    problemTags: unique(candidate.problemTags || []),
+    domains: unique(candidate.domains || []),
+    source: { sourceId, sourceType, jurisdiction: source?.jurisdiction || null },
+    provenance: [{ sourceId, sourceType, jurisdiction: source?.jurisdiction || null }],
+    leadOnly,
+    effectsImported: false,
+    discovery: {
+      route: leadOnly ? 'comparable-city' : sourceType,
+      sourceType,
+      sourceId,
+      leadOnly,
+      effectsImported: false
+    }
+  };
 }
-function candidateKey(candidate) { return `${tokens(candidate?.name || candidate?.id).join(' ')}::${unique(candidate?.problemTags || []).map(x => tokens(x).join(' ')).sort().join('|')}`; }
+function candidateKey(candidate) {
+  return `${tokens(candidate?.name || candidate?.id).join(' ')}::${unique(candidate?.problemTags || []).map(x => tokens(x).join(' ')).sort().join('|')}`;
+}
 
-function buildCandidateUniverse(sourceResults = [], comparableCities = []) {
-  const normalized = [];
-  for (const source of sourceResults) for (const candidate of Array.isArray(source?.candidates) ? source.candidates : []) { const item = normalizeCandidate(candidate, source); if (item) normalized.push(item); }
-  for (const city of comparableCities) for (const intervention of Array.isArray(city?.interventions) ? city.interventions : []) {
-    const item = normalizeCandidate({ id: `${city.city || city.jurisdiction || 'city'}-${intervention}`, name: intervention, problemTags: city.problemTags || city.matchedSignals || [] },
-      { sourceId: city.sourceId || 'comparable-city-learning', sourceType: 'comparable-city', jurisdiction: city.jurisdiction || city.city });
-    if (item) normalized.push(item);
+function comparableCityDiscoveryLeads(problem, comparableCities = []) {
+  const problemTokens = new Set(tokens(problem));
+  const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
+  const leads = [];
+  for (const city of Array.isArray(comparableCities) ? comparableCities : []) {
+    const contextTokens = tokens([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
+    const contextMatch = contextTokens.some(token => problemTokens.has(token));
+    for (const field of interventionFields) {
+      const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
+      for (const value of values) {
+        const name = typeof value === 'string' ? value.trim() : String(value?.name || value?.title || '').trim();
+        if (!name) continue;
+        const description = typeof value === 'object' ? String(value.description || value.notes || '').trim() : '';
+        const directMatch = tokens(name + ' ' + description).some(token => problemTokens.has(token));
+        if (!contextMatch && !directMatch) continue;
+        leads.push({
+          id: `comparable:${String(city.city || city.jurisdiction || 'city').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+          name,
+          description,
+          problemTags: unique([...(city.problemTags || []), ...(city.matchedSignals || [])]),
+          domains: unique(city.domains || []),
+          transferability: city.transferability || city.context || null,
+          discoveryRoute: 'comparable-city',
+          comparableCity: city.city || city.jurisdiction || null,
+          sourceId: city.sourceId || 'comparable-city-learning',
+          jurisdiction: city.jurisdiction || city.city || null,
+          leadOnly: true,
+          effectsImported: false
+        });
+      }
+    }
   }
+  return leads;
+}
+
+function buildCandidateUniverse(sourceResults = [], comparableCities = [], problem = '') {
+  const normalized = [];
+  for (const source of sourceResults) {
+    for (const candidate of Array.isArray(source?.candidates) ? source.candidates : []) {
+      const item = normalizeCandidate(candidate, source);
+      if (item) normalized.push(item);
+    }
+  }
+  for (const lead of comparableCityDiscoveryLeads(problem, comparableCities)) {
+    const item = normalizeCandidate(lead, { sourceId: lead.sourceId, sourceType: 'comparable-city', jurisdiction: lead.jurisdiction });
+    if (!item) continue;
+    item.discoveryRoute = 'comparable-city';
+    item.comparableCity = lead.comparableCity;
+    item.transferability = lead.transferability;
+    normalized.push(item);
+  }
+
   const byKey = new Map();
   for (const item of normalized) {
     const key = candidateKey(item), existing = byKey.get(key);
     if (!existing) { byKey.set(key, item); continue; }
     existing.problemTags = unique([...existing.problemTags, ...item.problemTags]);
     existing.domains = unique([...existing.domains, ...item.domains]);
-    existing.leadOnly = existing.leadOnly || item.leadOnly;
+    existing.provenance = [...existing.provenance, ...item.provenance]
+      .filter((record, index, all) => index === all.findIndex(other => stable(other) === stable(record)));
+    existing.leadOnly = existing.provenance.every(record => record.sourceType === 'comparable-city');
     existing.effectsImported = false;
-    existing.provenance = [...existing.provenance, ...item.provenance].filter((record, index, all) => index === all.findIndex(other => stable(other) === stable(record)));
+    if (item.discovery?.sourceType === 'comparable-city') {
+      existing.discoveryRoute = 'comparable-city';
+      existing.comparableCity = existing.comparableCity || item.comparableCity;
+      existing.transferability = existing.transferability || item.transferability;
+    }
+    existing.discovery.leadOnly = existing.leadOnly;
+    existing.discovery.effectsImported = false;
   }
   const candidates = [...byKey.values()].sort((a, b) => candidateKey(a).localeCompare(candidateKey(b)));
-  return { candidates, candidateUniverseHash: hash(candidates), countsBySourceType: Object.fromEntries(SOURCE_ORDER.map(type => [type, candidates.filter(candidate => candidate.source.sourceType === type).length])), discoveredAt: null };
+  return {
+    candidates,
+    candidateUniverseHash: hash(candidates),
+    countsBySourceType: Object.fromEntries(SOURCE_ORDER.map(type => [type, candidates.filter(candidate => candidate.provenance.some(p => p.sourceType === type)).length])),
+    discoveredAt: null
+  };
 }
 
 function auditSearchCoverage(strategy, sourceResults = []) {
@@ -73,13 +147,19 @@ function auditSearchCoverage(strategy, sourceResults = []) {
     const failed = ['failed', 'search-failed', 'error', 'blocked'].includes(result.status);
     const status = failed ? 'search-failed' : (Array.isArray(result.candidates) && result.candidates.length ? 'candidates-found' : (result.status || 'searched-empty'));
     const current = byType.get(type);
-    if (!current || (current.status === 'searched-empty' && status === 'candidates-found')) byType.set(type, { sourceType: type, sourceIds: unique([result.sourceId]), status,
-      candidatesReturned: Math.max(0, Number(result.candidatesReturned) || (Array.isArray(result.candidates) ? result.candidates.length : 0)), failureReason: failed ? (result.failureReason || 'source-search-failed') : null });
-    else current.sourceIds = unique([...current.sourceIds, result.sourceId]);
+    if (!current || (current.status === 'searched-empty' && status === 'candidates-found')) {
+      byType.set(type, { sourceType: type, sourceIds: unique([result.sourceId]), status,
+        candidatesReturned: Math.max(0, Number(result.candidatesReturned) || (Array.isArray(result.candidates) ? result.candidates.length : 0)),
+        failureReason: failed ? (result.failureReason || 'source-search-failed') : null });
+    } else current.sourceIds = unique([...current.sourceIds, result.sourceId]);
   }
   const sources = (strategy?.requiredSourceTypes || SOURCE_ORDER).map(sourceType => byType.get(sourceType) || { sourceType, sourceIds: [], status: 'not-searched', candidatesReturned: 0, failureReason: null });
-  return { complete: sources.every(item => item.status !== 'not-searched' && item.status !== 'search-failed'), sources,
-    failed: sources.filter(item => item.status === 'search-failed').map(item => item.sourceType), notSearched: sources.filter(item => item.status === 'not-searched').map(item => item.sourceType) };
+  return {
+    complete: sources.every(item => item.status !== 'not-searched' && item.status !== 'search-failed'),
+    sources,
+    failed: sources.filter(item => item.status === 'search-failed').map(item => item.sourceType),
+    notSearched: sources.filter(item => item.status === 'not-searched').map(item => item.sourceType)
+  };
 }
 
 function evidenceGate(candidate, evidence = {}) {
@@ -133,11 +213,16 @@ function proposeRecalibration(outcomeRecords = [], policy = {}) {
   return { status: Math.abs(meanDeviation) > threshold ? 'recalibration-review-required' : 'monitor', proposedAdjustment: meanDeviation, sampleSize: valid.length, governed: true, automaticMutation: false, historyRewrite: false };
 }
 
+function comparableCityCoverageCandidates(comparableCities = []) {
+  const fields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
+  return comparableCities.flatMap(city => fields.flatMap(field => Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : []));
+}
+
 function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], comparableCities = [], candidates = null, evidenceIndex = {}, analysis = {}, statusQuo = null } = {}) {
   const strategy = buildSearchStrategy(problem, context);
-  const universe = candidates ? { candidates, candidateUniverseHash: hash(candidates) } : buildCandidateUniverse(sourceResults, comparableCities);
+  const universe = candidates ? { candidates, candidateUniverseHash: hash(candidates) } : buildCandidateUniverse(sourceResults, comparableCities, problem);
   const coverageInputs = [...sourceResults];
-  if (comparableCities.length) coverageInputs.push({ sourceType: 'comparable-city', sourceId: 'comparable-city-learning', status: 'candidates-found', candidates: comparableCities.flatMap(city => city.interventions || []) });
+  if (comparableCities.length) coverageInputs.push({ sourceType: 'comparable-city', sourceId: 'comparable-city-learning', status: 'candidates-found', candidates: comparableCityCoverageCandidates(comparableCities) });
   const coverage = auditSearchCoverage(strategy, coverageInputs);
   const ranked = rankCandidates(universe.candidates, evidenceIndex, analysis);
   const transferLeads = universe.candidates.filter(candidate => Boolean(candidate.leadOnly || candidate.discovery?.leadOnly || candidate.discovery?.sourceType === 'comparable-city')).map(candidate => ({
@@ -151,4 +236,4 @@ function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], 
   } };
 }
 
-module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
+module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };

@@ -234,9 +234,22 @@ test('literature-like administrative titles are not promoted to intervention can
   }
 });
 
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function runWorker() {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
+  return results;
+}
+
 test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
-  const results = [];
-  for (const [workspace, jurisdiction, problem] of CASES) {
+  const results = await mapWithConcurrency(CASES, 8, async ([workspace, jurisdiction, problem]) => {
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -284,7 +297,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       grade = 'USEFUL-INCOMPLETE';
     }
 
-    results.push({
+    return {
       workspace, jurisdiction, problem,
       candidateCount: candidates.length,
       actionableCount: actionable.length,
@@ -303,8 +316,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
       discoveryState: discovery.interventionUniverse.stoppingReason
-    });
-  }
+    };
+  });
 
   const counts = Object.fromEntries(['STRONG','USEFUL-INCOMPLETE','BLOCKED'].map(g => [g, results.filter(r => r.grade === g).length]));
   const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);

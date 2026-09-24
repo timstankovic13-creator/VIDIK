@@ -105,3 +105,49 @@ test('full-capacity discovery does not promote a data-only record into an interv
   });
   assert.ok(run.candidates.every(candidate => !/statistics dataset/i.test(candidate.name)));
 });
+
+test('full-capacity flagship execution traverses the legacy and new intelligence layers together', async () => {
+  const run = await executeFullCapacityDecision({
+    problem: 'How should a municipality allocate $10M of new spending over three years to reduce violent crime?',
+    requiredSourceTypes: ['intervention-library', 'comparable-city'],
+    fetchImpl: fakeFetch,
+    comparableCities: [{
+      city: 'Toronto',
+      jurisdiction: 'Ontario',
+      problemTags: ['violent crime'],
+      programs: [{ name: 'Community Violence Intervention', description: 'Community violence interruption and outreach' }],
+      strategies: ['Focused Deterrence']
+    }, {
+      city: 'Glasgow',
+      jurisdiction: 'Scotland',
+      problemTags: ['violent crime'],
+      strategies: ['Violence Reduction Partnership']
+    }],
+    statusQuo: { explicit: true, description: 'current allocation' },
+    decisionContext: { jurisdiction: 'Ottawa, Canada' }
+  });
+
+  assert.ok(run.candidates.length >= 1);
+  assert.ok(run.intelligence?.strategy?.strategyHash);
+  assert.ok(run.intelligence?.discovery?.universe?.candidateUniverseHash);
+  assert.ok(Array.isArray(run.intelligence?.discovery?.transferLeads));
+  assert.ok(run.intelligence.discovery.transferLeads.length >= 3);
+  assert.equal(run.governance.comparableEffectsImported, false);
+  assert.equal(run.governance.learningEffectsImported, false);
+  assert.equal(run.governance.whyNotAvailable, true);
+  assert.equal(run.governance.knowledgeGraphPresent, true);
+  assert.ok(run.nextPhase?.sourceNetwork);
+  assert.ok(run.nextPhase?.knowledgeGraph);
+  assert.ok(run.nextPhase?.whyWhyNot);
+  assert.ok(run.governance.candidateUniverseIntelligence);
+  assert.ok(run.governance.learningDiscoveryLeadOnly);
+  assert.ok(run.governance.evidenceToDecisionGates);
+  assert.ok(run.governance.decisionArtifacts);
+  assert.ok(run.governance.outcomeClosure);
+  assert.ok(run.governance.reviewPlan);
+  assert.ok(run.governance.decisionLifecycle);
+  assert.equal(run.governance.recommendationAllowed, false);
+  assert.equal(run.decision.recommendation, null);
+  assert.equal(run.governance.counterfactualRequired, true);
+  assert.equal(run.governance.arbitraryDecisionGovernanceVersion, 'v1');
+});
