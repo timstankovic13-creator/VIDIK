@@ -117,6 +117,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
   run.nextPhase = { sourceNetwork, knowledgeGraph: nextPhaseGraph, whyWhyNot: nextPhaseWhyWhyNot, blindBenchmarkSize: NextPhase.buildBlindBenchmark().length, learningPolicy: NextPhase.outcomeLearningReview([], run.runHash || null) };
   run.governance.discoveryStrategyHash = intelligence.strategy.strategyHash;
   run.governance.transferEffectsImported = intelligence.governance.comparableEffectsImported;
+  run.governance.comparableEffectsImported = intelligence.governance.comparableEffectsImported;
   run.governance.learningEnvelope = intelligence.governance.learning;
   run.governance.whyNotAvailable = true;
   run.governance.knowledgeGraphPresent = true;
