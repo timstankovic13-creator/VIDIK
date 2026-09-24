@@ -22,6 +22,7 @@ function loadPostgres() {
 const { Pool } = loadPostgres();
 const { executeFullCapacityDecision } = require('../js/decision-discovery-execution');
 const { buildWorkspaceContext, workspaceOutputTemplate } = require('../js/domain-workspaces');
+const { detectBudgetIntent } = require('../js/budget-scope');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8080);
@@ -126,17 +127,19 @@ const server = http.createServer(async (req, res) => {
         const input = JSON.parse(body || '{}');
         if (typeof input.problem !== 'string' || !input.problem.trim()) throw new Error('decision-problem-required');
         const audience = input.audience || 'business';
+        const budget = detectBudgetIntent(input.problem);
         const workspace = buildWorkspaceContext(audience, input.workspace || {});
         const result = await executeFullCapacityDecision({
           problem: input.problem.trim(),
           discoveryJurisdiction: input.jurisdiction || 'international',
           statusQuo: { explicit: true, id: 'status-quo', description: input.statusQuo || 'Continue current practice' },
-          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace }
+          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace, budget }
         });
         res.writeHead(200, {'content-type':'application/json'});
         return res.end(JSON.stringify({
           status: result.governance?.recommendationAllowed ? 'recommendation-ready' : 'recommendation-blocked',
           problem: result.problem,
+          budget,
           workspace,
           workspaceOutputs: workspaceOutputTemplate(audience),
           decision: result.decision,
