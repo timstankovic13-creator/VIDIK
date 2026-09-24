@@ -40,7 +40,7 @@
   <div class="answer-meta"><span class="eyebrow">DECISION BRIEF</span><span id="topImpact" class="signal">WAITING</span></div>
   <h2 id="topRecommendation">Define the problem to evaluate the decision.</h2>
   <p id="topSummary">VIDIK will not assume an intervention before the problem and constraints are defined.</p>
-  <div class="answer-facts">
+  <div class="evidence-legend" aria-label="Evidence status"><span><i class="legend-dot verified"></i>Verified</span><span><i class="legend-dot supported"></i>Supported</span><span><i class="legend-dot estimated"></i>Estimated</span><span><i class="legend-dot potential"></i>Potential</span><span><i class="legend-dot unknown"></i>Unknown</span></div><div class="answer-facts">
     <div><span>Baseline</span><b>Status quo / current approach</b></div>
     <div><span>Evidence integrity</span><b id="topIntegrity">—</b></div>
     <div><span>Resources</span><b id="topResources">—</b></div>
@@ -49,7 +49,7 @@
 </section>
 
 <section class="interface-switcher" aria-label="VIDIK interface modes">
-  <div class="interface-switcher-head"><div><span class="eyebrow">INTERFACE EXPERIMENT</span><b>Choose how you want to work the decision.</b></div><span id="interfaceModeLabel">Decision Cockpit</span></div>
+  <div class="interface-switcher-head"><div><span class="eyebrow">INTERFACE SYSTEM</span><b>Choose how you want to work the decision.</b></div><div class="interface-controls"><span id="interfaceModeLabel">Decision Cockpit</span><label class="skin-picker">Skin<select id="skinSelect" aria-label="Visual skin"><option value="civic">Civic</option><option value="studio">Studio</option><option value="field">Field</option><option value="night">Night</option></select></label></div></div>
   <div class="interface-modes">
     <button class="interface-mode active" data-interface="cockpit"><strong>01</strong><span>Cockpit</span><small>Decide fast</small></button>
     <button class="interface-mode" data-interface="brief"><strong>02</strong><span>Executive Brief</span><small>Communicate</small></button>
@@ -106,6 +106,24 @@
 <script src="js/config.js?v=20260923-cockpit-v2"></script>
 <script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260923-cockpit-v2"></script>
 <script src="js/live-decision-experience.js"></script>\n<script src="js/interface-variants.js"></script>
+<script>
+(function(){
+  const select=document.getElementById('skinSelect');
+  const skins=['civic','studio','field','night'];
+  let saved='civic';
+  try{saved=localStorage.getItem('vidik-skin')||'civic'}catch(_){}
+  if(!skins.includes(saved)) saved='civic';
+  document.body.dataset.skin=saved;
+  if(select) {
+    select.value=saved;
+    select.addEventListener('change',()=>{
+      const skin=skins.includes(select.value)?select.value:'civic';
+      document.body.dataset.skin=skin;
+      try{localStorage.setItem('vidik-skin',skin)}catch(_){}
+    });
+  }
+})();
+</script>
 <script>
 (function(){
   const input=document.getElementById('decisionProblem');
