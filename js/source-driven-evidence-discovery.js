@@ -77,6 +77,7 @@ function normalizeEvidenceText(value) {
 function evidenceLeadRelevance(title, candidate, problem) {
   const haystack = normalizeEvidenceText(title);
   const candidateName = normalizeEvidenceText(candidate?.name);
+  const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const candidateTokens = evidenceConceptTokens(candidate?.name).map(token => token.replace(/^centre$/, 'center'));
   const discoveryText = normalizeEvidenceText(candidate?.discoveryText);
   const discoveryTokens = evidenceConceptTokens(candidate?.discoveryText).map(token => token.replace(/^centre$/, 'center'));
@@ -99,7 +100,6 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const problemPhraseHit = problemText.length >= 8 && haystack.includes(problemText);
-  const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
     const normalizedTerm = normalizeEvidenceText(term);
     if (haystack.includes(normalizedTerm)) return true;
