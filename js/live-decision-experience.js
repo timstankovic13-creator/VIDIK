@@ -29,6 +29,18 @@
     const searches = Array.isArray(result?.evidenceSearches) ? result.evidenceSearches : [];
     const evidenceDiscovery = Array.isArray(result?.evidenceDiscovery) ? result.evidenceDiscovery : [];
     const evidenceByCandidate = new Map(evidenceDiscovery.map(item => [item.candidateId, item]));
+    function evidenceState(item) {
+      if (!item) return { label: 'Evidence not searched', detail: 'No candidate-level evidence run was returned.' };
+      const sufficiency = item.evidenceSufficiency || {};
+      const leads = Array.isArray(item.evidenceLeads) ? item.evidenceLeads : [];
+      const matched = leads.filter(lead => ['candidate-match','verified'].includes(lead.relevanceStatus));
+      const independent = Number(sufficiency.independentSourceCount || 0);
+      if (sufficiency.evidenceComplete === true) return { label: 'Evidence complete', detail: matched.length + ' candidate-matched literature leads · ' + independent + ' independent providers' };
+      if (matched.length > 0 && independent > 0) return { label: 'Relevant literature found', detail: matched.length + ' candidate-matched leads · ' + independent + ' independent provider' + (independent === 1 ? '' : 's') + ' · validation still incomplete' };
+      if (leads.length > 0) return { label: 'Literature found; candidate validation incomplete', detail: leads.length + ' literature leads returned, but none yet meet the candidate-level evidence gate' };
+      if ((item.sourceSearches || []).some(search => search.status === 'search-failed')) return { label: 'Evidence search partially failed', detail: 'One or more evidence providers failed during retrieval.' };
+      return { label: 'Insufficient candidate-specific evidence', detail: 'VIDIK found no evidence that currently clears the candidate-level relevance gate.' };
+    }
     const universe = result?.governance?.candidateUniverseIntelligence || {};
     const status = allowed ? 'Recommendation ready' : 'Recommendation blocked — evidence boundary preserved';
 
@@ -68,7 +80,8 @@
       candidateBox.innerHTML = candidates.length
         ? candidates.map(x =>
             '<article class="candidate"><div class="candidate-title"><b>' + esc(x.name || x.id) + '</b></div><div class="row"><span>Evidence state</span><b>' +
-            esc((evidenceByCandidate.get(x.id)?.evidenceLeads?.length ? `${evidenceByCandidate.get(x.id).evidenceLeads.length} literature leads` : 'Evidence search pending / none found')) + '</b></div><div class="row"><span>Discovery</span><b>' +
+            esc(evidenceState(evidenceByCandidate.get(x.id)).label) + '</b></div><div class="row"><span>Evidence detail</span><b>' +
+            esc(evidenceState(evidenceByCandidate.get(x.id)).detail) + '</b></div><div class="row"><span>Discovery</span><b>' +
             esc(x.discovery?.sourceType || 'unknown') + (x.discovery?.leadOnly ? ' · lead only' : '') +
             '</b></div></article>'
           ).join('')
@@ -78,8 +91,13 @@
     const evidenceBox = document.getElementById('evidenceTable');
     if (evidenceBox) {
       evidenceBox.innerHTML =
-        '<tr><th>Option</th><th>Evidence found</th><th>Independent sources</th></tr>' +
-        (candidates.length ? candidates.map(x => { const item = evidenceByCandidate.get(x.id); const leads = Array.isArray(item?.evidenceLeads) ? item.evidenceLeads : []; const sources = [...new Set(leads.filter(l => ['candidate-match','verified'].includes(l.relevanceStatus)).map(l => l.sourceId))]; return '<tr><td>' + esc(x.name || x.id) + '</td><td>' + (leads.length ? leads.length + ' relevant literature leads' : 'No matched literature yet') + '</td><td>' + (sources.length ? sources.length : '—') + '</td></tr>'; }).join('') : '<tr><td colspan="3">No candidates returned for evidence review.</td></tr>');
+        '<tr><th>Option</th><th>Evidence state</th><th>Independent sources</th></tr>' +
+        (candidates.length ? candidates.map(x => {
+          const item = evidenceByCandidate.get(x.id);
+          const state = evidenceState(item);
+          const sources = Number(item?.evidenceSufficiency?.independentSourceCount || 0);
+          return '<tr><td>' + esc(x.name || x.id) + '</td><td><strong>' + esc(state.label) + '</strong><br><span>' + esc(state.detail) + '</span></td><td>' + (sources || '—') + '</td></tr>';
+        }).join('') : '<tr><td colspan="3">No candidates returned for evidence review.</td></tr>');
     }
 
     const governance = document.getElementById('audit');

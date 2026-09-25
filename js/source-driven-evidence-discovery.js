@@ -56,9 +56,11 @@ function canonicalEvidenceSource(source) { return SOURCE_REGISTRY.find(candidate
 function sourceIsAuthoritative(source) {
   const canonical = canonicalEvidenceSource(source);
   if (!canonical || !EVIDENCE_SOURCE_IDS.has(canonical.sourceId)) return false;
-  // Causal research is independent of the user's jurisdiction. Jurisdiction belongs to the applicability
-  // layer; it must not collapse the evidence universe to a single provider.
-  return canonical.domain === 'causal-evidence' && (source?.jurisdiction === canonical.jurisdiction || canonical.sourceId === 'pubmed-eutils');
+  // Authority follows the canonical registry. A caller-supplied jurisdiction may
+  // refine the request, but it cannot relabel the registered source.
+  if (source?.jurisdiction && source.jurisdiction !== canonical.jurisdiction) return false;
+  return canonical.domain === 'causal-evidence' &&
+    (canonical.jurisdiction === 'international' || canonical.sourceId === 'pubmed-eutils');
 }
 function evidenceConceptTokens(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
@@ -85,17 +87,43 @@ function evidenceLeadRelevance(title, candidate, problem) {
     .map(value => normalizeEvidenceText(value))
     .filter(phrase => phrase.length >= 8);
   const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
-  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
+  // Many intervention candidates have administrative suffixes (Program, Initiative,
+  // Service) that do not appear in research titles. Match the remaining distinctive
+  // proper-name phrase as an identity anchor, while family-only mechanism terms remain
+  // insufficient for candidates whose names do not contain that phrase.
+  const candidateIdentityWords = candidateName.split(' ').filter(word =>
+    !['program','programme','initiative','service','model','approach','strategy','project'].includes(word)
+  );
+  const candidateIdentityPhrase = candidateIdentityWords.join(' ').trim();
+  const identityPhraseHit = candidateIdentityWords.length >= 2 && candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
+  const discoveryIdentityPhrases = [candidate?.name, candidate?.discoveryText]
+    .filter(Boolean)
+    .flatMap(value => normalizeEvidenceText(value).split(/\b(?:and|or|with|including)\b|[,;:]/))
+    .map(phrase => phrase.trim())
+    .filter(phrase => phrase.length >= 12);
+  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase)) ||
+    discoveryIdentityPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
-  const strongCandidateTokens = candidateTokens.filter(token => token.length >= 6 && !['additional','support','service','capacity','program'].includes(token));
-  const strongCandidateHit = strongCandidateTokens.some(token => haystack.includes(token));
+  const familyTokens = new Set(families.flatMap(family =>
+    (EVIDENCE_FAMILY_TERMS[family] || []).flatMap(term => evidenceConceptTokens(term))
+  ));
+  // Generic words that define the intervention family are not candidate-specific
+  // identifiers. Require overlap with a candidate's distinguishing name tokens
+  // before promoting family-level literature to candidate-match.
+  const distinguishingTokens = candidateTokens.filter(token =>
+    token.length >= 5 &&
+    !['additional','support','service','capacity','program'].includes(token) &&
+    !familyTokens.has(token)
+  );
+  const distinguishingHits = distinguishingTokens.filter(token => haystack.includes(token)).length;
   const candidateFamilyHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
     const normalizedTerm = normalizeEvidenceText(term);
     return normalizedTerm.length >= 8 && haystack.includes(normalizedTerm);
   }));
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
-  const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2;
-  if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit || (strongCandidateHit && candidateFamilyHit)) return 'candidate-match';
+  const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2 &&
+    discoveryTokens.some(token => token.length >= 6 && !familyTokens.has(token) && haystack.includes(token));
+  if (exactNameHit || identityPhraseHit || operationalPhraseHit || distinguishingHits >= 2 || discoveryAnchorHit) return 'candidate-match';
   const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
