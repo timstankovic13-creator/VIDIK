@@ -98,7 +98,7 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const identityPhraseHit = candidateIdentityWords.length >= 2 && candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
   const discoveryIdentityPhrases = [candidate?.name, candidate?.discoveryText]
     .filter(Boolean)
-    .flatMap(value => normalizeEvidenceText(value).split(/\\b(?:and|or|with|including)\\b|[,;:]/))
+    .flatMap(value => normalizeEvidenceText(value).split(/\b(?:and|or|with|including)\b|[,;:]/))
     .map(phrase => phrase.trim())
     .filter(phrase => phrase.length >= 12);
   const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase)) ||
