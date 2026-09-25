@@ -69,7 +69,8 @@
     "test:insight-quality-battery": "node --test tests/insight-quality-battery.test.js && node --test tests/open-world-discovery-expansion.test.js",
     "test:interface-variants": "node tests/interface-variants.test.js && node tests/finish-line-experience.test.js",
     "test:semantic-presentation": "node tests/semantic-presentation.test.js",
-    "test:decision-experience-v2": "node tests/decision-experience-v2.test.js"
+    "test:decision-experience-v2": "node tests/decision-experience-v2.test.js",
+    "test:radical-decision-canvas": "node --test tests/radical-decision-canvas.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"

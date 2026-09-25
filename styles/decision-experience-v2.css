@@ -49,3 +49,122 @@ body[data-workspace="research"]{--vx-accent:#735f9a;background:radial-gradient(c
 body[data-workspace="enterprise"]{--vx-accent:#39717a;background:radial-gradient(circle at 78% 7%,rgba(215,232,234,.8),transparent 31%),linear-gradient(180deg,#f7faf9,#edf3f3)}
 body[data-workspace="business"] .hero-copy h1 em,body[data-workspace="community"] .hero-copy h1 em,body[data-workspace="research"] .hero-copy h1 em,body[data-workspace="enterprise"] .hero-copy h1 em{color:var(--vx-accent)}
 @media(max-width:700px){.app-shell{padding:0 15px}.topbar{height:64px}.experience-context{min-height:160px;border-radius:24px}.experience-context img{height:160px}.experience-context-copy{padding:20px}.hero{padding:36px 0 65px!important}body:not([data-interface-journey="active"]) .hero{min-height:calc(100vh - 64px);padding:28px 0 55px!important}.hero-copy h1{font-size:clamp(46px,14vw,70px)!important}.decision-composer{padding:17px!important;border-radius:23px!important}.decision-composer textarea{min-height:120px!important;font-size:17px!important}.composer-controls{grid-template-columns:1fr 1fr!important}.composer-footer{align-items:stretch!important;flex-direction:column}.primary{width:100%}.journey-stage{border-radius:25px!important}.journey-stage-inner{min-height:420px;padding:34px 22px!important}.journey-stage h2{font-size:42px!important}.answer-card{border-radius:25px!important}}
+
+/* Radical decision canvas: the product opens as a decision workspace, not a dashboard. */
+body:not([data-interface-journey="active"]) .experience-context{display:none!important}
+body:not([data-interface-journey="active"]) .topbar{border-bottom:0;background:transparent}
+body:not([data-interface-journey="active"]) .app-shell{max-width:1440px}
+body:not([data-interface-journey="active"]) .hero{
+  max-width:none!important;min-height:calc(100vh - 76px)!important;
+  display:grid!important;grid-template-columns:minmax(0,1.12fr) minmax(390px,.88fr);
+  align-items:center;gap:clamp(42px,7vw,110px);padding:clamp(40px,7vh,90px) clamp(10px,4vw,64px)!important;
+  position:relative;overflow:hidden
+}
+body:not([data-interface-journey="active"]) .hero:before{
+  content:"";position:absolute;width:min(58vw,760px);height:min(58vw,760px);right:-18%;top:5%;
+  border:1px solid rgba(65,111,91,.12);border-radius:50%;
+  box-shadow:0 0 0 80px rgba(65,111,91,.025),0 0 0 160px rgba(65,111,91,.018);pointer-events:none
+}
+body:not([data-interface-journey="active"]) .hero:after{
+  content:"DECISION INTELLIGENCE";position:absolute;right:clamp(20px,5vw,70px);bottom:28px;
+  writing-mode:vertical-rl;letter-spacing:.24em;font-size:9px;color:rgba(24,35,31,.32);pointer-events:none
+}
+body:not([data-interface-journey="active"]) .hero-copy{max-width:760px;position:relative;z-index:1}
+body:not([data-interface-journey="active"]) .hero-copy>.eyebrow{
+  display:inline-flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.22em;
+  padding:8px 12px;border:1px solid var(--vx-line);border-radius:999px;background:rgba(255,255,255,.46)
+}
+body:not([data-interface-journey="active"]) .hero-copy>.eyebrow:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--vx-accent);box-shadow:0 0 0 5px color-mix(in srgb,var(--vx-accent) 10%,transparent)}
+body:not([data-interface-journey="active"]) .hero-copy h1{
+  font-size:clamp(62px,8.3vw,124px)!important;line-height:.84!important;letter-spacing:-.085em!important;
+  max-width:780px!important;margin:24px 0 25px!important
+}
+body:not([data-interface-journey="active"]) .hero-copy h1 em{display:block}
+body:not([data-interface-journey="active"]) .hero-copy p{font-size:clamp(17px,1.8vw,21px)!important;max-width:610px!important}
+body:not([data-interface-journey="active"]) .decision-composer{
+  align-self:center;justify-self:end;width:min(100%,540px);margin:0!important;position:relative;z-index:2;
+  border-radius:36px!important;padding:30px!important;background:rgba(255,255,255,.78)!important;
+  box-shadow:0 38px 100px rgba(31,51,43,.15),inset 0 1px 0 rgba(255,255,255,.9)!important;
+  backdrop-filter:blur(24px)
+}
+body:not([data-interface-journey="active"]) .decision-composer:before{
+  content:"01  /  05";position:absolute;right:28px;top:29px;font:600 9px/1 ui-monospace,monospace;
+  letter-spacing:.16em;color:rgba(24,35,31,.38)
+}
+body:not([data-interface-journey="active"]) .decision-composer textarea{
+  min-height:150px!important;background:rgba(238,244,239,.8)!important;border-radius:24px!important;
+  font-size:21px!important;padding:22px!important
+}
+body:not([data-interface-journey="active"]) .composer-head span{font-size:12px;text-transform:uppercase;letter-spacing:.14em}
+body:not([data-interface-journey="active"]) .composer-footer{border-top:0!important;padding-top:8px!important}
+body:not([data-interface-journey="active"]) .composer-footer .primary{
+  padding:16px 22px!important;font-size:15px;min-height:52px
+}
+/* During analysis, the old dashboard is removed from the visual stage. */
+body[data-journey-state="building"] .experience-context,
+body[data-journey-state="building"] .hero{display:none!important}
+body[data-journey-state="building"] .journey-stage{
+  display:flex!important;min-height:calc(100vh - 76px)!important;margin:0!important;border-radius:0!important;
+  box-shadow:none!important;background:transparent!important;align-items:center
+}
+body[data-journey-state="building"] .journey-stage-inner{
+  width:min(940px,100%);min-height:0!important;padding:70px 0
+}
+body[data-journey-state="building"] .journey-stage-kicker{font-size:11px;letter-spacing:.22em}
+body[data-journey-state="building"] .journey-stage h2{
+  font-size:clamp(50px,8vw,108px)!important;letter-spacing:-.075em!important;line-height:.88!important
+}
+body[data-journey-state="building"] .journey-stage p{font-size:clamp(17px,2vw,22px);max-width:650px}
+body[data-journey-state="building"] .journey-stage-steps{font-size:12px;letter-spacing:.08em}
+body[data-journey-state="building"] .journey-stage-track{height:6px!important;border-radius:99px;background:rgba(65,111,91,.08)}
+body[data-journey-state="building"] .journey-stage-progress{height:100%;border-radius:99px;background:var(--vx-accent)}
+/* The completed state becomes a new decision room. */
+body[data-journey-state="decision"] .hero{display:none!important}
+body[data-journey-state="decision"] .experience-context{display:none!important}
+body[data-journey-state="decision"] .journey-stage{
+  margin:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important
+}
+body[data-journey-state="decision"] .journey-stage.complete{
+  min-height:160px!important;align-items:end;border-bottom:1px solid var(--vx-line)!important
+}
+body[data-journey-state="decision"] .journey-stage.complete .journey-stage-inner{
+  min-height:0!important;padding:38px 0 28px;display:block
+}
+body[data-journey-state="decision"] .journey-stage.complete .journey-stage-kicker{font-size:9px}
+body[data-journey-state="decision"] .journey-stage.complete h2{font-size:clamp(28px,4vw,52px)!important;margin:7px 0}
+body[data-journey-state="decision"] .journey-stage.complete p{margin:0;max-width:680px}
+body[data-journey-state="decision"] .journey-stage.complete .journey-stage-track,
+body[data-journey-state="decision"] .journey-stage.complete .journey-stage-steps{display:none}
+body[data-journey-state="decision"] .answer-card{
+  max-width:1120px;margin:46px auto!important;border-radius:38px!important;padding:clamp(30px,5vw,68px)!important;
+  box-shadow:0 38px 110px rgba(31,51,43,.12)!important
+}
+body[data-journey-state="decision"] .answer-card .answer-meta{margin-bottom:24px}
+body[data-journey-state="decision"] .answer-card h2{font-size:clamp(40px,6vw,76px)!important;letter-spacing:-.055em!important;line-height:.94!important;max-width:850px}
+body[data-journey-state="decision"] .answer-card .answer-main{max-width:900px}
+body[data-journey-state="decision"] .answer-grid{grid-template-columns:repeat(4,1fr);gap:12px}
+body[data-journey-state="decision"] .answer-tile{border-radius:20px!important;padding:18px!important;background:#f3f6f3!important}
+body[data-journey-state="decision"] .interface-quickbar,
+body[data-journey-state="decision"] .interface-switcher,
+body[data-journey-state="decision"] .decision-nav,
+body[data-journey-state="decision"] #analysis{
+  max-width:1120px;margin-left:auto;margin-right:auto
+}
+@media(max-width:850px){
+  body:not([data-interface-journey="active"]) .hero{
+    display:flex!important;flex-direction:column;justify-content:center;align-items:stretch;gap:26px;
+    min-height:calc(100vh - 64px)!important;padding:34px 0 55px!important
+  }
+  body:not([data-interface-journey="active"]) .hero:before{width:100vw;height:100vw;right:-45%;top:4%}
+  body:not([data-interface-journey="active"]) .hero:after{display:none}
+  body:not([data-interface-journey="active"]) .hero-copy h1{font-size:clamp(54px,15vw,86px)!important}
+  body:not([data-interface-journey="active"]) .hero-copy p{font-size:17px!important}
+  body:not([data-interface-journey="active"]) .decision-composer{width:100%;padding:21px!important;border-radius:28px!important}
+  body:not([data-interface-journey="active"]) .decision-composer textarea{min-height:125px!important;font-size:18px!important}
+  body[data-journey-state="building"] .journey-stage{min-height:calc(100vh - 64px)!important}
+  body[data-journey-state="building"] .journey-stage-inner{padding:40px 4px}
+  body[data-journey-state="building"] .journey-stage h2{font-size:clamp(44px,13vw,68px)!important}
+  body[data-journey-state="decision"] .journey-stage.complete{min-height:125px!important}
+  body[data-journey-state="decision"] .answer-card{margin:26px 0!important;border-radius:28px!important}
+  body[data-journey-state="decision"] .answer-grid{grid-template-columns:1fr 1fr}
+}
