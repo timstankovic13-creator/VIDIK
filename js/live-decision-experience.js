@@ -97,7 +97,7 @@
 
   async function runLiveMunicipalDecision(event) {
     event.preventDefault();
-    event.stopImmediatePropagation();
+    window.dispatchEvent(new CustomEvent('vidik:decision-start'));
 
     const input = document.getElementById('decisionProblem');
     const button = document.getElementById('runDecision');

@@ -68,7 +68,8 @@
     "test:domain-workspaces": "node --test tests/domain-workspaces.test.js",
     "test:insight-quality-battery": "node --test tests/insight-quality-battery.test.js && node --test tests/open-world-discovery-expansion.test.js",
     "test:interface-variants": "node tests/interface-variants.test.js && node tests/finish-line-experience.test.js",
-    "test:semantic-presentation": "node tests/semantic-presentation.test.js"
+    "test:semantic-presentation": "node tests/semantic-presentation.test.js",
+    "test:decision-experience-v2": "node tests/decision-experience-v2.test.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
