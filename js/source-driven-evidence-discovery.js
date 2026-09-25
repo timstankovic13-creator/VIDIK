@@ -87,6 +87,14 @@ function evidenceLeadRelevance(title, candidate, problem) {
     .map(value => normalizeEvidenceText(value))
     .filter(phrase => phrase.length >= 8);
   const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
+  // Many intervention candidates have administrative suffixes (Program, Initiative,
+  // Service) that do not appear in research titles. Match the remaining distinctive
+  // proper-name phrase as an identity anchor, while family-only mechanism terms remain
+  // insufficient for candidates whose names do not contain that phrase.
+  const candidateIdentityPhrase = candidateName
+    .replace(/\\b(program|programme|initiative|service|model|approach|strategy|project)\\b/g, ' ')
+    .replace(/\\s+/g, ' ').trim();
+  const identityPhraseHit = candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
   const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
   const familyTokens = new Set(families.flatMap(family =>
@@ -109,7 +117,7 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
   const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2 &&
     discoveryTokens.some(token => token.length >= 6 && !familyTokens.has(token) && haystack.includes(token));
-  if (exactNameHit || operationalPhraseHit || distinguishingHits >= 1 || discoveryAnchorHit) return 'candidate-match';
+  if (exactNameHit || identityPhraseHit || operationalPhraseHit || distinguishingHits >= 1 || discoveryAnchorHit) return 'candidate-match';
   const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
