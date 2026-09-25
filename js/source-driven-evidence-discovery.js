@@ -57,8 +57,10 @@ function sourceIsAuthoritative(source) {
   const canonical = canonicalEvidenceSource(source);
   if (!canonical || !EVIDENCE_SOURCE_IDS.has(canonical.sourceId)) return false;
   // Causal research is independent of the user's jurisdiction. Jurisdiction belongs to the applicability
-  // layer; it must not collapse the evidence universe to a single provider.
-  return canonical.domain === 'causal-evidence' && (source?.jurisdiction === canonical.jurisdiction || canonical.sourceId === 'pubmed-eutils');
+  // layer; it must not collapse the evidence universe to a single provider. International indexes
+  // (OpenAlex/Crossref) and PubMed are valid evidence providers for any decision jurisdiction.
+  return canonical.domain === 'causal-evidence' &&
+    (canonical.jurisdiction === 'international' || canonical.sourceId === 'pubmed-eutils');
 }
 function evidenceConceptTokens(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
