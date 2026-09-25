@@ -91,10 +91,11 @@ function evidenceLeadRelevance(title, candidate, problem) {
   // Service) that do not appear in research titles. Match the remaining distinctive
   // proper-name phrase as an identity anchor, while family-only mechanism terms remain
   // insufficient for candidates whose names do not contain that phrase.
-  const candidateIdentityPhrase = candidateName
-    .replace(/\b(program|programme|initiative|service|model|approach|strategy|project)\b/g, ' ')
-    .replace(/\s+/g, ' ').trim();
-  const identityPhraseHit = candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
+  const candidateIdentityWords = candidateName.split(' ').filter(word =>
+    !['program','programme','initiative','service','model','approach','strategy','project'].includes(word)
+  );
+  const candidateIdentityPhrase = candidateIdentityWords.join(' ').trim();
+  const identityPhraseHit = candidateIdentityWords.length >= 2 && candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
   const discoveryIdentityPhrases = [candidate?.name, candidate?.discoveryText]
     .filter(Boolean)
     .flatMap(value => normalizeEvidenceText(value).split(/\\b(?:and|or|with|including)\\b|[,;:]/))
