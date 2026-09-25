@@ -105,14 +105,6 @@
     semanticScript.src = 'js/semantic-presentation.js?v=20260924-semantic-v2';
     document.body.appendChild(semanticScript);
 
-    const newShellStyle = document.createElement('link');
-    newShellStyle.rel = 'stylesheet';
-    newShellStyle.href = 'styles/decision-experience-v2.css?v=20260924-decision-v2';
-    document.head.appendChild(newShellStyle);
-
-    const newShellScript = document.createElement('script');
-    newShellScript.src = 'js/decision-experience-v2.js?v=20260924-decision-v2';
-    document.body.appendChild(newShellScript);
   }
 
   function bind() {
