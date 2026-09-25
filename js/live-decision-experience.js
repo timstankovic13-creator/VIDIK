@@ -68,7 +68,7 @@
             '<article class="candidate"><div class="candidate-title"><b>' + esc(x.name || x.id) + '</b></div><div class="row"><span>Evidence state</span><b>' +
             esc(x.evidenceState || 'unknown') + '</b></div><div class="row"><span>Discovery</span><b>' +
             esc(x.discovery?.sourceType || 'unknown') + (x.discovery?.leadOnly ? ' · lead only' : '') +
-            '</b></div></div>'
+            '</b></div></article>'
           ).join('')
         : '<p>No candidates returned. VIDIK records the empty discovery state rather than inventing options.</p>';
     }
