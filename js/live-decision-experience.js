@@ -18,7 +18,14 @@
 
   function renderLiveDecision(result, problem) {
     const allowed = result?.governance?.recommendationAllowed === true;
-    const candidates = Array.isArray(result?.candidates) ? result.candidates : [];
+    const rawCandidates = Array.isArray(result?.candidates) ? result.candidates : [];
+    const seenCandidates = new Set();
+    const candidates = rawCandidates.filter(candidate => {
+      const key = String(candidate?.id || candidate?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!key || seenCandidates.has(key)) return false;
+      seenCandidates.add(key);
+      return true;
+    });
     const searches = Array.isArray(result?.evidenceSearches) ? result.evidenceSearches : [];
     const universe = result?.governance?.candidateUniverseIntelligence || {};
     const status = allowed ? 'Recommendation ready' : 'Recommendation blocked — evidence boundary preserved';
@@ -58,7 +65,7 @@
     if (candidateBox) {
       candidateBox.innerHTML = candidates.length
         ? candidates.map(x =>
-            '<div class="candidate"><b>' + esc(x.name || x.id) + '</b><div class="row"><span>Evidence state</span><b>' +
+            '<article class="candidate"><div class="candidate-title"><b>' + esc(x.name || x.id) + '</b></div><div class="row"><span>Evidence state</span><b>' +
             esc(x.evidenceState || 'unknown') + '</b></div><div class="row"><span>Discovery</span><b>' +
             esc(x.discovery?.sourceType || 'unknown') + (x.discovery?.leadOnly ? ' · lead only' : '') +
             '</b></div></div>'
@@ -97,16 +104,15 @@
 
   async function runLiveMunicipalDecision(event) {
     event.preventDefault();
-    window.dispatchEvent(new CustomEvent('vidik:decision-start'));
-
     const input = document.getElementById('decisionProblem');
     const button = document.getElementById('runDecision');
     const problem = input?.value?.trim() || '';
     if (!problem) {
-      setText('gate', 'Enter a problem first');
+      setText('gate', 'Tell VIDIK what you are deciding first.');
       input?.focus();
       return;
     }
+    window.dispatchEvent(new CustomEvent('vidik:decision-start', { detail: { problem } }));
 
     button.disabled = true;
     setText('gate', 'VIDIK is searching sources and acquiring evidence…');

@@ -6,7 +6,7 @@
 <meta name="description" content="VIDIK — decision intelligence for consequential resource decisions.">
 <title>VIDIK — Decision Intelligence</title>
 <link rel="stylesheet" href="styles.css?v=20260924-interface-v3">
-<link rel="stylesheet" href="styles/decision-experience-v2.css?v=20260925-decision-v3">\n<link rel="stylesheet" href="styles/welcome-decision-experience.css?v=20260925-welcome-v1">
+<link rel="stylesheet" href="styles/decision-experience-v2.css?v=20260925-decision-v3"><link rel="stylesheet" href="styles/decision-experience-v3.css?v=20260925-editorial-v1">
 </head>
 <body>
 <div class="app-shell">
@@ -95,7 +95,7 @@
 
   <section id="challengeSection" class="panel wide-panel challenge"><div class="challenge-copy"><span class="eyebrow">HUMAN CONTROL</span><h3>Don't just accept the answer.</h3><p>VIDIK is designed to be interrogated. Change an assumption, add an option, alter the budget or question the evidence.</p></div><div class="challenge-grid"><button type="button"><b>Challenge an assumption</b><span>Inspect uncertainty and transferability.</span></button><button type="button"><b>Add an option</b><span>Introduce an alternative VIDIK should consider.</span></button><button type="button"><b>Change the budget</b><span>Test whether the decision moves.</span></button></div></section>
 
-  <section id="auditSection" class="panel wide-panel"><div class="panel-head"><div><span>Audit</span><h3>Decision record</h3></div><span class="tiny">IMMUTABLE TRACE</span></div><pre id="audit">Run a decision to create an audit view.</pre></section>
+  <section id="auditSection" class="panel wide-panel"><div class="panel-head"><div><span>Audit</span><h3>Decision record</h3></div><span class="tiny">IMMUTABLE TRACE</span></div><div id="audit" class="audit-readable">Run a decision to create an audit view.</div></section>
 </section>
 
 <!-- Compatibility surfaces for the existing intelligence engine. They are intentionally not part of the primary product surface. -->
@@ -108,8 +108,8 @@
 
 <script src="js/config.js?v=20260923-cockpit-v2"></script>
 <script src="js/domain-workspaces.js"></script><script src="js/data-registry.js"></script><script src="js/evidence.js"></script><script src="js/candidates.js"></script><script src="js/historical-parameter-reconstruction.js"></script><script src="js/engine.js"></script><script src="js/learning.js"></script><script src="js/geography-reconciliation.js"></script><script src="js/city-source-adapters.js"></script><script src="js/municipal-decision-context.js"></script><script src="js/municipal-lifecycle-10.js"></script><script src="js/municipal-operational-lifecycle-11.js"></script><script src="js/adapters.js"></script><script src="js/input-guard.js"></script><script src="js/decision-intelligence-9.2.js"></script><script src="js/decision-intelligence-9.2.1-hardening.js"></script><script src="js/municipal-decision-mapping.js"></script><script src="js/decision-intelligence-9.2-integration.js"></script><script src="js/decision-integrity-9.4.js"></script><script src="js/decision-lifecycle-9.5.js"></script><script src="js/decision-lifecycle-9.6.js"></script><script src="js/bootstrap.js?v=20260924-interface-v3"></script>
-<script src="js/live-decision-experience.js?v=20260924-interface-v3"></script>\n<script src="js/interface-variants.js?v=20260924-interface-v3"></script>
-<script src="js/decision-experience-v2.js?v=20260925-decision-v3" defer></script>\n<script src="js/welcome-decision-experience.js?v=20260925-welcome-v1" defer></script>
+<script src="js/live-decision-experience.js?v=20260924-interface-v3"></script><script src="js/interface-variants.js?v=20260924-interface-v3"></script>
+<script src="js/decision-experience-v2.js?v=20260925-decision-v3" defer></script>
 <script>
 (function(){
   const selects=[document.getElementById('skinSelect'),document.getElementById('skinSelectTop')];
