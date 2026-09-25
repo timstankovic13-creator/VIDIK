@@ -21,7 +21,7 @@
     const rawCandidates = Array.isArray(result?.candidates) ? result.candidates : [];
     const seenCandidates = new Set();
     const candidates = rawCandidates.filter(candidate => {
-      const key = String(candidate?.id || candidate?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const key = String(candidate?.name || candidate?.id || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
       if (!key || seenCandidates.has(key)) return false;
       seenCandidates.add(key);
       return true;
@@ -43,6 +43,10 @@
     }
     const universe = result?.governance?.candidateUniverseIntelligence || {};
     const status = allowed ? 'Recommendation ready' : 'Recommendation blocked — evidence boundary preserved';
+    const whyNot = result?.nextPhase?.whyWhyNot || result?.intelligence?.whyNot || null;
+    const uncertainty = result?.analysis || result?.intelligence?.robustness || null;
+    const voi = result?.intelligence?.ranking || null;
+    const learning = result?.governance?.learningEnvelope || result?.learningDiscovery || null;
 
     setText('gate', status);
     setText('rec', allowed ? 'READY' : 'BLOCKED');
@@ -99,6 +103,17 @@
           return '<tr><td>' + esc(x.name || x.id) + '</td><td><strong>' + esc(state.label) + '</strong><br><span>' + esc(state.detail) + '</span></td><td>' + (sources || '—') + '</td></tr>';
         }).join('') : '<tr><td colspan="3">No candidates returned for evidence review.</td></tr>');
     }
+
+    const whyBox = document.getElementById('why');
+    if (whyBox) whyBox.innerHTML = '<p><strong>Why:</strong> ' + esc(String(whyNot?.why || result?.decision?.reason || 'VIDIK used the live discovery and evidence gates for this decision.')) + '</p>' + '<p><strong>Why not:</strong> ' + esc(String(whyNot?.whyNot || whyNot?.reason || 'Alternatives remain visible and are not silently converted into a recommendation.')) + '</p>';
+    const uncertaintyBox = document.getElementById('uncertainty');
+    if (uncertaintyBox) uncertaintyBox.textContent = JSON.stringify(uncertainty || { status: 'not-computed', reason: 'No quantitative uncertainty result was returned by the live pipeline.' }, null, 2);
+    const voiBox = document.getElementById('voi');
+    if (voiBox) voiBox.textContent = JSON.stringify(voi || { status: 'not-computed' }, null, 2);
+    const learningBox = document.getElementById('learning');
+    if (learningBox) learningBox.textContent = JSON.stringify(learning || { outcomeReviewRequired: true, automaticMutation: false }, null, 2);
+    const frontier = document.getElementById('frontier');
+    if (frontier) frontier.textContent = candidates.length ? candidates.map((x,i)=>`${i+1}. ${x.name || x.id}`).join('  ·  ') : 'No admissible options returned.';
 
     const governance = document.getElementById('audit');
     if (governance) governance.textContent = JSON.stringify({
