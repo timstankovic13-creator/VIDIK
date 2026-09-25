@@ -15,11 +15,61 @@ const STATUS_QUO = {
   unknownIsNotZero: true
 };
 
+const COMPARABLE_CITIES = [
+  {
+    city: 'Toronto',
+    jurisdiction: 'Ontario, Canada',
+    problemTags: ['violent crime'],
+    matchedSignals: ['group violence', 'neighborhood safety'],
+    programs: [
+      {
+        name: 'Neighborhood Violence Prevention Partnership',
+        description: 'Community violence interruption and outreach for people at elevated risk of violence.'
+      },
+      {
+        name: 'Focused Deterrence',
+        description: 'Focused response to serious group violence with service linkage.'
+      }
+    ],
+    sourceId: 'comparable-city-toronto',
+    transferability: {
+      problem: 'violent crime',
+      population: 'municipal high-risk populations',
+      jurisdiction: 'Ontario, Canada',
+      institutionalCapacity: 'municipal-public-safety',
+      implementationEnvironment: 'urban',
+      evidenceBase: 'external'
+    }
+  },
+  {
+    city: 'Glasgow',
+    jurisdiction: 'Scotland, UK',
+    problemTags: ['violent crime'],
+    matchedSignals: ['violence reduction'],
+    strategies: [
+      {
+        name: 'Violence Reduction Partnership',
+        description: 'Multi-agency violence reduction strategy and prevention partnership.'
+      }
+    ],
+    sourceId: 'comparable-city-glasgow',
+    transferability: {
+      problem: 'violent crime',
+      population: 'municipal population',
+      jurisdiction: 'Scotland, UK',
+      institutionalCapacity: 'multi-agency',
+      implementationEnvironment: 'urban',
+      evidenceBase: 'external'
+    }
+  }
+];
+
 test('flagship open-world decision traverses the complete governed decision chain', async () => {
   const run = await executeFullCapacityDecision({
     problem: PROBLEM,
     requiredSourceTypes: ['intervention-library'],
     statusQuo: STATUS_QUO,
+    comparableCities: COMPARABLE_CITIES,
     decisionContext: {
       jurisdiction: 'Ottawa, Canada',
       objective: 'reduce violent crime',
@@ -37,6 +87,27 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.match(run.governance.discoveryStrategyHash, /^[a-f0-9]{64}$/);
   assert.ok(run.sourceSearches.length > 0);
   assert.ok(run.candidates.length > 0);
+
+  // Comparable-city intelligence is a discovery channel, not an effect source.
+  // The flagship must prove that a lead can enter the same candidate universe
+  // while remaining explicitly lead-only and provenance-traceable.
+  const comparableLeads = run.candidates.filter(candidate =>
+    candidate.discovery?.sourceType === 'comparable-city' ||
+    candidate.discovery?.route === 'comparable-city'
+  );
+  assert.ok(comparableLeads.length >= 2, 'flagship did not surface comparable-city discovery leads');
+  assert.ok(comparableLeads.some(candidate => /neighborhood violence prevention partnership/i.test(candidate.name)));
+  assert.ok(comparableLeads.some(candidate => /violence reduction partnership/i.test(candidate.name)));
+  for (const lead of comparableLeads) {
+    assert.equal(lead.discovery?.effectsImported, false);
+    assert.equal(lead.discovery?.leadOnly, true);
+    assert.ok(Array.isArray(lead.provenance));
+    assert.ok(lead.provenance.some(record => record.sourceType === 'comparable-city'));
+  }
+  assert.equal(run.governance.comparableEffectsImported, false);
+  assert.equal(run.governance.transferEffectsImported, false);
+  assert.ok(run.intelligence?.transferLeads?.length >= 2);
+  assert.ok(run.intelligence.transferLeads.every(lead => lead.effectsImported === false));
 
   const universe = run.governance.candidateUniverseIntelligence;
   assert.ok(universe);
