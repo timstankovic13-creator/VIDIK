@@ -97,7 +97,7 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const identityPhraseHit = candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
   const discoveryIdentityPhrases = [candidate?.name, candidate?.discoveryText]
     .filter(Boolean)
-    .flatMap(value => normalizeEvidenceText(value).split(/\\b(?:and|or|with|including)\\b|[,;:]/))
+    .flatMap(value => normalizeEvidenceText(value).split(/\b(?:and|or|with|including)\b|[,;:]/))
     .map(phrase => phrase.trim())
     .filter(phrase => phrase.length >= 12);
   const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase)) ||
@@ -115,7 +115,6 @@ function evidenceLeadRelevance(title, candidate, problem) {
     !familyTokens.has(token)
   );
   const distinguishingHits = distinguishingTokens.filter(token => haystack.includes(token)).length;
-  const strongCandidateHit = distinguishingHits > 0;
   const candidateFamilyHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
     const normalizedTerm = normalizeEvidenceText(term);
     return normalizedTerm.length >= 8 && haystack.includes(normalizedTerm);
@@ -123,7 +122,7 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
   const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2 &&
     discoveryTokens.some(token => token.length >= 6 && !familyTokens.has(token) && haystack.includes(token));
-  if (exactNameHit || identityPhraseHit || operationalPhraseHit || distinguishingHits >= 1 || discoveryAnchorHit) return 'candidate-match';
+  if (exactNameHit || identityPhraseHit || operationalPhraseHit || distinguishingHits >= 2 || discoveryAnchorHit) return 'candidate-match';
   const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
