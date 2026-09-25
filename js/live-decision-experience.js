@@ -27,6 +27,8 @@
       return true;
     });
     const searches = Array.isArray(result?.evidenceSearches) ? result.evidenceSearches : [];
+    const evidenceDiscovery = Array.isArray(result?.evidenceDiscovery) ? result.evidenceDiscovery : [];
+    const evidenceByCandidate = new Map(evidenceDiscovery.map(item => [item.candidateId, item]));
     const universe = result?.governance?.candidateUniverseIntelligence || {};
     const status = allowed ? 'Recommendation ready' : 'Recommendation blocked — evidence boundary preserved';
 
@@ -66,7 +68,7 @@
       candidateBox.innerHTML = candidates.length
         ? candidates.map(x =>
             '<article class="candidate"><div class="candidate-title"><b>' + esc(x.name || x.id) + '</b></div><div class="row"><span>Evidence state</span><b>' +
-            esc(x.evidenceState || 'unknown') + '</b></div><div class="row"><span>Discovery</span><b>' +
+            esc((evidenceByCandidate.get(x.id)?.evidenceLeads?.length ? `${evidenceByCandidate.get(x.id).evidenceLeads.length} literature leads` : 'Evidence search pending / none found')) + '</b></div><div class="row"><span>Discovery</span><b>' +
             esc(x.discovery?.sourceType || 'unknown') + (x.discovery?.leadOnly ? ' · lead only' : '') +
             '</b></div></article>'
           ).join('')
@@ -76,10 +78,8 @@
     const evidenceBox = document.getElementById('evidenceTable');
     if (evidenceBox) {
       evidenceBox.innerHTML =
-        '<tr><th>Candidate</th><th>Search status</th></tr>' +
-        (searches.length ? searches.map(x =>
-          '<tr><td>' + esc(x.candidateId || 'unknown') + '</td><td>' + esc(x.status || 'unknown') + '</td></tr>'
-        ).join('') : '<tr><td colspan="2">No evidence searches returned.</td></tr>');
+        '<tr><th>Option</th><th>Evidence found</th><th>Independent sources</th></tr>' +
+        (candidates.length ? candidates.map(x => { const item = evidenceByCandidate.get(x.id); const leads = Array.isArray(item?.evidenceLeads) ? item.evidenceLeads : []; const sources = [...new Set(leads.filter(l => ['candidate-match','verified'].includes(l.relevanceStatus)).map(l => l.sourceId))]; return '<tr><td>' + esc(x.name || x.id) + '</td><td>' + (leads.length ? leads.length + ' relevant literature leads' : 'No matched literature yet') + '</td><td>' + (sources.length ? sources.length : '—') + '</td></tr>'; }).join('') : '<tr><td colspan="3">No candidates returned for evidence review.</td></tr>');
     }
 
     const governance = document.getElementById('audit');
