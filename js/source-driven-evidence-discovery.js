@@ -77,6 +77,7 @@ function normalizeEvidenceText(value) {
 function evidenceLeadRelevance(title, candidate, problem) {
   const haystack = normalizeEvidenceText(title);
   const candidateName = normalizeEvidenceText(candidate?.name);
+  const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const candidateTokens = evidenceConceptTokens(candidate?.name).map(token => token.replace(/^centre$/, 'center'));
   const discoveryText = normalizeEvidenceText(candidate?.discoveryText);
   const discoveryTokens = evidenceConceptTokens(candidate?.discoveryText).map(token => token.replace(/^centre$/, 'center'));
@@ -86,14 +87,19 @@ function evidenceLeadRelevance(title, candidate, problem) {
   const exactNameHit = candidateName.length >= 8 && haystack.includes(candidateName);
   const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
+  const strongCandidateTokens = candidateTokens.filter(token => token.length >= 6 && !['additional','support','service','capacity','program'].includes(token));
+  const strongCandidateHit = strongCandidateTokens.some(token => haystack.includes(token));
+  const candidateFamilyHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
+    const normalizedTerm = normalizeEvidenceText(term);
+    return normalizedTerm.length >= 8 && haystack.includes(normalizedTerm);
+  }));
   const discoveryHits = discoveryTokens.filter(token => haystack.includes(token)).length;
   const discoveryAnchorHit = discoveryText.length >= 8 && discoveryHits >= 2;
-  if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit) return 'candidate-match';
+  if (exactNameHit || operationalPhraseHit || candidateHits >= 2 || discoveryAnchorHit || (strongCandidateHit && candidateFamilyHit)) return 'candidate-match';
   const problemText = normalizeEvidenceText(problem);
   const problemTokens = evidenceConceptTokens(problem);
   const problemHits = problemTokens.filter(token => haystack.includes(token)).length;
   const problemPhraseHit = problemText.length >= 8 && haystack.includes(problemText);
-  const families = Array.isArray(candidate?.interventionFamily) ? candidate.interventionFamily : [];
   const familyPhraseHit = families.some(family => (EVIDENCE_FAMILY_TERMS[family] || []).some(term => {
     const normalizedTerm = normalizeEvidenceText(term);
     if (haystack.includes(normalizedTerm)) return true;
