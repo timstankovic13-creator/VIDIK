@@ -35,6 +35,7 @@ function normalizeLead(lead, source = {}) {
     name: lead.name || lead.title || String(id),
     problemTags: Array.isArray(lead.problemTags) ? lead.problemTags : [],
     domains: Array.isArray(lead.domains) ? lead.domains : [],
+    interventionFamily: Array.isArray(lead.interventionFamily) ? lead.interventionFamily : [],
     requiredEvidence: Array.isArray(lead.requiredEvidence) ? lead.requiredEvidence : ['causal', 'implementation'],
     discovery: {
       source: sourceId,
@@ -51,8 +52,10 @@ function normalizeLead(lead, source = {}) {
 
 function candidateKey(candidate) {
   const name = String(candidate.name || candidate.title || candidate.id || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  const tags = [...new Set((candidate.problemTags || []).map(String).map(x => x.toLowerCase()))].sort().join('|');
-  return `${name}::${tags}`;
+  // Candidate identity is the intervention itself, not the source-specific tag set.
+  // The same intervention can arrive from multiple discovery channels with different
+  // problem tags; retaining both copies creates duplicate options in the decision room.
+  return name;
 }
 
 function trustedProvenance(candidate) {
@@ -88,6 +91,7 @@ function deduplicateCandidates(candidates = []) {
     }
     existing.problemTags = [...new Set([...(existing.problemTags || []), ...(canonical.problemTags || [])])];
     existing.domains = [...new Set([...(existing.domains || []), ...(canonical.domains || [])])];
+    existing.interventionFamily = [...new Set([...(existing.interventionFamily || []), ...(canonical.interventionFamily || [])])];
     existing.requiredEvidence = [...new Set([...(existing.requiredEvidence || []), ...(canonical.requiredEvidence || [])])];
     existing.discovery.provenance = [...existing.discovery.provenance, ...canonical.discovery.provenance];
     if (canonical.discovery?.sourceType === 'comparable-city') existing.discovery.leadOnly = true;
