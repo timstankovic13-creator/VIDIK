@@ -2,6 +2,12 @@
  * Presentation only. The existing Decision Object and intelligence pipeline remain untouched.
  */
 :root{--vx-ink:#18231f;--vx-muted:#6f7d76;--vx-line:rgba(35,55,46,.12);--vx-paper:#f7f8f4;--vx-card:rgba(255,255,255,.88);--vx-accent:#416f5b}
+/* The shell owns the opening state so it remains correct even if enhancement scripts load late. */
+body:not([data-interface-journey="active"]) .interface-quickbar,
+body:not([data-interface-journey="active"]) .answer-card,
+body:not([data-interface-journey="active"]) .interface-switcher,
+body:not([data-interface-journey="active"]) .decision-nav,
+body:not([data-interface-journey="active"]) #analysis{display:none!important}
 body{background:radial-gradient(circle at 78% 7%,rgba(214,231,220,.72),transparent 31%),linear-gradient(180deg,#f7f8f4 0%,#eef3ef 100%);color:var(--vx-ink)}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.28;background-image:radial-gradient(rgba(38,60,49,.12) .55px,transparent .55px);background-size:7px 7px;mask-image:linear-gradient(to bottom,black,transparent 70%);z-index:-1}
 .app-shell{max-width:1320px;margin:auto;padding:0 28px}
