@@ -121,7 +121,7 @@
           problem,
           jurisdiction: city === 'Ottawa' || city === 'Toronto' ? 'CA' : 'AU',
           statusQuo: 'Continue current practice',
-          audience: 'municipal',
+          audience: document.getElementById('audienceSelect')?.value || 'municipal',
           workspace: {city, budget: Number.isFinite(pool) ? pool : null, riskCeiling: Number.isFinite(risk) ? risk : null}
         })
       });
