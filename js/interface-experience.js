@@ -117,7 +117,7 @@
     applyWorkspaceDefault(workspace());
     audience.addEventListener('change',()=>{renderContext(workspace());applyWorkspaceDefault(workspace());});
     document.getElementById('experienceContextChange')?.addEventListener('click',()=>{audience.focus();audience.scrollIntoView({behavior:'smooth',block:'center'});});
-    document.getElementById('runDecision')?.addEventListener('click',startJourney);
+    window.addEventListener('vidik:decision-start',startJourney);
 
     const title=document.querySelector('.hero-copy h1');
     if(title && !document.getElementById('journeyProgress')) title.insertAdjacentHTML('beforebegin','<div class="journey-progress" id="journeyProgress" aria-label="Decision journey"><span class="active"></span><i></i><span></span><i></i><span></span><i></i><span></span></div>');
