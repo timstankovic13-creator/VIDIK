@@ -95,7 +95,13 @@ function evidenceLeadRelevance(title, candidate, problem) {
     .replace(/\b(program|programme|initiative|service|model|approach|strategy|project)\b/g, ' ')
     .replace(/\s+/g, ' ').trim();
   const identityPhraseHit = candidateIdentityPhrase.length >= 12 && haystack.includes(candidateIdentityPhrase);
-  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase));
+  const discoveryIdentityPhrases = [candidate?.name, candidate?.discoveryText]
+    .filter(Boolean)
+    .flatMap(value => normalizeEvidenceText(value).split(/\\b(?:and|or|with|including)\\b|[,;:]/))
+    .map(phrase => phrase.trim())
+    .filter(phrase => phrase.length >= 12);
+  const operationalPhraseHit = discoveryPhrases.some(phrase => haystack.includes(phrase)) ||
+    discoveryIdentityPhrases.some(phrase => haystack.includes(phrase));
   const candidateHits = candidateTokens.filter(token => haystack.includes(token)).length;
   const familyTokens = new Set(families.flatMap(family =>
     (EVIDENCE_FAMILY_TERMS[family] || []).flatMap(term => evidenceConceptTokens(term))
