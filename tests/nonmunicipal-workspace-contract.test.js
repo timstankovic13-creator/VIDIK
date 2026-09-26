@@ -6,22 +6,25 @@ const { spawn } = require('node:child_process');
 
 let child;
 let base;
+let startupOutput = '';
 
 async function waitForReady(url) {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     try {
       const r = await fetch(url);
       if (r.ok) return;
     } catch {}
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  throw new Error('staging-server-did-not-start');
+  throw new Error(`staging-server-did-not-start: ${startupOutput.trim() || 'no startup output'}`);
 }
 
 test.before(async () => {
   const port = 18765;
   base = `http://127.0.0.1:${port}`;
   child = spawn(process.execPath, ['staging/server.js'], { env: { ...process.env, PORT: String(port), VIDIK_DATABASE_URL: '' }, stdio: 'pipe' });
+  child.stdout?.on('data', chunk => { startupOutput += chunk.toString(); });
+  child.stderr?.on('data', chunk => { startupOutput += chunk.toString(); });
   await waitForReady(`${base}/health`);
 });
 
