@@ -388,7 +388,16 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       independentEvidenceSources,
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      failureSignals: {
+        sourceFailures,
+        sourceEmpty,
+        missingFamilyCount: missingFamilies.length,
+        missingClassCount: missingClasses.length,
+        missingFamilies: missingFamilies.slice(0, 8),
+        missingClasses: missingClasses.slice(0, 8),
+        noCandidateUniverse: candidates.length === 0
+      }
     };
   });
 
