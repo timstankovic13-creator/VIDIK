@@ -48,7 +48,7 @@ async function searchSource(sourceType, problem, searcher) {
   }
 }
 
-async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
+async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], comparableCitySearcher = null, requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
   const effectiveSearchers = { ...searchers };
   const effectiveDiscoveryJurisdiction = normalizeDiscoveryJurisdiction(discoveryJurisdiction || decisionContext.jurisdiction);
@@ -69,7 +69,19 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
       };
     };
   }
+  let resolvedComparableCities = Array.isArray(comparableCities) ? comparableCities.map(TransferIntelligence.normalizeComparableCityRecord) : [];
+  let comparableCitySearch = null;
+  if (typeof comparableCitySearcher === 'function') {
+    try {
+      const result = await comparableCitySearcher({ problem, jurisdiction: effectiveDiscoveryJurisdiction, problemSignals: Discovery.normalizeProblemTags(problem) });
+      comparableCitySearch = TransferIntelligence.normalizeComparableCitySearchResult(result);
+      resolvedComparableCities = [...resolvedComparableCities, ...comparableCitySearch.candidates];
+    } catch (error) {
+      comparableCitySearch = { sourceId: 'comparable-city-intelligence', sourceType: 'comparable-city', jurisdiction: effectiveDiscoveryJurisdiction, query: problem, status: 'search-failed', candidatesReturned: 0, candidates: [], failureReason: error?.message || 'comparable-city-search-failed' };
+    }
+  }
   const sourceSearches = await Promise.all(requiredSourceTypes.filter(type => type !== 'comparable-city').map(type => searchSource(type, problem, effectiveSearchers[type])));
+  if (requiredSourceTypes.includes('comparable-city')) sourceSearches.push(comparableCitySearch || { sourceId: 'comparable-city-intelligence', sourceType: 'comparable-city', jurisdiction: effectiveDiscoveryJurisdiction, query: problem, status: resolvedComparableCities.length ? 'candidates-found' : 'searched-empty', candidatesReturned: resolvedComparableCities.length, candidates: resolvedComparableCities });
   const candidates = [];
   for (const search of sourceSearches) {
     for (const candidate of search.candidates) {
@@ -77,7 +89,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
       if (normalized) candidates.push(normalized);
     }
   }
-  const build = (evidenceIndex, inputs) => Orchestrator.buildDiscoveryRun({ problem, acquisitionSources: sourceSearches, localCandidates: candidates.filter(c => c.discovery.sourceType === 'local-program'), acquiredCandidates: candidates.filter(c => c.discovery.sourceType === 'intervention-library'), researchLeads: candidates.filter(c => c.discovery.sourceType === 'research'), comparableCities, evidenceIndex, analysisInputs: inputs, requiredSourceTypes, statusQuo, decisionContext });
+  const build = (evidenceIndex, inputs) => Orchestrator.buildDiscoveryRun({ problem, acquisitionSources: sourceSearches, localCandidates: candidates.filter(c => c.discovery.sourceType === 'local-program'), acquiredCandidates: candidates.filter(c => c.discovery.sourceType === 'intervention-library'), researchLeads: candidates.filter(c => c.discovery.sourceType === 'research'), comparableCities: resolvedComparableCities, evidenceIndex, analysisInputs: inputs, requiredSourceTypes, statusQuo, decisionContext });
   const initial = build({}, {});
   const evidenceIndex = {}, evidenceSearches = [], evidenceDiscovery = [];
   for (const candidate of initial.candidates) {
@@ -109,7 +121,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
   run.governance.evidenceSearchComplete = evidenceSearches.length === initial.candidates.length && evidenceSearches.every(s => !FAILED.has(s.status) && s.status !== 'not-searched');
   run.governance.evidenceDiscoveryOnly = autoDiscoverEvidence && typeof evidenceSearcher !== 'function';
   run.governance.recommendationAllowed = Boolean(run.governance.recommendationAllowed && run.governance.evidenceSearchComplete && !run.governance.evidenceDiscoveryOnly);
-  const intelligence = TransferIntelligence.buildDecisionIntelligence({ problem, context: { ...decisionContext, ...intelligenceContext }, sourceResults: sourceSearches, comparableCities, candidates: run.candidates, evidenceIndex, analysis: Object.fromEntries(run.candidates.map(c => [c.id, analysisInputs[c.id] || {}])), statusQuo });
+  const intelligence = TransferIntelligence.buildDecisionIntelligence({ problem, context: { ...decisionContext, ...intelligenceContext }, sourceResults: sourceSearches, comparableCities: resolvedComparableCities, candidates: run.candidates, evidenceIndex, analysis: Object.fromEntries(run.candidates.map(c => [c.id, analysisInputs[c.id] || {}])), statusQuo });
   run.intelligence = intelligence;
   const nextPhaseGraph = NextPhase.buildDecisionKnowledgeGraph({ problem, candidates: run.candidates, evidenceIndex, context: { ...decisionContext, ...intelligenceContext }, statusQuo });
   const nextPhaseWhyWhyNot = NextPhase.buildWhyWhyNot({ ranked: intelligence.ranking || [], evidenceIndex, analysis: Object.fromEntries(run.candidates.map(c => [c.id, analysisInputs[c.id] || {}])), statusQuo, robustness: intelligence.robustness || null });
@@ -123,7 +135,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
   run.governance.knowledgeGraphPresent = true;
   run.governance.externalSourceNetworkPresent = sourceNetwork.sourceCount > 0;
   const universeIntelligence = Governance.buildCandidateUniverseIntelligence({ candidates: run.candidates, sourceSearches, statusQuo });
-  const learningDiscovery = Governance.buildLearningDiscoveryLeads({ problem, learning: intelligence.governance.learning || {}, comparableCities });
+  const learningDiscovery = Governance.buildLearningDiscoveryLeads({ problem, learning: intelligence.governance.learning || {}, comparableCities: resolvedComparableCities });
   run.governance.candidateUniverseIntelligence = universeIntelligence;
   run.learningDiscovery = learningDiscovery;
   run.governance.learningDiscoveryLeadOnly = true;
