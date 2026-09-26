@@ -205,3 +205,43 @@ test('flagship open-world decision traverses the complete governed decision chai
     runHash: run.runHash
   }, null, 2));
 });
+
+
+test('full decision execution can acquire comparable-city leads through a generic channel for a non-flagship problem', async () => {
+  const run = await executeFullCapacityDecision({
+    problem: 'How should a municipality improve emergency response coordination?',
+    requiredSourceTypes: ['intervention-library', 'comparable-city'],
+    statusQuo: { explicit: true, description: 'current emergency response coordination' },
+    comparableCitySearcher: async ({ problem, jurisdiction }) => ({
+      sourceId: 'test-comparable-city-source',
+      query: problem,
+      jurisdiction,
+      cities: [{
+        city: 'Example City',
+        jurisdiction: 'Example Region',
+        problemTags: ['emergency response'],
+        strategies: [{
+          name: 'Unified Emergency Operations Centre',
+          description: 'Cross-agency coordination model for emergency response.'
+        }],
+        transferability: {
+          problem: 'emergency response coordination',
+          population: 'municipal population',
+          institutionalCapacity: 'multi-agency',
+          implementationEnvironment: 'urban',
+          evidenceBase: 'external'
+        }
+      }]
+    })
+  });
+  assert.ok(run.candidates.length >= 1);
+  const lead = run.candidates.find(candidate => candidate.discovery?.sourceType === 'comparable-city');
+  assert.ok(lead, 'generic comparable-city search did not enter the canonical candidate universe');
+  assert.equal(lead.discovery.leadOnly, true);
+  assert.equal(lead.discovery.effectsImported, false);
+  assert.equal(lead.discovery.comparableCity, 'Example City');
+  assert.equal(run.governance.comparableEffectsImported, false);
+  assert.equal(run.governance.recommendationAllowed, false);
+  assert.equal(run.decision.status, 'recommendation-blocked');
+  assert.equal(run.sourceSearches.find(search => search.sourceType === 'comparable-city')?.status, 'candidates-found');
+});
