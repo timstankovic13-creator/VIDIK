@@ -358,6 +358,10 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     const evidenceCompleteCandidate = evidenceResults.find(result => result.evidenceSufficiency?.independentSourceCount >= 2);
     const independentEvidenceSources = evidenceCompleteCandidate ? evidenceCompleteCandidate.evidenceSufficiency.independentSourceCount : 0;
     const evidenceLeads = evidenceResults.reduce((count, result) => count + (result.evidenceLeads?.length || 0), 0);
+    const sourceFailures = (discovery.sourceSearches || []).filter(search => search.status === 'search-failed').length;
+    const sourceEmpty = (discovery.sourceSearches || []).filter(search => search.status === 'searched-empty').length;
+    const missingFamilies = discovery.interventionUniverse.missingInterventionFamilies || [];
+    const missingClasses = discovery.interventionUniverse.missingInterventionClasses || [];
 
     let grade = 'BLOCKED';
     if (candidates.length > 0 && actionable.length === candidates.length && relevanceRatio >= 0.5 && expectedClassHits > 0 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
