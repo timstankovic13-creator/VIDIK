@@ -487,6 +487,22 @@ test('evidence search ladder retains both independent providers and bounded per-
 
 
 
+test('mechanism and administrative discovery pivots use working domain boundaries', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const business = mod.buildDiscoveryQueries('reduce customer churn', 'business');
+  const enterprise = mod.buildDiscoveryQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(business.some(q => /customer churn.*retention program/i.test(q)), 'business retention pivot did not reach query planning');
+  assert.ok(enterprise.some(q => /procurement cycle time.*workflow|procurement cycle time.*process/i.test(q)), 'enterprise process pivot did not reach query planning');
+});
+
+test('literature fallback inherits bounded class and mechanism coverage layers', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const queries = mod.buildLiteratureFallbackQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(queries.some(q => /procurement process redesign|procurement workflow automation|e-procurement/i.test(q)));
+  assert.ok(queries.some(q => /workflow automation|process redesign/i.test(q)));
+});
+
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
