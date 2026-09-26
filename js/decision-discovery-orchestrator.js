@@ -195,7 +195,7 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
     return {
       city: city.city || null,
       jurisdiction: city.jurisdiction || city.city || null,
-      matchedSignals,
+      matchedSignals: [...new Set([...matchedSignals, ...directMatches.flatMap(name => Discovery.normalizeProblemTags(name))])],
       interventions: matchedInterventions,
       transferability: city.transferability || city.context || null,
       leadOnly: true,
@@ -203,7 +203,7 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
       provenance: city.provenance || null
     };
   }).filter(item => item.city && item.interventions.length &&
-    (item.matchedSignals.length >= minSignals || conceptMatch || directMatches.length > 0));
+    (item.matchedSignals.length >= minSignals || item.conceptMatch));
 }
 
 function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } = {}) {
