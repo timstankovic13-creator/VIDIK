@@ -143,7 +143,13 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
   // Expose the canonical acquisition search ledger on the returned execution result.
   // The orchestrator stores it under discovery.searchManifest; callers need the
   // same stable top-level contract for source status inspection.
-  run.sourceSearches = run.sourceSearches || run.discovery?.searchManifest || sourceSearches.map(search => Orchestrator.normalizeSourceSearch(search));
+  run.sourceSearches = run.sourceSearches || run.discovery?.searchManifest || [];
+  for (const search of sourceSearches) {
+    const normalizedSearch = Orchestrator.normalizeSourceSearch(search);
+    const existingIndex = run.sourceSearches.findIndex(item => item.sourceType === normalizedSearch.sourceType && item.sourceId === normalizedSearch.sourceId);
+    if (existingIndex >= 0) run.sourceSearches[existingIndex] = normalizedSearch;
+    else run.sourceSearches.push(normalizedSearch);
+  }
   run.evidenceSearches = evidenceSearches;
   run.evidenceDiscovery = evidenceDiscovery;
   run.governance.evidenceSearchComplete = evidenceSearches.length === initial.candidates.length && evidenceSearches.every(s => !FAILED.has(s.status) && s.status !== 'not-searched');
