@@ -434,6 +434,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
     casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
     totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
+    failureMap,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
