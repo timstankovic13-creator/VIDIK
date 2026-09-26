@@ -108,6 +108,13 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.equal(run.governance.transferEffectsImported, false);
   assert.ok(run.intelligence?.discovery?.transferLeads?.length >= 2,
     'decision intelligence did not expose its canonical comparable-city transfer leads');
+  const discoveryAudit = run.intelligence?.discovery?.audit;
+  assert.ok(discoveryAudit);
+  assert.equal(discoveryAudit.candidateCount, run.candidates.length);
+  assert.ok(discoveryAudit.candidateNames.length >= 5, 'flagship candidate universe is too narrow');
+  assert.ok(discoveryAudit.sourceTypes.length >= 2, 'flagship discovery used only one source channel');
+  assert.equal(discoveryAudit.provenanceComplete, true);
+  assert.ok(discoveryAudit.comparableLeadCount >= 2);
   assert.ok(run.intelligence.discovery.transferLeads.every(lead => lead.effectsImported === false));
 
   const universe = run.governance.candidateUniverseIntelligence;
@@ -189,6 +196,9 @@ test('flagship open-world decision traverses the complete governed decision chai
     candidates: run.candidates.length,
     evidenceSearches: run.evidenceSearches.length,
     evidenceLeads: run.evidenceDiscovery.reduce((n, item) => n + (item.evidenceLeads?.length || 0), 0),
+    candidateNames: discoveryAudit.candidateNames,
+    discoverySourceTypes: discoveryAudit.sourceTypes,
+    discoveryFamilyCounts: discoveryAudit.familyCounts,
     recommendationAllowed: run.governance.recommendationAllowed,
     decisionStatus: run.decision.status,
     lifecycleStages: run.governance.decisionLifecycle.phases.map(p => p.id),
