@@ -622,6 +622,12 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
     if(first){ queries.add(original+' '+first); reservedTaxonomy.add(first); }
   }
   for(const term of taxonomy) if(!reservedTaxonomy.has(term)) queries.add(term);
+  // Reserve mechanism and administrative discovery lanes explicitly. These are
+  // retrieval pivots only; they never manufacture candidates or bypass evidence gates.
+  const mechanismQueries = discoveryMechanismPivots(problem, workspace).map(term => original + ' ' + term);
+  const administrativeQueries = discoveryAdministrativePivots(problem, workspace).map(term => original + ' ' + term);
+  for (const query of [...mechanismQueries, ...administrativeQueries]) queries.add(query);
+
   const prioritized = [
     ...recallQueries,
     ...mechanismQueries,
