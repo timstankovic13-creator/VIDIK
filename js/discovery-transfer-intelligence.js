@@ -12,6 +12,20 @@ function stable(value) {
 function hash(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
 function tokens(text = '') { return String(text).normalize('NFKD').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean); }
 function unique(values) { return [...new Set(values.filter(Boolean).map(String))]; }
+function comparableConcepts(text = '') {
+  const normalized = String(text || '').normalize('NFKD').toLowerCase();
+  const concepts = new Set(tokens(normalized));
+  const groups = [
+    { match: /\\bviolent\\s+crime\\b|\\bserious\\s+violence\\b|\\bcommunity\\s+violence\\b/, terms: ['violence', 'violent', 'crime', 'safety', 'public-safety'] },
+    { match: /\\bcrime\\b|\\bpublic\\s+safety\\b/, terms: ['crime', 'safety', 'public-safety'] },
+    { match: /\\bhomeless|rough\\s+sleeping|housing\\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
+    { match: /\\boverdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
+    { match: /\\btraffic|pedestrian|road\\s+safety|congestion/, terms: ['traffic', 'mobility', 'road-safety'] },
+    { match: /\\bheat|wildfire\\s+smoke|flood|climate/, terms: ['climate', 'heat', 'smoke', 'flood'] }
+  ];
+  for (const group of groups) if (group.match.test(normalized)) group.terms.forEach(term => concepts.add(term));
+  return concepts;
+}
 
 function buildSearchStrategy(problem, context = {}) {
   const base = String(problem || '').trim();
