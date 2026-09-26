@@ -647,6 +647,7 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
     const value = String(term).toLowerCase();
     let score = 0;
     if (workspace === 'business' && /business|customer|retention|operational|workforce/.test(value)) score += 5;
+    if (workspace === 'business' && /process|workflow|operations|automation/.test(value)) score += 4;
     if (workspace === 'community' && /community|neighbourhood|local|nonprofit/.test(value)) score += 5;
     if (workspace === 'research' && /evaluation|implementation study|pilot/.test(value)) score += 5;
     if (workspace === 'enterprise' && /process|service modernization|operational|change management|security|technology/.test(value)) score += 5;
