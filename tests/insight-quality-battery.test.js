@@ -405,6 +405,17 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
+  const failureMap = {
+    noCandidateUniverse: results.filter(r => r.failureSignals.noCandidateUniverse).map(r => r.problem),
+    sourceFailures: results.filter(r => r.failureSignals.sourceFailures > 0).map(r => ({ problem: r.problem, count: r.failureSignals.sourceFailures })),
+    sourceEmpty: results.filter(r => r.failureSignals.sourceEmpty > 0).map(r => ({ problem: r.problem, count: r.failureSignals.sourceEmpty })),
+    missingFamilyCount: results.reduce((n, r) => n + r.failureSignals.missingFamilyCount, 0),
+    missingClassCount: results.reduce((n, r) => n + r.failureSignals.missingClassCount, 0),
+    blockedByWorkspace: Object.fromEntries([...new Set(CASES.map(c => c[0]))].map(workspace => [
+      workspace,
+      results.filter(r => r.workspace === workspace && r.grade === 'BLOCKED').length
+    ]))
+  };
 
   assert.equal(results.length, CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
