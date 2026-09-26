@@ -316,6 +316,10 @@ function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=f
   // a shared noun (for example "data") would otherwise trip the artifact guard.
   if (isEnterpriseProfileAlignedTitle(titleText)) return true;
   if(NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern=>pattern.test(titleText))) return false;
+  // Document/status titles can contain intervention words such as "project",
+  // "program", or "funding" without describing an executable intervention.
+  // Reject those compound document signals before positive intervention signals.
+  if (/\b(status|progress report|annual report|performance report|evaluation findings|evaluation results|assessment findings|assessment results|follow[- ]?up study|case study|feasibility study|impact study|research study|successful projects|project status|project update|deep dive|natural capital tool|announces funding)\b/i.test(titleText)) return false;
   if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
   if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
   const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
@@ -458,7 +462,11 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
   { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
   { workspace: 'enterprise', match: /regulatory compliance delays|compliance delays|regulatory compliance/i, terms: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','inspection reform'] },
-  { workspace: 'enterprise', match: /infrastructure maintenance backlog|maintenance backlog|critical infrastructure maintenance/i, terms: ['preventive maintenance','asset management','condition-based maintenance','predictive maintenance','maintenance management system','asset renewal'] }
+  { workspace: 'enterprise', match: /infrastructure maintenance backlog|maintenance backlog|critical infrastructure maintenance/i, terms: ['preventive maintenance','asset management','condition-based maintenance','predictive maintenance','maintenance management system','asset renewal'] },
+  { workspace: 'business', match: /supply chain disruption|supply chain interruptions|supply disruption|logistics disruption/i, terms: ['supply chain visibility','demand forecasting','inventory buffer','supplier diversification','dual sourcing','logistics contingency planning'] },
+  { workspace: 'research', match: /heat-health interventions|heat health interventions|heat-related health interventions|heat illness prevention/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
+  { workspace: 'enterprise', match: /employee burnout|workforce burnout|staff burnout|occupational burnout/i, terms: ['workload management','manager training','employee assistance program','flexible work program','staffing capacity','job redesign'] },
+  { workspace: 'enterprise', match: /emergency response coordination|incident response coordination|emergency operations/i, terms: ['incident command','emergency operations centre','mutual aid coordination','crisis communication','incident management','emergency response platform'] }
 ]);
 function discoveryRecallTerms(problem, workspace) {
   const normalized = normalizeText(problem);
@@ -573,8 +581,13 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   // whether a candidate exists.
   const recallQueries = [];
   for (const term of discoveryRecallTerms(problem, workspace)) {
-    const anchors = [term, original + ' ' + term];
-    anchors.forEach(query => { queries.add(query); recallQueries.push(query); });
+    // One problem-scoped query per recall anchor preserves retrieval specificity while
+    // leaving finite budget for family, taxonomy, mechanism, and administrative layers.
+    const query = original + ' ' + term;
+    if (!queries.has(query)) {
+      queries.add(query);
+      recallQueries.push(query);
+    }
   }
   // Expand the user's problem vocabulary before family/taxonomy expansion. These are
   // bounded alternate phrasings, not evidence: they only improve retrieval recall.
