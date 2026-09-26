@@ -307,7 +307,13 @@ const NON_INTERVENTION_ARTIFACT_PATTERNS = [
   /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
   /\bprivacy impact assessment\b/i,
   /\bpre-?application\s+advice\b/i,
-  /\b(?:project|programme|program)\s+area\b/i
+  /\b(?:project|programme|program)\s+area\b/i,
+  /^(?:proportion|percentage|number|rate|share|level|uptake|coverage|access)\s+of\b/i,
+  /^(?:make|making)\s+a\s+complaint\b/i,
+  /^(?:how)\s+(?:the|to|we|you|a|an)\b/i,
+  /^(?:access|information|guidance|advice|support)\s+(?:for|on|about|to)\b/i,
+  /^(?:improving|reducing|increasing|supporting|addressing)\s+(?:attainment|learning|outcomes?|performance|access|services?)\s+(?:in|for|across)\b/i,
+  /\b(?:supports?|supporting)\s+(?:learning|attainment|access|service delivery)\b/i
 ];
 function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
   const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
@@ -482,12 +488,12 @@ function discoveryMechanismPivots(problem, workspace = 'municipal') {
     if (q && !pivots.includes(q)) pivots.push(q);
   });
   add('program', 'service', 'initiative', 'pilot', 'grant', 'subsidy', 'funding', 'voucher', 'outreach', 'training', 'staffing', 'infrastructure', 'facility', 'capital project', 'regulation', 'licensing', 'inspection', 'technology', 'digital service', 'partnership', 'community partnership');
-  if (/(evict|eviction|housing|homeless|rough sleeping|rent|tenant)/.test(normalized)) add('rental assistance', 'tenant legal assistance', 'eviction diversion', 'landlord incentive', 'housing navigation');
-  if (/(small business|business survival|business continuity|customer churn|employee turnover|delivery|training completion)/.test(normalized)) add('business grant', 'working capital', 'retention program', 'process redesign', 'workflow automation', 'manager training');
-  if (/(violence|crime|safety|emergency response)/.test(normalized)) add('violence prevention', 'place-based prevention', 'community intervention', 'outreach', 'emergency coordination', 'incident management');
-  if (/(heat|smoke|wildfire|bushfire|flood|disaster|climate)/.test(normalized)) add('resilience program', 'preparedness program', 'early warning', 'emergency shelter', 'evacuation support', 'home retrofit');
-  if (/(transit|traffic|pedestrian|mobility|congestion)/.test(normalized)) add('service frequency', 'priority lane', 'signal priority', 'traffic calming', 'road redesign', 'fleet operations');
-  if (/(digital|cyber|accessibility|internet|broadband|procurement)/.test(normalized)) add('digital access', 'technology deployment', 'workflow automation', 'process redesign', 'accessibility remediation', 'security controls');
+  if (/\b(evict|eviction|housing|homeless|rough sleeping|rent|tenant)\b/.test(normalized)) add('rental assistance', 'tenant legal assistance', 'eviction diversion', 'landlord incentive', 'housing navigation');
+  if (/\b(small business|business survival|business continuity|customer churn|employee turnover|delivery|training completion)\b/.test(normalized)) add('business grant', 'working capital', 'retention program', 'process redesign', 'workflow automation', 'manager training');
+  if (/\b(violence|crime|safety|emergency response)\b/.test(normalized)) add('violence prevention', 'place-based prevention', 'community intervention', 'outreach', 'emergency coordination', 'incident management');
+  if (/\b(heat|smoke|wildfire|bushfire|flood|disaster|climate)\b/.test(normalized)) add('resilience program', 'preparedness program', 'early warning', 'emergency shelter', 'evacuation support', 'home retrofit');
+  if (/\b(transit|traffic|pedestrian|mobility|congestion)\b/.test(normalized)) add('service frequency', 'priority lane', 'signal priority', 'traffic calming', 'road redesign', 'fleet operations');
+  if (/\b(digital|cyber|accessibility|internet|broadband|procurement)\b/.test(normalized)) add('digital access', 'technology deployment', 'workflow automation', 'process redesign', 'accessibility remediation', 'security controls');
   if (workspace === 'business') add('business retention', 'customer retention', 'operational improvement', 'workforce development');
   if (workspace === 'community') add('community program', 'community service', 'neighbourhood program', 'local partnership');
   if (workspace === 'research') add('program evaluation', 'intervention evaluation', 'implementation study', 'pilot program');
@@ -508,10 +514,10 @@ function discoveryAdministrativePivots(problem, workspace = 'municipal') {
   if (workspace === 'community') add('community program', 'nonprofit program', 'community service');
   if (workspace === 'research') add('pilot', 'demonstration', 'implementation study');
   if (workspace === 'enterprise') add('operating model', 'service delivery model', 'internal program');
-  if (/(eviction|housing|homeless|rough sleeping)/.test(normalized)) add('housing program', 'rental assistance program', 'tenant support program');
-  if (/(violence|crime)/.test(normalized)) add('violence prevention program', 'community safety program', 'public safety program');
-  if (/(heat|smoke|wildfire|bushfire|flood|disaster)/.test(normalized)) add('resilience program', 'emergency preparedness program', 'evacuation program');
-  if (/(cyber|digital|procurement)/.test(normalized)) add('technology program', 'modernization program', 'security program');
+  if (/\b(eviction|housing|homeless|rough sleeping)\b/.test(normalized)) add('housing program', 'rental assistance program', 'tenant support program');
+  if (/\b(violence|crime)\b/.test(normalized)) add('violence prevention program', 'community safety program', 'public safety program');
+  if (/\b(heat|smoke|wildfire|bushfire|flood|disaster)\b/.test(normalized)) add('resilience program', 'emergency preparedness program', 'evacuation program');
+  if (/\b(cyber|digital|procurement)\b/.test(normalized)) add('technology program', 'modernization program', 'security program');
   return pivots;
 }
 
@@ -920,16 +926,21 @@ function extractCrossrefInterventionLeads(payload, source, problem, workspace = 
 function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
   const normalizedProblem = normalizeText(problem);
   const expectedFamilies = expectedInterventionFamilies(problem, workspace);
-  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 4));
+  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 6));
   const recallTerms = discoveryRecallTerms(problem, workspace);
-  const taxonomy = taxonomyTerms(problem, workspace).slice(0, 8);
+  const taxonomy = taxonomyTerms(problem, workspace);
+  const classQueries = missingInterventionClassSearchQueries(problem, workspace, []).slice(0, 8);
+  const mechanismTerms = discoveryMechanismPivots(problem, workspace)
+    .filter(term => /automation|redesign|training|staffing|outreach|navigation|subsidy|grant|facility|infrastructure|technology|service|program|intervention|pilot|preparedness|evacuation|retention|workflow|controls|security|maintenance/i.test(term))
+    .slice(0, 6);
   return [...new Set([
     normalizedProblem,
-    ...recallTerms.map(term => `${normalizedProblem} ${term}`),
-    `${normalizedProblem} intervention`,
-    ...familyTerms.map(term => `${normalizedProblem} ${term}`),
-    ...taxonomy.map(term => `${normalizedProblem} ${term}`)
-  ].filter(Boolean))].slice(0, 12);
+    ...recallTerms.map(term => normalizedProblem + ' ' + term),
+    ...classQueries,
+    ...familyTerms.map(term => normalizedProblem + ' ' + term),
+    ...taxonomy.map(term => normalizedProblem + ' ' + term),
+    ...mechanismTerms.map(term => normalizedProblem + ' ' + term)
+  ].filter(Boolean))].slice(0, 18);
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
