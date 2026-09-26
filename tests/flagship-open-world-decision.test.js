@@ -106,8 +106,9 @@ test('flagship open-world decision traverses the complete governed decision chai
   }
   assert.equal(run.governance.comparableEffectsImported, false);
   assert.equal(run.governance.transferEffectsImported, false);
-  assert.ok(run.intelligence?.transferLeads?.length >= 2);
-  assert.ok(run.intelligence.transferLeads.every(lead => lead.effectsImported === false));
+  assert.ok(run.intelligence?.discovery?.transferLeads?.length >= 2,
+    'decision intelligence did not expose its canonical comparable-city transfer leads');
+  assert.ok(run.intelligence.discovery.transferLeads.every(lead => lead.effectsImported === false));
 
   const universe = run.governance.candidateUniverseIntelligence;
   assert.ok(universe);
