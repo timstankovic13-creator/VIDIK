@@ -465,6 +465,48 @@ function discoveryRecallTerms(problem, workspace) {
   return DISCOVERY_RECALL_PACKS.filter(pack => pack.workspace === workspace && pack.match.test(normalized)).flatMap(pack => pack.terms);
 }
 
+
+function discoveryMechanismPivots(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem).toLowerCase();
+  const pivots = [];
+  const add = (...terms) => terms.forEach(term => {
+    const q = normalizeText(term);
+    if (q && !pivots.includes(q)) pivots.push(q);
+  });
+  add('program', 'service', 'initiative', 'pilot', 'grant', 'subsidy', 'funding', 'voucher', 'outreach', 'training', 'staffing', 'infrastructure', 'facility', 'capital project', 'regulation', 'licensing', 'inspection', 'technology', 'digital service', 'partnership', 'community partnership');
+  if (/(evict|eviction|housing|homeless|rough sleeping|rent|tenant)/.test(normalized)) add('rental assistance', 'tenant legal assistance', 'eviction diversion', 'landlord incentive', 'housing navigation');
+  if (/(small business|business survival|business continuity|customer churn|employee turnover|delivery|training completion)/.test(normalized)) add('business grant', 'working capital', 'retention program', 'process redesign', 'workflow automation', 'manager training');
+  if (/(violence|crime|safety|emergency response)/.test(normalized)) add('violence prevention', 'place-based prevention', 'community intervention', 'outreach', 'emergency coordination', 'incident management');
+  if (/(heat|smoke|wildfire|bushfire|flood|disaster|climate)/.test(normalized)) add('resilience program', 'preparedness program', 'early warning', 'emergency shelter', 'evacuation support', 'home retrofit');
+  if (/(transit|traffic|pedestrian|mobility|congestion)/.test(normalized)) add('service frequency', 'priority lane', 'signal priority', 'traffic calming', 'road redesign', 'fleet operations');
+  if (/(digital|cyber|accessibility|internet|broadband|procurement)/.test(normalized)) add('digital access', 'technology deployment', 'workflow automation', 'process redesign', 'accessibility remediation', 'security controls');
+  if (workspace === 'business') add('business retention', 'customer retention', 'operational improvement', 'workforce development');
+  if (workspace === 'community') add('community program', 'community service', 'neighbourhood program', 'local partnership');
+  if (workspace === 'research') add('program evaluation', 'intervention evaluation', 'implementation study', 'pilot program');
+  if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
+  return pivots;
+}
+
+function discoveryAdministrativePivots(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem).toLowerCase();
+  const pivots = [];
+  const add = (...terms) => terms.forEach(term => {
+    const q = normalizeText(term);
+    if (q && !pivots.includes(q)) pivots.push(q);
+  });
+  add('procurement', 'contract', 'grant program', 'funding program', 'service contract', 'implementation program');
+  if (workspace === 'municipal') add('municipal program', 'city program', 'local government program', 'public service program');
+  if (workspace === 'business') add('business program', 'operating program', 'vendor program', 'customer program');
+  if (workspace === 'community') add('community program', 'nonprofit program', 'community service');
+  if (workspace === 'research') add('pilot', 'demonstration', 'implementation study');
+  if (workspace === 'enterprise') add('operating model', 'service delivery model', 'internal program');
+  if (/(eviction|housing|homeless|rough sleeping)/.test(normalized)) add('housing program', 'rental assistance program', 'tenant support program');
+  if (/(violence|crime)/.test(normalized)) add('violence prevention program', 'community safety program', 'public safety program');
+  if (/(heat|smoke|wildfire|bushfire|flood|disaster)/.test(normalized)) add('resilience program', 'emergency preparedness program', 'evacuation program');
+  if (/(cyber|digital|procurement)/.test(normalized)) add('technology program', 'modernization program', 'security program');
+  return pivots;
+}
+
 function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants = 8) {
   const original = normalizeText(problem);
   const normalized = original.toLowerCase();
