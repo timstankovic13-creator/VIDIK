@@ -118,6 +118,22 @@ test('integrated intelligence object exposes strategy, universe, transfer, why-n
   assert.equal(result.governance.learning.automaticParameterMutation, false);
 });
 
+test('9. comparable-city discovery uses controlled semantic concepts when city wording differs from the problem', () => {
+  const leads = I.comparableCityDiscoveryLeads('How should a municipality allocate $10M to reduce violent crime?', [
+    {
+      city: 'Glasgow',
+      jurisdiction: 'Scotland, UK',
+      problemTags: ['group violence'],
+      matchedSignals: ['neighborhood safety'],
+      strategies: [{ name: 'Violence Reduction Partnership', description: 'Multi-agency violence reduction strategy.' }]
+    }
+  ]);
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].name, 'Violence Reduction Partnership');
+  assert.equal(leads[0].leadOnly, true);
+  assert.equal(leads[0].effectsImported, false);
+});
+
 test('8. comparable-city discovery expands beyond the legacy interventions field and preserves lead-only boundaries', () => {
   const leads = I.comparableCityDiscoveryLeads('reduce violent crime', [
     {
