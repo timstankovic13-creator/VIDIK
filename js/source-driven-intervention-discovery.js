@@ -1010,7 +1010,7 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   // For broad multi-domain interventions, require the candidate title itself to
   // expose an actionable mechanism. This blocks generic grants, casework, reports,
   // and service records whose descriptions merely mention the target problem.
-  const genericOnly = /^(grant|funding|support|service|program|programme|capacity expansion|redundancy|response|assistance|training)\\b/i.test(name);
+  const genericOnly = /^(grant|funding|support|service|program|programme|capacity expansion|redundancy|response|assistance|training)\b/i.test(name);
   if (genericOnly) return false;
   return true;
 }
@@ -1039,7 +1039,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
-  if (/\\b(violent crime|serious violence|community violence|crime)\\b/i.test(problemLower) && /\\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\\b/i.test(candidateLower)) return true;
+  if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
     ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance','public space','environmental safety','street lighting','vacant property','blight remediation','built environment'],
