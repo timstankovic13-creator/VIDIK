@@ -197,6 +197,7 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
       jurisdiction: city.jurisdiction || city.city || null,
       matchedSignals: [...new Set([...matchedSignals, ...directMatches.flatMap(name => Discovery.normalizeProblemTags(name))])],
       interventions: matchedInterventions,
+      conceptMatch,
       transferability: city.transferability || city.context || null,
       leadOnly: true,
       effectsImported: false,
