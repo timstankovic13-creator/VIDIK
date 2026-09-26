@@ -571,13 +571,10 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   // instead of being crowded out by generic vocabulary variants. These remain retrieval
   // anchors only; external source evidence and the normal extraction/relevance gates decide
   // whether a candidate exists.
+  const recallQueries = [];
   for (const term of discoveryRecallTerms(problem, workspace)) {
-    // CKAN/GOV.UK full-text endpoints can require all query tokens to co-occur. A
-    // recall anchor therefore needs its own source query; the normal candidate
-    // relevance gate still prevents an anchor from becoming an intervention by
-    // itself. Keep the problem+term form as a secondary contextual query.
-    queries.add(term);
-    queries.add(original + ' ' + term);
+    const anchors = [term, original + ' ' + term];
+    anchors.forEach(query => { queries.add(query); recallQueries.push(query); });
   }
   // Expand the user's problem vocabulary before family/taxonomy expansion. These are
   // bounded alternate phrasings, not evidence: they only improve retrieval recall.
@@ -625,7 +622,14 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
     if(first){ queries.add(original+' '+first); reservedTaxonomy.add(first); }
   }
   for(const term of taxonomy) if(!reservedTaxonomy.has(term)) queries.add(term);
-  return [...queries].filter(Boolean).slice(0,DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  const prioritized = [
+    ...recallQueries,
+    ...mechanismQueries,
+    ...administrativeQueries,
+    ...classQueries,
+    ...[...queries]
+  ];
+  return [...new Set(prioritized)].filter(Boolean).slice(0,DISCOVERY_MAX_QUERIES_PER_SOURCE);
 }
 function extractConcreteInterventionFromDescription(problem, workspace, description = '') {
   const text = normalizeText(description).toLowerCase();
