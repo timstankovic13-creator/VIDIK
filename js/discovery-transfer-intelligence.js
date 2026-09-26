@@ -247,7 +247,15 @@ function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], 
   }));
   const why = whyNot(ranked, statusQuo, { discoveryComplete: coverage.complete });
   const learning = { historyRewrite: false, automaticParameterMutation: false, governedRecalibration: true, outcomeReviewRequired: true };
-  return { strategy, discovery: { coverage, universe, transferLeads }, ranking: ranked, whyNot: why, governance: {
+  const discoveryAudit = {
+    candidateCount: universe.candidates.length,
+    candidateNames: universe.candidates.map(candidate => candidate.name),
+    sourceTypes: unique(universe.candidates.flatMap(candidate => (candidate.discovery?.provenance || []).map(record => record.sourceType))),
+    comparableLeadCount: transferLeads.length,
+    provenanceComplete: universe.candidates.every(candidate => Array.isArray(candidate.discovery?.provenance) && candidate.discovery.provenance.length > 0),
+    familyCounts: Object.fromEntries([...new Set(universe.candidates.flatMap(candidate => candidate.interventionFamily || candidate.interventionFamilies || []))].map(family => [family, universe.candidates.filter(candidate => (candidate.interventionFamily || candidate.interventionFamilies || []).includes(family)).length]))
+  };
+  return { strategy, discovery: { coverage, universe, transferLeads, audit: discoveryAudit }, ranking: ranked, whyNot: why, governance: {
     unknownIsNotZero: true, comparableEffectsImported: false, statusQuoExplicit: Boolean(statusQuo?.explicit === true), recommendationRequiresEvidence: true,
     recommendationRequiresStableSensitivity: true, recommendationRequiresVOI: true, failedSourceBlocksRecommendation: coverage.failed.length > 0, learning
   } };
