@@ -1180,36 +1180,43 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId));
   if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSources = ['openalex-works','crossref-works'].map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId)).filter(Boolean).filter(source => sourceMatchesJurisdiction(source, jurisdiction));
-    const literatureSource = literatureSources[0];
-    if (literatureSource) {
+    if (literatureSources.length) {
       const literatureQueries = buildLiteratureFallbackQueries(problem, workspace);
-      const attempts = [];
       for (const source of literatureSources) {
+        const attempts = [];
+        const sourceCandidateStart = rawCandidates.length;
+        let stopReason = 'query-budget-exhausted';
         for (const query of literatureQueries) {
-        try {
-          const url = source.sourceId === 'openalex-works'
-            ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
-            : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
-          const snapshot = await retrieve({...source, url},{fetchImpl,now});
-          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
-          if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
-          const leads = source.sourceId === 'openalex-works'
-            ? extractOpenAlexInterventionLeads(payload.value, source, problem, workspace, query)
-            : extractCrossrefInterventionLeads(payload.value, source, problem, workspace, query);
-          rawCandidates.push(...leads);
-          const interim = deduplicateInterventionLeads(rawCandidates);
-          const interimCoverage = discoveryCoverage(problem, workspace, interim);
-          attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.results)?payload.value.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:interimCoverage.expectedFamilies,observedFamilies:interimCoverage.observedFamilies,missingFamilies:interimCoverage.missingFamilies});
-          if (interim.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES && (!interimCoverage.expectedFamilies.length || interimCoverage.coverageRatio >= DISCOVERY_TARGET_FAMILY_COVERAGE)) break;
-        } catch (error) {
-          attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+          try {
+            const url = source.sourceId === 'openalex-works'
+              ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
+              : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
+            const snapshot = await retrieve({...source, url},{fetchImpl,now});
+            const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+            if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
+            const leads = source.sourceId === 'openalex-works'
+              ? extractOpenAlexInterventionLeads(payload.value, source, problem, workspace, query)
+              : extractCrossrefInterventionLeads(payload.value, source, problem, workspace, query);
+            rawCandidates.push(...leads);
+            const interim = deduplicateInterventionLeads(rawCandidates);
+            const interimCoverage = discoveryCoverage(problem, workspace, interim);
+            const records = source.sourceId === 'openalex-works'
+              ? payload.value?.results
+              : payload.value?.message?.items;
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(records)?records.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:interimCoverage.expectedFamilies,observedFamilies:interimCoverage.observedFamilies,missingFamilies:interimCoverage.missingFamilies});
+            if (interim.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES && (!interimCoverage.expectedFamilies.length || interimCoverage.coverageRatio >= DISCOVERY_TARGET_FAMILY_COVERAGE)) {
+              stopReason = 'candidate-and-family-threshold';
+              break;
+            }
+          } catch (error) {
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+          }
         }
-        }
-        if (deduplicateInterventionLeads(rawCandidates).length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
+        const sourceCandidates = deduplicateInterventionLeads(rawCandidates.slice(sourceCandidateStart))
+          .filter(candidate => candidate.discovery?.source === source.sourceId);
+        const sourceCoverage = discoveryCoverage(problem, workspace, sourceCandidates);
+        sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-literature',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:literatureQueries.length,stopReason,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:sourceCandidates.length?(sourceCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),recordsConsidered:attempts.reduce((sum,a)=>sum+a.recordsConsidered,0),attempts,expectedFamilies:sourceCoverage.expectedFamilies,observedFamilies:sourceCoverage.observedFamilies,missingFamilies:sourceCoverage.missingFamilies,failureReason:sourceCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
       }
-      const literatureCandidates = deduplicateInterventionLeads(rawCandidates).filter(candidate => ['openalex-works','crossref-works'].includes(candidate.discovery?.source));
-      const literatureCoverage = discoveryCoverage(problem, workspace, literatureCandidates);
-      sourceSearches.push({sourceId:literatureSource.sourceId,sourceType:'intervention-literature',jurisdiction:literatureSource.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:literatureCandidates.length?(literatureCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:literatureCoverage.expectedFamilies,observedFamilies:literatureCoverage.observedFamilies,missingFamilies:literatureCoverage.missingFamilies,failureReason:literatureCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
       candidates=deduplicateInterventionLeads(rawCandidates);
       coverage=discoveryCoverage(problem,workspace,candidates);
     }
