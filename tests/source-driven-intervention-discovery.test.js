@@ -345,3 +345,20 @@ test('municipal worker-displacement recall anchors reach the bounded source-quer
   const queries = buildDiscoveryQueries('reduce worker displacement', 'municipal');
   assert.ok(queries.slice(0, 8).some(query => /redeployment|worker transition|displacement support|reskilling/i.test(query)));
 });
+
+
+test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce cybersecurity incident risk', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(queries.some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
+  assert.ok(queries.some(query => /process improvement|service modernization|operational controls|change management/i.test(query)));
+  assert.ok(queries.some(query => /procurement|contract|implementation program|operating model|service delivery model/i.test(query)));
+});
+
+test('business discovery preserves implementation pivots for arbitrary operational problems', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('improve small business survival', 'business');
+  assert.ok(queries.some(query => /business grant|working capital|business retention|business program/i.test(query)));
+  assert.ok(queries.some(query => /process redesign|workflow automation|operational improvement/i.test(query)));
+});

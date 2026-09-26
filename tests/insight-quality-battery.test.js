@@ -70,7 +70,47 @@ const CASES = [
   ['enterprise','UK','improve data governance'],
   ['enterprise','AU','reduce infrastructure maintenance backlog'],
   ['enterprise','AU','improve emergency response coordination'],
-  ['enterprise','CA','reduce accessibility barriers in digital services'],
+  ['enterprise','CA','reduce accessibility barriers in digital services'],  // Additional open-world generalization cases — deliberately outside the original 60
+  ['municipal','CA','reduce tenant displacement'],
+  ['municipal','US','reduce ambulance response times'],
+  ['municipal','US','increase residential water conservation'],
+  ['municipal','UK','reduce school exclusion'],
+  ['municipal','AU','improve stormwater resilience'],
+  ['municipal','CA','reduce street homelessness among people with complex needs'],
+  ['municipal','US','reduce repeat domestic violence'],
+  ['municipal','UK','increase household energy efficiency'],
+  ['business','US','reduce failed software deployments'],
+  ['business','CA','reduce invoice processing time'],
+  ['business','UK','improve customer complaint resolution'],
+  ['business','AU','reduce warehouse picking errors'],
+  ['business','US','improve first-year employee retention'],
+  ['business','CA','reduce product return rates'],
+  ['business','UK','reduce employee absenteeism'],
+  ['business','AU','improve field-service scheduling'],
+  ['community','CA','reduce newcomer language barriers'],
+  ['community','US','increase access to primary care'],
+  ['community','UK','reduce loneliness among young adults'],
+  ['community','AU','improve evacuation readiness for remote communities'],
+  ['community','CA','reduce barriers to legal assistance'],
+  ['community','US','improve access to disability employment supports'],
+  ['community','UK','reduce food waste at household level'],
+  ['community','AU','improve access to community mental health services'],
+  ['research','US','evaluate interventions to reduce repeat offending'],
+  ['research','CA','study interventions to improve medication adherence'],
+  ['research','UK','study interventions to reduce care-home falls'],
+  ['research','AU','study interventions to improve drought resilience'],
+  ['research','US','evaluate interventions to improve public library access'],
+  ['research','CA','study interventions to reduce utility disconnections'],
+  ['research','UK','study interventions to improve employment after incarceration'],
+  ['research','AU','evaluate interventions to reduce road deaths in rural areas'],
+  ['enterprise','US','reduce identity-access management failures'],
+  ['enterprise','CA','reduce contract approval cycle time'],
+  ['enterprise','UK','improve knowledge transfer between teams'],
+  ['enterprise','AU','reduce service desk resolution time'],
+  ['enterprise','US','improve disaster recovery readiness'],
+  ['enterprise','CA','reduce cloud infrastructure costs'],
+  ['enterprise','UK','reduce employee phishing susceptibility'],
+  ['enterprise','AU','improve records retention compliance'],
 ];
 
 const DOMAIN_TERMS = {
@@ -114,6 +154,35 @@ test('targeted recall packs cover the observed blocked-case discovery lanes with
     const queries = buildDiscoveryQueries(problem, workspace);
     assert.ok(queries.length <= 18, 'query budget exceeded for ' + problem);
     assert.ok(queries.some(query => expected.test(query)), 'recall lane missing for ' + problem);
+  }
+});
+
+test('discovery recall preserves budget for later layers and covers the newly blocked operational lanes', () => {
+  const cases = [
+    ['business','reduce supply chain disruption', /supply chain visibility|demand forecasting|inventory buffer|supplier diversification/i],
+    ['research','study effective heat-health interventions', /cooling centre|clean air shelter|heat-health intervention/i],
+    ['enterprise','reduce employee burnout', /workload management|manager training|employee assistance program|job redesign/i],
+    ['enterprise','improve emergency response coordination', /incident command|emergency operations centre|mutual aid coordination|incident management/i]
+  ];
+  for (const [workspace, problem, expected] of cases) {
+    const queries = buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.length <= 18, 'query budget exceeded for ' + problem);
+    assert.ok(queries.some(query => expected.test(query)), 'recall lane missing for ' + problem);
+    assert.ok(queries.some(query => /program|service|process|implementation|operational|management/i.test(query)), 'later discovery layers were crowded out for ' + problem);
+  }
+});
+
+test('document-like source titles cannot become intervention candidates through positive project/program signals', () => {
+  const rejected = [
+    'Manitoba Capital Plans Project Status',
+    'Follow-up study of inmates under opioid agonist treatment before and after release',
+    'Industrial Energy Efficiency Accelerator (IEEA): successful projects',
+    'NatureScot Natural Capital Tool: Ecosystem Service Capacity',
+    'Evaluation findings for a food voucher initiative',
+    'Project Update: Emergency Response Modernization'
+  ];
+  for (const title of rejected) {
+    assert.equal(isActionableInterventionTitle(title, ''), false, 'document-like title leaked: ' + title);
   }
 });
 
@@ -248,7 +317,7 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
-test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
+test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = await mapWithConcurrency(CASES, 8, async ([workspace, jurisdiction, problem]) => {
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
@@ -289,6 +358,10 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     const evidenceCompleteCandidate = evidenceResults.find(result => result.evidenceSufficiency?.independentSourceCount >= 2);
     const independentEvidenceSources = evidenceCompleteCandidate ? evidenceCompleteCandidate.evidenceSufficiency.independentSourceCount : 0;
     const evidenceLeads = evidenceResults.reduce((count, result) => count + (result.evidenceLeads?.length || 0), 0);
+    const sourceFailures = (discovery.sourceSearches || []).filter(search => search.status === 'search-failed').length;
+    const sourceEmpty = (discovery.sourceSearches || []).filter(search => search.status === 'searched-empty').length;
+    const missingFamilies = discovery.interventionUniverse.missingInterventionFamilies || [];
+    const missingClasses = discovery.interventionUniverse.missingInterventionClasses || [];
 
     let grade = 'BLOCKED';
     if (candidates.length > 0 && actionable.length === candidates.length && relevanceRatio >= 0.5 && expectedClassHits > 0 && independentEvidenceSources >= 2 && evidenceLeads > 0 && families.size >= 2) {
@@ -315,7 +388,16 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
       independentEvidenceSources,
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      failureSignals: {
+        sourceFailures,
+        sourceEmpty,
+        missingFamilyCount: missingFamilies.length,
+        missingClassCount: missingClasses.length,
+        missingFamilies: missingFamilies.slice(0, 8),
+        missingClasses: missingClasses.slice(0, 8),
+        noCandidateUniverse: candidates.length === 0
+      }
     };
   });
 
@@ -323,12 +405,23 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
   const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
+  const failureMap = {
+    noCandidateUniverse: results.filter(r => r.failureSignals.noCandidateUniverse).map(r => r.problem),
+    sourceFailures: results.filter(r => r.failureSignals.sourceFailures > 0).map(r => ({ problem: r.problem, count: r.failureSignals.sourceFailures })),
+    sourceEmpty: results.filter(r => r.failureSignals.sourceEmpty > 0).map(r => ({ problem: r.problem, count: r.failureSignals.sourceEmpty })),
+    missingFamilyCount: results.reduce((n, r) => n + r.failureSignals.missingFamilyCount, 0),
+    missingClassCount: results.reduce((n, r) => n + r.failureSignals.missingClassCount, 0),
+    blockedByWorkspace: Object.fromEntries([...new Set(CASES.map(c => c[0]))].map(workspace => [
+      workspace,
+      results.filter(r => r.workspace === workspace && r.grade === 'BLOCKED').length
+    ]))
+  };
 
   assert.equal(results.length, CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
   // Quality grades are findings, not pass/fail assertions. A zero-STRONG result is intentionally reportable evidence that the insight layer needs work.
   console.log(JSON.stringify({
-    battery: 'VIDIK Insight Quality Battery v1',
+    battery: 'VIDIK Insight Quality Battery v2 — 100-problem generalization',
     cases: results.length,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
@@ -341,6 +434,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
     casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
     casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
     totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
+    failureMap,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
@@ -417,6 +511,22 @@ test('evidence search ladder retains both independent providers and bounded per-
 });
 
 
+
+test('mechanism and administrative discovery pivots use working domain boundaries', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const business = mod.buildDiscoveryQueries('reduce customer churn', 'business');
+  const enterprise = mod.buildDiscoveryQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(business.some(q => /customer churn.*retention program/i.test(q)), 'business retention pivot did not reach query planning');
+  assert.ok(enterprise.some(q => /procurement cycle time.*workflow|procurement cycle time.*process/i.test(q)), 'enterprise process pivot did not reach query planning');
+});
+
+test('literature fallback inherits bounded class and mechanism coverage layers', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const queries = mod.buildLiteratureFallbackQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(queries.some(q => /procurement process redesign|procurement workflow automation|e-procurement/i.test(q)));
+  assert.ok(queries.some(q => /workflow automation|process redesign/i.test(q)));
+});
 
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
@@ -524,3 +634,4 @@ test('blocked-case recall lanes are explicit, source-backed, and semantically al
     assert.equal(interventionMatchesProblem(problem, { name: anchor, discoveryText: anchor }, workspace), true, workspace + ': recall anchor rejected for ' + problem);
   }
 });
+
