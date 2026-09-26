@@ -101,8 +101,8 @@ test('flagship open-world decision traverses the complete governed decision chai
   for (const lead of comparableLeads) {
     assert.equal(lead.discovery?.effectsImported, false);
     assert.equal(lead.discovery?.leadOnly, true);
-    assert.ok(Array.isArray(lead.provenance));
-    assert.ok(lead.provenance.some(record => record.sourceType === 'comparable-city'));
+    assert.ok(Array.isArray(lead.discovery?.provenance));
+    assert.ok(lead.discovery.provenance.some(record => record.sourceType === 'comparable-city'));
   }
   assert.equal(run.governance.comparableEffectsImported, false);
   assert.equal(run.governance.transferEffectsImported, false);
