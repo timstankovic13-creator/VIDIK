@@ -624,15 +624,41 @@ function buildDiscoveryQueries(problem,workspace='municipal'){
   for(const term of taxonomy) if(!reservedTaxonomy.has(term)) queries.add(term);
   // Reserve mechanism and administrative discovery lanes explicitly. These are
   // retrieval pivots only; they never manufacture candidates or bypass evidence gates.
-  const mechanismQueries = discoveryMechanismPivots(problem, workspace).map(term => original + ' ' + term);
-  const administrativeQueries = discoveryAdministrativePivots(problem, workspace).map(term => original + ' ' + term);
+  const rankPivot = (term) => {
+    const value = String(term).toLowerCase();
+    let score = 0;
+    if (workspace === 'business' && /business|customer|retention|operational|workforce/.test(value)) score += 5;
+    if (workspace === 'community' && /community|neighbourhood|local|nonprofit/.test(value)) score += 5;
+    if (workspace === 'research' && /evaluation|implementation study|pilot/.test(value)) score += 5;
+    if (workspace === 'enterprise' && /process|service modernization|operational|change management|security|technology/.test(value)) score += 5;
+    if (/cyber|digital|procurement/.test(normalized) && /security|technology|process|workflow|digital|procurement/.test(value)) score += 4;
+    if (/violence|crime|safety/.test(normalized) && /violence|community|public safety|outreach/.test(value)) score += 4;
+    if (/housing|homeless|eviction|rough sleeping/.test(normalized) && /housing|rental|tenant/.test(value)) score += 4;
+    if (/heat|smoke|wildfire|bushfire|flood|disaster|climate/.test(normalized) && /resilience|preparedness|warning|shelter|evacuation|retrofit/.test(value)) score += 4;
+    if (/transit|traffic|pedestrian|mobility|congestion/.test(normalized) && /transit|lane|signal|traffic|road|fleet/.test(value)) score += 4;
+    return score;
+  };
+  const mechanismPivots = discoveryMechanismPivots(problem, workspace)
+    .map((term, index) => ({ term, index, score: rankPivot(term) }))
+    .sort((a,b) => b.score - a.score || a.index - b.index)
+    .map(item => item.term);
+  const administrativePivots = discoveryAdministrativePivots(problem, workspace)
+    .map((term, index) => ({ term, index, score: rankPivot(term) }))
+    .sort((a,b) => b.score - a.score || a.index - b.index)
+    .map(item => item.term);
+  const mechanismQueries = mechanismPivots.slice(0, 4).map(term => original + ' ' + term);
+  const administrativeQueries = administrativePivots.slice(0, 3).map(term => original + ' ' + term);
   for (const query of [...mechanismQueries, ...administrativeQueries]) queries.add(query);
 
+  // Keep a fixed share of the finite source budget for each discovery layer.
+  // Recall gets the first eight slots, followed by mechanism, administrative, and
+  // class coverage. Remaining capacity is filled by the broader vocabulary/taxonomy
+  // pool. No layer creates candidates; it only controls retrieval recall.
   const prioritized = [
-    ...recallQueries,
+    ...recallQueries.slice(0, 8),
     ...mechanismQueries,
     ...administrativeQueries,
-    ...classQueries,
+    ...classQueries.slice(0, 3),
     ...[...queries]
   ];
   return [...new Set(prioritized)].filter(Boolean).slice(0,DISCOVERY_MAX_QUERIES_PER_SOURCE);
