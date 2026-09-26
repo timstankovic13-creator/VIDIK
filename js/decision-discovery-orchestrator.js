@@ -18,6 +18,21 @@ function hash(value) {
   return crypto.createHash('sha256').update(stable(value)).digest('hex');
 }
 
+function comparableConcepts(text = '') {
+  const normalized = String(text || '').toLowerCase();
+  const concepts = new Set(Discovery.normalizeProblemTags(normalized));
+  const groups = [
+    { match: /violent\s+crime|serious\s+violence|community\s+violence/, terms: ['violent-crime', 'violence', 'safety'] },
+    { match: /crime|public\s+safety/, terms: ['crime', 'violent-crime', 'safety'] },
+    { match: /homeless|rough\s+sleeping|housing\s+insecurity/, terms: ['homelessness', 'housing-instability', 'shelter'] },
+    { match: /overdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
+    { match: /traffic|pedestrian|road\s+safety|congestion/, terms: ['traffic-injury', 'road-safety', 'mobility'] },
+    { match: /heat|wildfire\s+smoke|flood|climate/, terms: ['extreme-heat', 'climate', 'heat', 'flood'] }
+  ];
+  for (const group of groups) if (group.match.test(normalized)) group.terms.forEach(term => concepts.add(term));
+  return concepts;
+}
+
 function normalizeLead(lead, source = {}) {
   if (!lead) return null;
   const id = lead.id || lead.interventionId || lead.title || null;
@@ -45,6 +60,7 @@ function normalizeLead(lead, source = {}) {
       comparableCity: source.comparableCity || lead.discovery?.comparableCity || null,
       leadOnly: Boolean(source.comparableCity || lead.discovery?.leadOnly),
       effectsImported: false,
+      transferability: lead.transferability || lead.context || null,
       provenance
     }
   };
@@ -154,6 +170,7 @@ function buildSearchManifest({ problem, acquisitionSources = [], localCandidates
 
 function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
   const problemSignals = new Set(Discovery.normalizeProblemTags(problem));
+  const problemConcepts = comparableConcepts(problem);
   const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
   return cities.map(city => {
     const contextText = [
@@ -163,27 +180,31 @@ function comparableCityLeads({ problem, cities = [], minSignals = 1 } = {}) {
     ].filter(Boolean).join(' ');
     const contextSignals = Discovery.normalizeProblemTags(contextText);
     const signals = contextSignals.filter(signal => problemSignals.has(signal));
+    const contextConcepts = comparableConcepts(contextText);
+    const conceptMatch = [...contextConcepts].some(concept => problemConcepts.has(concept));
     const interventions = interventionFields.flatMap(field => {
       const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
       return values.map(value => typeof value === 'string'
         ? value.trim()
         : String(value?.name || value?.title || '').trim()).filter(Boolean);
     });
-    const directMatches = interventions.filter(name => Discovery.normalizeProblemTags(name).some(signal => problemSignals.has(signal)));
+    const directMatches = interventions.filter(name => Discovery.normalizeProblemTags(name).some(signal => problemSignals.has(signal)) || [...comparableConcepts(name)].some(concept => problemConcepts.has(concept)));
     const matchedInterventions = [...new Set(interventions)];
     const matchedSignals = [...new Set(signals)];
 
     return {
       city: city.city || null,
       jurisdiction: city.jurisdiction || city.city || null,
-      matchedSignals,
+      matchedSignals: [...new Set([...matchedSignals, ...directMatches.flatMap(name => Discovery.normalizeProblemTags(name))])],
       interventions: matchedInterventions,
+      conceptMatch,
+      transferability: city.transferability || city.context || null,
       leadOnly: true,
       effectsImported: false,
       provenance: city.provenance || null
     };
   }).filter(item => item.city && item.interventions.length &&
-    (item.matchedSignals.length >= minSignals || item.interventions.some(name => Discovery.normalizeProblemTags(name).some(signal => problemSignals.has(signal)))));
+    (item.matchedSignals.length >= minSignals || item.conceptMatch));
 }
 
 function runUncertaintySensitivityVOI({ candidates = [], analysisInputs = {} } = {}) {

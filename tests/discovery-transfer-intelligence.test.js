@@ -118,6 +118,22 @@ test('integrated intelligence object exposes strategy, universe, transfer, why-n
   assert.equal(result.governance.learning.automaticParameterMutation, false);
 });
 
+test('9. comparable-city discovery uses controlled semantic concepts when city wording differs from the problem', () => {
+  const leads = I.comparableCityDiscoveryLeads('How should a municipality allocate $10M to reduce violent crime?', [
+    {
+      city: 'Glasgow',
+      jurisdiction: 'Scotland, UK',
+      problemTags: ['group violence'],
+      matchedSignals: ['neighborhood safety'],
+      strategies: [{ name: 'Violence Reduction Partnership', description: 'Multi-agency violence reduction strategy.' }]
+    }
+  ]);
+  assert.equal(leads.length, 1);
+  assert.equal(leads[0].name, 'Violence Reduction Partnership');
+  assert.equal(leads[0].leadOnly, true);
+  assert.equal(leads[0].effectsImported, false);
+});
+
 test('8. comparable-city discovery expands beyond the legacy interventions field and preserves lead-only boundaries', () => {
   const leads = I.comparableCityDiscoveryLeads('reduce violent crime', [
     {
@@ -157,4 +173,51 @@ test('8. comparable-city discovery expands beyond the legacy interventions field
   assert.equal(focused.discovery.leadOnly, true);
   const shared = universe.candidates.find(candidate => candidate.name === 'Community violence interruption');
   assert.equal(shared.provenance.length, 2);
+});
+
+
+test('generic comparable-city normalization accepts arbitrary structured records and preserves transfer context', () => {
+  const normalized = I.normalizeComparableCityRecord({
+    city: 'Example City',
+    jurisdiction: 'Example Region',
+    problemTags: ['group violence'],
+    strategies: [{ name: 'Violence Reduction Partnership', description: 'Multi-agency prevention strategy' }],
+    transferability: { problem: 'group violence', population: 'urban', institutionalCapacity: 'multi-agency' }
+  });
+  assert.equal(normalized.city, 'Example City');
+  assert.equal(normalized.interventions.length, 1);
+  assert.equal(normalized.leadOnly, true);
+  assert.equal(normalized.effectsImported, false);
+  assert.deepEqual(normalized.transferability, { problem: 'group violence', population: 'urban', institutionalCapacity: 'multi-agency' });
+});
+
+test('comparable-city channel can supply the candidate universe when ordinary sources are empty', () => {
+  const problem = 'How should a municipality reduce serious violence?';
+  const result = I.buildDecisionIntelligence({
+    problem,
+    context: { jurisdiction: 'Target City' },
+    sourceResults: [
+      { sourceType: 'local-program', sourceId: 'local', status: 'searched-empty', candidates: [] },
+      { sourceType: 'official-data', sourceId: 'official', status: 'searched-empty', candidates: [] },
+      { sourceType: 'research', sourceId: 'research', status: 'searched-empty', candidates: [] },
+      { sourceType: 'intervention-library', sourceId: 'library', status: 'searched-empty', candidates: [] }
+    ],
+    comparableCities: [{
+      city: 'Example City',
+      jurisdiction: 'Example Region',
+      problemTags: ['group violence'],
+      strategies: [{ name: 'Violence Reduction Partnership', description: 'Multi-agency violence prevention' }],
+      transferability: { problem: 'group violence', population: 'urban' }
+    }],
+    statusQuo: { explicit: true }
+  });
+  assert.ok(result.discovery.universe.candidates.length >= 1);
+  const lead = result.discovery.universe.candidates[0];
+  assert.equal(lead.discovery.sourceType, 'comparable-city');
+  assert.equal(lead.discovery.leadOnly, true);
+  assert.equal(lead.discovery.effectsImported, false);
+  assert.equal(result.discovery.transferLeads.length, 1);
+  assert.equal(result.discovery.transferLeads[0].transferability.effectsImported, false);
+  assert.equal(result.discovery.transferLeads[0].transferability.causalEffectTransferred, false);
+  assert.equal(result.whyNot.winner, null);
 });

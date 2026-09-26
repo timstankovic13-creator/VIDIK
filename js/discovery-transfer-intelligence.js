@@ -12,6 +12,20 @@ function stable(value) {
 function hash(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
 function tokens(text = '') { return String(text).normalize('NFKD').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean); }
 function unique(values) { return [...new Set(values.filter(Boolean).map(String))]; }
+function comparableConcepts(text = '') {
+  const normalized = String(text || '').normalize('NFKD').toLowerCase();
+  const concepts = new Set(tokens(normalized));
+  const groups = [
+    { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'safety', 'public-safety'] },
+    { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'safety', 'public-safety'] },
+    { match: /\bhomeless|rough\s+sleeping|housing\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
+    { match: /\boverdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
+    { match: /\btraffic|pedestrian|road\\s+safety|congestion/, terms: ['traffic', 'mobility', 'road-safety'] },
+    { match: /\bheat|wildfire\\s+smoke|flood|climate/, terms: ['climate', 'heat', 'smoke', 'flood'] }
+  ];
+  for (const group of groups) if (group.match.test(normalized)) group.terms.forEach(term => concepts.add(term));
+  return concepts;
+}
 
 function buildSearchStrategy(problem, context = {}) {
   const base = String(problem || '').trim();
@@ -62,12 +76,17 @@ function candidateKey(candidate) {
 }
 
 function comparableCityDiscoveryLeads(problem, comparableCities = []) {
+  const safeProblem = String(problem || '').trim();
+  if (!safeProblem) return [];
   const problemTokens = new Set(tokens(problem));
   const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
   const leads = [];
   for (const city of Array.isArray(comparableCities) ? comparableCities : []) {
     const contextTokens = tokens([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
-    const contextMatch = contextTokens.some(token => problemTokens.has(token));
+    const contextConcepts = comparableConcepts([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
+    const problemConceptSet = comparableConcepts(problem);
+    const contextMatch = contextTokens.some(token => problemTokens.has(token)) ||
+      [...contextConcepts].some(concept => problemConceptSet.has(concept));
     for (const field of interventionFields) {
       const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
       for (const value of values) {
@@ -93,7 +112,45 @@ function comparableCityDiscoveryLeads(problem, comparableCities = []) {
       }
     }
   }
-  return leads;
+  return leads.map(lead => ({ ...lead, discoveryRoute: 'comparable-city', leadOnly: true, effectsImported: false }));
+}
+
+function normalizeComparableCityRecord(record = {}) {
+  const city = String(record.city || record.name || record.jurisdiction || '').trim();
+  const jurisdiction = String(record.jurisdiction || city).trim() || null;
+  const fields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
+  const interventions = fields.flatMap(field => {
+    const values = Array.isArray(record[field]) ? record[field] : record[field] ? [record[field]] : [];
+    return values.map(value => typeof value === 'string' ? { name: value } : value).filter(value => value && String(value.name || value.title || '').trim());
+  });
+  return {
+    ...record,
+    city,
+    jurisdiction,
+    interventions,
+    sourceId: record.sourceId || `comparable-city:${city.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    problemTags: unique(record.problemTags || []),
+    matchedSignals: unique(record.matchedSignals || []),
+    leadOnly: true,
+    effectsImported: false
+  };
+}
+
+function normalizeComparableCitySearchResult(result = {}) {
+  const records = Array.isArray(result?.cities) ? result.cities : Array.isArray(result?.comparableCities) ? result.comparableCities : [];
+  return {
+    sourceId: result.sourceId || 'comparable-city-intelligence',
+    sourceType: 'comparable-city',
+    jurisdiction: result.jurisdiction || null,
+    query: result.query || null,
+    status: ['failed','search-failed','error','blocked'].includes(result.status) ? 'search-failed' : (records.length ? 'candidates-found' : 'searched-empty'),
+    candidatesReturned: records.length,
+    candidates: records.map(normalizeComparableCityRecord),
+    provenance: result.provenance || null,
+    failureReason: result.failureReason || null,
+    retrievedAt: result.retrievedAt || null,
+    contentHash: result.contentHash || null
+  };
 }
 
 function buildCandidateUniverse(sourceResults = [], comparableCities = [], problem = '') {
@@ -230,10 +287,18 @@ function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], 
   }));
   const why = whyNot(ranked, statusQuo, { discoveryComplete: coverage.complete });
   const learning = { historyRewrite: false, automaticParameterMutation: false, governedRecalibration: true, outcomeReviewRequired: true };
-  return { strategy, discovery: { coverage, universe, transferLeads }, ranking: ranked, whyNot: why, governance: {
+  const discoveryAudit = {
+    candidateCount: universe.candidates.length,
+    candidateNames: universe.candidates.map(candidate => candidate.name),
+    sourceTypes: unique(universe.candidates.flatMap(candidate => (candidate.discovery?.provenance || []).map(record => record.sourceType))),
+    comparableLeadCount: transferLeads.length,
+    provenanceComplete: universe.candidates.every(candidate => Array.isArray(candidate.discovery?.provenance) && candidate.discovery.provenance.length > 0),
+    familyCounts: Object.fromEntries([...new Set(universe.candidates.flatMap(candidate => candidate.interventionFamily || candidate.interventionFamilies || []))].map(family => [family, universe.candidates.filter(candidate => (candidate.interventionFamily || candidate.interventionFamilies || []).includes(family)).length]))
+  };
+  return { strategy, discovery: { coverage, universe, transferLeads, audit: discoveryAudit }, ranking: ranked, whyNot: why, governance: {
     unknownIsNotZero: true, comparableEffectsImported: false, statusQuoExplicit: Boolean(statusQuo?.explicit === true), recommendationRequiresEvidence: true,
     recommendationRequiresStableSensitivity: true, recommendationRequiresVOI: true, failedSourceBlocksRecommendation: coverage.failed.length > 0, learning
   } };
 }
 
-module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
+module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, normalizeComparableCityRecord, normalizeComparableCitySearchResult, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
