@@ -81,7 +81,10 @@ function comparableCityDiscoveryLeads(problem, comparableCities = []) {
   const leads = [];
   for (const city of Array.isArray(comparableCities) ? comparableCities : []) {
     const contextTokens = tokens([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
-    const contextMatch = contextTokens.some(token => problemTokens.has(token));
+    const contextConcepts = comparableConcepts([city.problem, ...(city.problemTags || []), ...(city.matchedSignals || [])].filter(Boolean).join(' '));
+    const problemConceptSet = comparableConcepts(problem);
+    const contextMatch = contextTokens.some(token => problemTokens.has(token)) ||
+      [...contextConcepts].some(concept => problemConceptSet.has(concept));
     for (const field of interventionFields) {
       const values = Array.isArray(city?.[field]) ? city[field] : city?.[field] ? [city[field]] : [];
       for (const value of values) {
