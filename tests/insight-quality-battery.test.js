@@ -117,6 +117,35 @@ test('targeted recall packs cover the observed blocked-case discovery lanes with
   }
 });
 
+test('discovery recall preserves budget for later layers and covers the newly blocked operational lanes', () => {
+  const cases = [
+    ['business','reduce supply chain disruption', /supply chain visibility|demand forecasting|inventory buffer|supplier diversification/i],
+    ['research','study effective heat-health interventions', /cooling centre|clean air shelter|heat-health intervention/i],
+    ['enterprise','reduce employee burnout', /workload management|manager training|employee assistance program|job redesign/i],
+    ['enterprise','improve emergency response coordination', /incident command|emergency operations centre|mutual aid coordination|incident management/i]
+  ];
+  for (const [workspace, problem, expected] of cases) {
+    const queries = buildDiscoveryQueries(problem, workspace);
+    assert.ok(queries.length <= 18, 'query budget exceeded for ' + problem);
+    assert.ok(queries.some(query => expected.test(query)), 'recall lane missing for ' + problem);
+    assert.ok(queries.some(query => /program|service|process|implementation|operational|management/i.test(query)), 'later discovery layers were crowded out for ' + problem);
+  }
+});
+
+test('document-like source titles cannot become intervention candidates through positive project/program signals', () => {
+  const rejected = [
+    'Manitoba Capital Plans Project Status',
+    'Follow-up study of inmates under opioid agonist treatment before and after release',
+    'Industrial Energy Efficiency Accelerator (IEEA): successful projects',
+    'NatureScot Natural Capital Tool: Ecosystem Service Capacity',
+    'Evaluation findings for a food voucher initiative',
+    'Project Update: Emergency Response Modernization'
+  ];
+  for (const title of rejected) {
+    assert.equal(isActionableInterventionTitle(title, ''), false, 'document-like title leaked: ' + title);
+  }
+});
+
 test('enterprise discovery profiles control class retrieval and reject cross-domain leakage', () => {
   const emergencyQueries = buildDiscoveryQueries('improve emergency response coordination', 'enterprise');
   const dataQueries = buildDiscoveryQueries('improve data governance', 'enterprise');
