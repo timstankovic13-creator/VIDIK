@@ -70,7 +70,47 @@ const CASES = [
   ['enterprise','UK','improve data governance'],
   ['enterprise','AU','reduce infrastructure maintenance backlog'],
   ['enterprise','AU','improve emergency response coordination'],
-  ['enterprise','CA','reduce accessibility barriers in digital services'],
+  ['enterprise','CA','reduce accessibility barriers in digital services'],  // Additional open-world generalization cases — deliberately outside the original 60
+  ['municipal','CA','reduce tenant displacement'],
+  ['municipal','US','reduce ambulance response times'],
+  ['municipal','US','increase residential water conservation'],
+  ['municipal','UK','reduce school exclusion'],
+  ['municipal','AU','improve stormwater resilience'],
+  ['municipal','CA','reduce street homelessness among people with complex needs'],
+  ['municipal','US','reduce repeat domestic violence'],
+  ['municipal','UK','increase household energy efficiency'],
+  ['business','US','reduce failed software deployments'],
+  ['business','CA','reduce invoice processing time'],
+  ['business','UK','improve customer complaint resolution'],
+  ['business','AU','reduce warehouse picking errors'],
+  ['business','US','improve first-year employee retention'],
+  ['business','CA','reduce product return rates'],
+  ['business','UK','reduce employee absenteeism'],
+  ['business','AU','improve field-service scheduling'],
+  ['community','CA','reduce newcomer language barriers'],
+  ['community','US','increase access to primary care'],
+  ['community','UK','reduce loneliness among young adults'],
+  ['community','AU','improve evacuation readiness for remote communities'],
+  ['community','CA','reduce barriers to legal assistance'],
+  ['community','US','improve access to disability employment supports'],
+  ['community','UK','reduce food waste at household level'],
+  ['community','AU','improve access to community mental health services'],
+  ['research','US','evaluate interventions to reduce repeat offending'],
+  ['research','CA','study interventions to improve medication adherence'],
+  ['research','UK','study interventions to reduce care-home falls'],
+  ['research','AU','study interventions to improve drought resilience'],
+  ['research','US','evaluate interventions to improve public library access'],
+  ['research','CA','study interventions to reduce utility disconnections'],
+  ['research','UK','study interventions to improve employment after incarceration'],
+  ['research','AU','evaluate interventions to reduce road deaths in rural areas'],
+  ['enterprise','US','reduce identity-access management failures'],
+  ['enterprise','CA','reduce contract approval cycle time'],
+  ['enterprise','UK','improve knowledge transfer between teams'],
+  ['enterprise','AU','reduce service desk resolution time'],
+  ['enterprise','US','improve disaster recovery readiness'],
+  ['enterprise','CA','reduce cloud infrastructure costs'],
+  ['enterprise','UK','reduce employee phishing susceptibility'],
+  ['enterprise','AU','improve records retention compliance'],
 ];
 
 const DOMAIN_TERMS = {
@@ -277,7 +317,7 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
-test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce inspectable, governed decision intelligence', async () => {
+test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const results = await mapWithConcurrency(CASES, 8, async ([workspace, jurisdiction, problem]) => {
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
@@ -357,7 +397,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 60 genuinely different problems produce ins
   assert.ok(results.every(r => r.grade !== undefined));
   // Quality grades are findings, not pass/fail assertions. A zero-STRONG result is intentionally reportable evidence that the insight layer needs work.
   console.log(JSON.stringify({
-    battery: 'VIDIK Insight Quality Battery v1',
+    battery: 'VIDIK Insight Quality Battery v2 — 100-problem generalization',
     cases: results.length,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
@@ -553,3 +593,4 @@ test('blocked-case recall lanes are explicit, source-backed, and semantically al
     assert.equal(interventionMatchesProblem(problem, { name: anchor, discoveryText: anchor }, workspace), true, workspace + ': recall anchor rejected for ' + problem);
   }
 });
+
