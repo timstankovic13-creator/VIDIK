@@ -89,7 +89,31 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
       if (normalized) candidates.push(normalized);
     }
   }
-  const build = (evidenceIndex, inputs) => Orchestrator.buildDiscoveryRun({ problem, acquisitionSources: sourceSearches, localCandidates: candidates.filter(c => c.discovery.sourceType === 'local-program'), acquiredCandidates: candidates.filter(c => c.discovery.sourceType === 'intervention-library'), researchLeads: candidates.filter(c => c.discovery.sourceType === 'research'), comparableCities: resolvedComparableCities, evidenceIndex, analysisInputs: inputs, requiredSourceTypes, statusQuo, decisionContext });
+  const build = (evidenceIndex, inputs) => {
+    const run = Orchestrator.buildDiscoveryRun({
+      problem,
+      acquisitionSources: sourceSearches,
+      localCandidates: candidates.filter(c => c.discovery.sourceType === 'local-program'),
+      acquiredCandidates: candidates.filter(c => c.discovery.sourceType === 'intervention-library'),
+      researchLeads: candidates.filter(c => c.discovery.sourceType === 'research'),
+      comparableCities: resolvedComparableCities,
+      evidenceIndex,
+      analysisInputs: inputs,
+      requiredSourceTypes,
+      statusQuo,
+      decisionContext
+    });
+    // Preserve the actual comparable-city acquisition result in the canonical
+    // search manifest. The generic channel is an acquisition source in its own
+    // right; inferred comparable-city coverage must not replace or erase its
+    // explicit status/provenance.
+    if (comparableCitySearch && requiredSourceTypes.includes('comparable-city')) {
+      const index = run.sourceSearches.findIndex(search => search.sourceType === 'comparable-city' && search.sourceId === comparableCitySearch.sourceId);
+      if (index >= 0) run.sourceSearches[index] = Orchestrator.normalizeSourceSearch(comparableCitySearch, 'comparable-city');
+      else run.sourceSearches.push(Orchestrator.normalizeSourceSearch(comparableCitySearch, 'comparable-city'));
+    }
+    return run;
+  };
   const initial = build({}, {});
   const evidenceIndex = {}, evidenceSearches = [], evidenceDiscovery = [];
   for (const candidate of initial.candidates) {
