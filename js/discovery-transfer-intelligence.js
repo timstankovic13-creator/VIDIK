@@ -16,9 +16,9 @@ function comparableConcepts(text = '') {
   const normalized = String(text || '').normalize('NFKD').toLowerCase();
   const concepts = new Set(tokens(normalized));
   const groups = [
-    { match: /\bviolent\\s+crime\b|\bserious\\s+violence\b|\bcommunity\\s+violence\b/, terms: ['violence', 'violent', 'crime', 'safety', 'public-safety'] },
-    { match: /\bcrime\b|\bpublic\\s+safety\b/, terms: ['crime', 'safety', 'public-safety'] },
-    { match: /\bhomeless|rough\\s+sleeping|housing\\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
+    { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'safety', 'public-safety'] },
+    { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'safety', 'public-safety'] },
+    { match: /\bhomeless|rough\s+sleeping|housing\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
     { match: /\boverdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
     { match: /\btraffic|pedestrian|road\\s+safety|congestion/, terms: ['traffic', 'mobility', 'road-safety'] },
     { match: /\bheat|wildfire\\s+smoke|flood|climate/, terms: ['climate', 'heat', 'smoke', 'flood'] }
@@ -76,6 +76,8 @@ function candidateKey(candidate) {
 }
 
 function comparableCityDiscoveryLeads(problem, comparableCities = []) {
+  const safeProblem = String(problem || '').trim();
+  if (!safeProblem) return [];
   const problemTokens = new Set(tokens(problem));
   const interventionFields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
   const leads = [];
@@ -110,7 +112,45 @@ function comparableCityDiscoveryLeads(problem, comparableCities = []) {
       }
     }
   }
-  return leads;
+  return leads.map(lead => ({ ...lead, discoveryRoute: 'comparable-city', leadOnly: true, effectsImported: false }));
+}
+
+function normalizeComparableCityRecord(record = {}) {
+  const city = String(record.city || record.name || record.jurisdiction || '').trim();
+  const jurisdiction = String(record.jurisdiction || city).trim() || null;
+  const fields = ['interventions', 'programs', 'initiatives', 'strategies', 'solutions'];
+  const interventions = fields.flatMap(field => {
+    const values = Array.isArray(record[field]) ? record[field] : record[field] ? [record[field]] : [];
+    return values.map(value => typeof value === 'string' ? { name: value } : value).filter(value => value && String(value.name || value.title || '').trim());
+  });
+  return {
+    ...record,
+    city,
+    jurisdiction,
+    interventions,
+    sourceId: record.sourceId || `comparable-city:${city.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    problemTags: unique(record.problemTags || []),
+    matchedSignals: unique(record.matchedSignals || []),
+    leadOnly: true,
+    effectsImported: false
+  };
+}
+
+function normalizeComparableCitySearchResult(result = {}) {
+  const records = Array.isArray(result?.cities) ? result.cities : Array.isArray(result?.comparableCities) ? result.comparableCities : [];
+  return {
+    sourceId: result.sourceId || 'comparable-city-intelligence',
+    sourceType: 'comparable-city',
+    jurisdiction: result.jurisdiction || null,
+    query: result.query || null,
+    status: ['failed','search-failed','error','blocked'].includes(result.status) ? 'search-failed' : (records.length ? 'candidates-found' : 'searched-empty'),
+    candidatesReturned: records.length,
+    candidates: records.map(normalizeComparableCityRecord),
+    provenance: result.provenance || null,
+    failureReason: result.failureReason || null,
+    retrievedAt: result.retrievedAt || null,
+    contentHash: result.contentHash || null
+  };
 }
 
 function buildCandidateUniverse(sourceResults = [], comparableCities = [], problem = '') {
@@ -261,4 +301,4 @@ function buildDecisionIntelligence({ problem, context = {}, sourceResults = [], 
   } };
 }
 
-module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
+module.exports = { SOURCE_ORDER, stable, hash, buildSearchStrategy, comparableCityDiscoveryLeads, normalizeComparableCityRecord, normalizeComparableCitySearchResult, buildCandidateUniverse, auditSearchCoverage, evidenceGate, rankCandidates, assessTransferability, whyNot, robustnessGate, recordOutcome, proposeRecalibration, buildDecisionIntelligence };
