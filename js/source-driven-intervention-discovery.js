@@ -1276,7 +1276,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       if (coverage.missingFamilies.length === 0) break;
     }
   }
-  // Literature is a discovery fallback, not an optional caller-supplied source. The automatic\n  // intervention-library path otherwise had no way to recover when government/catalogue\n  // indexes returned a thin candidate universe. Keep recovery bounded: only use the\n  // literature lane when the source-backed universe is still below the minimum, and cap the\n  // fallback to six controlled queries per literature source. Evidence remains a separate\n  // downstream gate; these are discovery leads only.\n  const allowLiteratureFallback = true;
+  // Literature is a discovery fallback, not an optional caller-supplied source. The automatic
+  // intervention-library path otherwise had no way to recover when government/catalogue
+  // indexes returned a thin candidate universe. Keep recovery bounded: only use the
+  // literature lane when the source-backed universe is still below the minimum, and cap the
+  // fallback to six controlled queries per literature source. Evidence remains a separate
+  // downstream gate; these are discovery leads only.
+  const allowLiteratureFallback = true;
   if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     const literatureSources = ['openalex-works','crossref-works'].map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId)).filter(Boolean).filter(source => sourceMatchesJurisdiction(source, jurisdiction));
     if (literatureSources.length) {
