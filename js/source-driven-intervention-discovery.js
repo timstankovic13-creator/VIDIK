@@ -986,6 +986,10 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
       terms: ['cooling centre','cooling center','cooling infrastructure','home cooling','shade infrastructure','tree canopy','cool roof','heat retrofit','heat-health','heat health','heatwave response','extreme heat response','thermal retrofit']
     },
     {
+      match: /wildfire smoke|bushfire smoke|smoke exposure/,
+      terms: ['wildfire smoke mitigation','smoke filtration','air filtration','clean air shelter','wildfire evacuation support','home air filtration','wildfire smoke preparedness']
+    },
+    {
       match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/,
       terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management','road resurfacing','bridge rehabilitation','water main renewal','sewer renewal','facility renewal','capital renewal']
     },
