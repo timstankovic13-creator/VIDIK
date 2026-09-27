@@ -594,7 +594,7 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
   // Administrative-footprint pivots remain retrieval-only and share this bounded
   // mechanism lane so they cannot be silently lost when the planner is capped.
-  add('procurement', 'contract', 'implementation program');
+  add('implementation program', 'procurement', 'contract');
   if (workspace === 'enterprise') add('operating model', 'service delivery model');
   // Administrative-footprint and mechanism pivots are retrieval channels only. They
   // deliberately use generic delivery nouns here because the source record—not the
