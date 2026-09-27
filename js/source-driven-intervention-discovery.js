@@ -676,11 +676,11 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   const caps = {
     original: 1,
     recall: 4,
-    'vocabulary-expansion': 3,
-    'family-expansion': 3,
+    'vocabulary-expansion': 2,
+    'family-expansion': 2,
     'legacy-class-expansion': 3,
-    'workspace-taxonomy': 2,
-    'mechanism/admin': 2
+    'workspace-taxonomy': 1,
+    'mechanism/admin': 5
   };
   const laneOrder = Object.keys(caps);
   const selected = [];
