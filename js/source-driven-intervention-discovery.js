@@ -682,7 +682,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     'legacy-class-expansion': 3,
     'workspace-taxonomy': 1,
     'business-implementation': 3,
-    'mechanism/admin': 2
+    'mechanism/admin': workspace === 'enterprise' ? 5 : 2
   };
   const laneOrder = Object.keys(caps);
   const selected = [];
