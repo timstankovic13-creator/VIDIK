@@ -580,111 +580,132 @@ function classifyDiscoveryQuery(query, problem, workspace='municipal') {
   return 'vocabulary-expansion';
 }
 
-function buildDiscoveryQueries(problem,workspace='municipal'){
-  const original=normalizeText(problem),normalized=original.toLowerCase(),queries=new Set([original]);
-  // Put observed blocked-case recall anchors ahead of broad synonym expansion. The source
-  // query budget is finite, so a correct recall lane must actually reach the upstream source
-  // instead of being crowded out by generic vocabulary variants. These remain retrieval
-  // anchors only; external source evidence and the normal extraction/relevance gates decide
-  // whether a candidate exists.
-  const recallQueries = [];
-  for (const term of discoveryRecallTerms(problem, workspace)) {
-    // One problem-scoped query per recall anchor preserves retrieval specificity while
-    // leaving finite budget for family, taxonomy, mechanism, and administrative layers.
-    const query = original + ' ' + term;
-    if (!queries.has(query)) {
-      queries.add(query);
-      recallQueries.push(query);
-    }
-  }
-  // Expand the user's problem vocabulary before family/taxonomy expansion. These are
-  // bounded alternate phrasings, not evidence: they only improve retrieval recall.
-  for (const variant of expandDiscoveryVocabulary(original, workspace, 8)) queries.add(variant);
-  const stripped=normalized.replace(/\b(reduce|increase|improve|prevent|address|mitigate|lower|decrease|support|expand|eliminate|evaluate|study)\b/g,' ').replace(/\s+/g,' ').trim();
-  if(stripped&&stripped!==normalized) queries.add(stripped);
-  const expected=new Set(expectedInterventionFamilies(original,workspace));
-  const families=[...new Set([...expected,...inferInterventionFamily(normalized)])];
-  const taxonomy=taxonomyTerms(original,workspace);
-
-  // The class ontology is a coverage guard, so it gets a deliberate slice of the
-  // finite retrieval budget rather than being appended after family/taxonomy terms
-  // and silently truncated. These are search anchors only; candidates still have to
-  // come from an external source and pass the normal intervention filters.
-  const classQueries=missingInterventionClassSearchQueries(problem,workspace,[])
-    .slice(0,6);
-  for(const term of classQueries) queries.add(term);
-
-  // Keep family discovery bounded but guaranteed a meaningful share of the budget.
-  // This preserves problem-specific intervention families while preventing one large
-  // family vocabulary from crowding out the recovered class ontology.
-  let familyQueriesAdded=0;
-  const familyQueryBudget=6;
-  for(const family of families){
-    const problemTokens = normalized.split(/[^a-z0-9]+/).filter(token => token.length > 2 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study'].includes(token));
-    const familyTerms = [...(INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])].sort((a,b) => {
-      const score = term => problemTokens.reduce((sum, token) => sum + (String(term).toLowerCase().includes(token) ? 1 : 0), 0);
-      return score(b) - score(a);
-    });
-    for(const term of familyTerms){
-      if(familyQueriesAdded>=familyQueryBudget) break;
-      const query=original+' '+term;
-      if(!queries.has(query)){ queries.add(query); familyQueriesAdded++; }
-    }
-    if(familyQueriesAdded>=familyQueryBudget) break;
-  }
-
-  // Reserve a taxonomy query for each relevant workspace domain, then use any
-  // remaining budget for additional workspace-specific terms.
-  const domains=inferWorkspaceDomains(original,workspace);
-  const reservedTaxonomy=new Set();
-  const workspaceTaxonomy=WORKSPACE_TAXONOMIES[workspace]||WORKSPACE_TAXONOMIES.municipal;
-  for(const domain of domains){
-    const first=workspaceTaxonomy[domain]?.[0];
-    if(first){ queries.add(original+' '+first); reservedTaxonomy.add(first); }
-  }
-  for(const term of taxonomy) if(!reservedTaxonomy.has(term)) queries.add(term);
-  // Reserve mechanism and administrative discovery lanes explicitly. These are
-  // retrieval pivots only; they never manufacture candidates or bypass evidence gates.
-  const rankPivot = (term) => {
-    const value = String(term).toLowerCase();
-    let score = 0;
-    if (workspace === 'business' && /business|customer|retention|operational|workforce/.test(value)) score += 5;
-    if (workspace === 'business' && /process|workflow|operations|automation/.test(value)) score += 6;
-    if (workspace === 'community' && /community|neighbourhood|local|nonprofit/.test(value)) score += 5;
-    if (workspace === 'research' && /evaluation|implementation study|pilot/.test(value)) score += 5;
-    if (workspace === 'enterprise' && /process|service modernization|operational|change management|security|technology/.test(value)) score += 5;
-    if (/cyber|digital|procurement/.test(normalized) && /security|technology|process|workflow|digital|procurement/.test(value)) score += 4;
-    if (/violence|crime|safety/.test(normalized) && /violence|community|public safety|outreach/.test(value)) score += 4;
-    if (/housing|homeless|eviction|rough sleeping/.test(normalized) && /housing|rental|tenant/.test(value)) score += 4;
-    if (/heat|smoke|wildfire|bushfire|flood|disaster|climate/.test(normalized) && /resilience|preparedness|warning|shelter|evacuation|retrofit/.test(value)) score += 4;
-    if (/transit|traffic|pedestrian|mobility|congestion/.test(normalized) && /transit|lane|signal|traffic|road|fleet/.test(value)) score += 4;
-    return score;
+function buildMechanismSearchQueries(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem);
+  const domains = inferWorkspaceDomains(normalized, workspace);
+  const mechanisms = new Set();
+  const add = term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); };
+  // Administrative-footprint and mechanism pivots are retrieval channels only. They
+  // deliberately use generic delivery nouns here because the source record—not the
+  // query—must establish the concrete intervention and pass the normal gates.
+  const pivotsByDomain = {
+    'public-safety': ['municipal program', 'service delivery', 'implementation program'],
+    housing: ['housing program', 'housing service', 'rental assistance program'],
+    'health-service': ['health service', 'care program', 'service delivery'],
+    'food-access': ['food access program', 'food assistance program', 'community food service'],
+    'climate-resilience': ['resilience program', 'adaptation program', 'emergency preparedness program'],
+    'mobility-safety': ['road safety program', 'transport service', 'traffic safety program'],
+    employment: ['employment program', 'workforce program', 'job training program'],
+    'economic-support': ['grant program', 'funding program', 'business support program'],
+    infrastructure: ['capital program', 'maintenance program', 'asset management program'],
+    'digital-access': ['digital inclusion program', 'broadband program', 'device access program'],
+    regulatory: ['regulatory program', 'permit modernization program', 'inspection program'],
+    accessibility: ['accessibility program', 'accessible service', 'accommodation program'],
+    cybersecurity: ['cybersecurity program', 'security program', 'incident response program'],
+    'public-service': ['service redesign program', 'service delivery', 'capacity expansion program'],
+    environmental: ['environmental program', 'pollution control program', 'waste reduction program'],
+    energy: ['energy assistance program', 'energy efficiency program', 'weatherization program'],
+    education: ['education program', 'student support program', 'school service program']
   };
-  const mechanismPivots = discoveryMechanismPivots(problem, workspace)
-    .map((term, index) => ({ term, index, score: rankPivot(term) }))
-    .sort((a,b) => b.score - a.score || a.index - b.index)
-    .map(item => item.term);
-  const administrativePivots = discoveryAdministrativePivots(problem, workspace)
-    .map((term, index) => ({ term, index, score: rankPivot(term) }))
-    .sort((a,b) => b.score - a.score || a.index - b.index)
-    .map(item => item.term);
-  const mechanismQueries = mechanismPivots.slice(0, 4).map(term => original + ' ' + term);
-  const administrativeQueries = administrativePivots.slice(0, 3).map(term => original + ' ' + term);
-  for (const query of [...mechanismQueries, ...administrativeQueries]) queries.add(query);
-
-  // Keep a fixed share of the finite source budget for each discovery layer.
-  // Recall gets the first eight slots, followed by mechanism, administrative, and
-  // class coverage. Remaining capacity is filled by the broader vocabulary/taxonomy
-  // pool. No layer creates candidates; it only controls retrieval recall.
-  const prioritized = [
-    ...recallQueries.slice(0, 8),
-    ...mechanismQueries,
-    ...administrativeQueries,
-    ...classQueries.slice(0, 3),
-    ...[...queries]
-  ];
-  return [...new Set(prioritized)].filter(Boolean).slice(0,DISCOVERY_MAX_QUERIES_PER_SOURCE);
+  for (const domain of domains) for (const term of (pivotsByDomain[domain] || []).slice(0, 2)) add(term);
+  if (!mechanisms.size) {
+    add('program');
+    add('service');
+  }
+  return [...mechanisms];
 }
+
+function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = DISCOVERY_MAX_QUERIES_PER_SOURCE) {
+  const original = normalizeText(problem);
+  const normalized = original.toLowerCase();
+  const lanes = new Map([
+    ['original', [original]],
+    ['recall', []],
+    ['vocabulary-expansion', expandDiscoveryVocabulary(original, workspace, 8)],
+    ['family-expansion', []],
+    ['legacy-class-expansion', missingInterventionClassSearchQueries(problem, workspace, [])],
+    ['workspace-taxonomy', []],
+    ['mechanism/admin', buildMechanismSearchQueries(original, workspace)]
+  ]);
+
+  // Historical recall packs are a first-class acquisition lane, but only a bounded,
+  // diverse slice gets budget. Direct anchors are especially useful for CKAN/GOV.UK
+  // indexes that behave like AND queries.
+  const recallTerms = discoveryRecallTerms(original, workspace);
+  lanes.set('recall', [...new Set([
+    ...recallTerms,
+    ...recallTerms.map(term => original + ' ' + term)
+  ])]);
+
+  const expected = [...new Set([
+    ...expectedInterventionFamilies(original, workspace),
+    ...inferInterventionFamily(normalized)
+  ])];
+  const familyQueries = [];
+  for (const family of expected) {
+    for (const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])) {
+      familyQueries.push(original + ' ' + term);
+    }
+  }
+  lanes.set('family-expansion', [...new Set(familyQueries)]);
+
+  const taxonomy = taxonomyTerms(original, workspace);
+  const domains = inferWorkspaceDomains(original, workspace);
+  const workspaceTaxonomy = WORKSPACE_TAXONOMIES[workspace] || {};
+  const taxonomyQueries = [];
+  for (const domain of domains) {
+    const first = workspaceTaxonomy[domain]?.[0];
+    if (first) taxonomyQueries.push(original + ' ' + first);
+  }
+  taxonomyQueries.push(...taxonomy.map(term => original + ' ' + term));
+  lanes.set('workspace-taxonomy', [...new Set(taxonomyQueries)]);
+
+  // Fixed lane caps prevent a large recall pack from consuming the entire source
+  // budget and starving the older missing-family/class mechanisms.
+  const caps = {
+    original: 1,
+    recall: 4,
+    'vocabulary-expansion': 3,
+    'family-expansion': 3,
+    'legacy-class-expansion': 3,
+    'workspace-taxonomy': 2,
+    'mechanism/admin': 2
+  };
+  const laneOrder = [...caps.keys()];
+  const selected = [];
+  const seen = new Set();
+
+  for (const lane of laneOrder) {
+    for (const query of lanes.get(lane) || []) {
+      const q = normalizeText(query);
+      if (!q || seen.has(q)) continue;
+      selected.push({ query: q, queryLayer: lane });
+      seen.add(q);
+      if (selected.filter(item => item.queryLayer === lane).length >= caps[lane]) break;
+    }
+  }
+
+  // If a lane has fewer terms than its cap, backfill from the remaining historical
+  // lanes rather than silently throwing away available source-query budget.
+  if (selected.length < maxQueries) {
+    for (const lane of laneOrder) {
+      for (const query of lanes.get(lane) || []) {
+        const q = normalizeText(query);
+        if (!q || seen.has(q)) continue;
+        selected.push({ query: q, queryLayer: lane });
+        seen.add(q);
+        if (selected.length >= maxQueries) break;
+      }
+      if (selected.length >= maxQueries) break;
+    }
+  }
+  return selected.slice(0, maxQueries);
+}
+
+function buildDiscoveryQueries(problem, workspace = 'municipal') {
+  return buildDiscoveryQueryPlan(problem, workspace).map(item => item.query);
+}
+
 function extractConcreteInterventionFromDescription(problem, workspace, description = '') {
   const text = normalizeText(description).toLowerCase();
   if (!text) return [];
@@ -1129,17 +1150,17 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
 }
 async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
-  const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queries=buildDiscoveryQueries(problem,workspace);
+  const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queryPlan=buildDiscoveryQueryPlan(problem,workspace),queries=queryPlan.map(item=>item.query);
   for(const source of selected){
     const attempts=[],sourceCandidates=[];
-    for(const query of queries.slice(0, Math.max(1, DISCOVERY_MAX_QUERIES_PER_SOURCE - 6))){
+    for(const plannedQuery of queryPlan){\n      const query = plannedQuery.query;
       try{
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
-        attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
       }catch(error){attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});}
     }
@@ -1339,4 +1360,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
