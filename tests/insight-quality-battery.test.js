@@ -136,6 +136,35 @@ function candidateRelevant(problem, candidate, workspace) {
   return interventionMatchesProblem(problem, candidate, workspace);
 }
 
+test('unified discovery planner preserves historical recall, family, class, taxonomy, and mechanism lanes within one source budget', () => {
+  const discoveryModule = require('../js/source-driven-intervention-discovery');
+  const plan = discoveryModule.buildDiscoveryQueryPlan('reduce violent crime', 'municipal');
+  assert.equal(plan.length, 18);
+  assert.ok(plan.some(item => item.query === 'reduce violent crime' && item.queryLayer === 'original'));
+  assert.ok(plan.some(item => /focused deterrence|community violence intervention|violence interruption/i.test(item.query) && item.queryLayer === 'recall'));
+  assert.ok(plan.some(item => item.queryLayer === 'family-expansion'));
+  assert.ok(plan.some(item => item.queryLayer === 'legacy-class-expansion'));
+  assert.ok(plan.some(item => item.queryLayer === 'workspace-taxonomy'));
+  assert.ok(plan.some(item => item.queryLayer === 'mechanism/admin'));
+  assert.equal(new Set(plan.map(item => item.query)).size, plan.length);
+  assert.ok(plan.every(item => item.queryLayer && item.query));
+});
+
+test('unified planner does not let a large recall pack starve missing-class retrieval', () => {
+  const discoveryModule = require('../js/source-driven-intervention-discovery');
+  for (const [workspace, problem] of [
+    ['municipal', 'reduce violent crime'],
+    ['business', 'improve small business survival'],
+    ['enterprise', 'reduce procurement cycle time'],
+    ['research', 'study interventions to reduce pedestrian injuries']
+  ]) {
+    const plan = discoveryModule.buildDiscoveryQueryPlan(problem, workspace);
+    assert.ok(plan.some(item => item.queryLayer === 'legacy-class-expansion'), workspace + ': missing class lane was starved');
+    assert.ok(plan.some(item => item.queryLayer === 'family-expansion'), workspace + ': family lane was starved');
+    assert.ok(plan.some(item => item.queryLayer === 'workspace-taxonomy'), workspace + ': taxonomy lane was starved');
+  }
+});
+
 test('targeted recall packs cover the observed blocked-case discovery lanes without changing taxonomy synthesis', () => {
   const cases = [
     ['municipal','reduce violent crime', /focused deterrence|community violence intervention|violence interruption/i],
