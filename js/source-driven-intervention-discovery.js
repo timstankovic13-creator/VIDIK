@@ -592,13 +592,9 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   // lane has a deliberately small query cap.
   if (workspace === 'business') add('process redesign', 'workflow automation', 'operational improvement');
   if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
-  // Administrative-footprint pivots remain retrieval-only and share this bounded
-  // mechanism lane so they cannot be silently lost when the planner is capped.
-  add('implementation program', 'procurement', 'contract');
-  if (workspace === 'enterprise') add('operating model', 'service delivery model');
-  // Administrative-footprint and mechanism pivots are retrieval channels only. They
-  // deliberately use generic delivery nouns here because the source record—not the
-  // query—must establish the concrete intervention and pass the normal gates.
+  // Domain-specific implementation pivots get first claim on this bounded lane.
+  // Generic administrative terms are retained as fallback, but must not displace
+  // the problem-domain vocabulary when the two-query cap is reached.
   const pivotsByDomain = {
     'public-safety': ['municipal program', 'service delivery', 'implementation program'],
     housing: ['housing program', 'housing service', 'rental assistance program'],
@@ -619,6 +615,11 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
     education: ['education program', 'student support program', 'school service program']
   };
   for (const domain of domains) for (const term of (pivotsByDomain[domain] || []).slice(0, 2)) add(term);
+  // Generic implementation/admin pivots remain available after domain anchors.
+  // If no domain vocabulary applies, implementation program is the first generic
+  // anchor so operational discovery is still represented.
+  add('implementation program', 'procurement', 'contract');
+  if (workspace === 'enterprise') add('operating model', 'service delivery model');
   if (!mechanisms.size) {
     add('program');
     add('service');
