@@ -636,6 +636,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     ['family-expansion', []],
     ['legacy-class-expansion', missingInterventionClassSearchQueries(problem, workspace, [])],
     ['workspace-taxonomy', []],
+    ['business-implementation', workspace === 'business' ? ['process redesign', 'workflow automation', 'operational improvement'].map(term => normalizeText(original + ' ' + term)) : []],
     ['mechanism/admin', buildMechanismSearchQueries(original, workspace)]
   ]);
 
@@ -680,7 +681,8 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     'family-expansion': 2,
     'legacy-class-expansion': 3,
     'workspace-taxonomy': 1,
-    'mechanism/admin': 5
+    'business-implementation': 3,
+    'mechanism/admin': 2
   };
   const laneOrder = Object.keys(caps);
   const selected = [];
