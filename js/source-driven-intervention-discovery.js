@@ -617,7 +617,8 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
     energy: ['energy assistance program', 'energy efficiency program', 'weatherization program'],
     education: ['education program', 'student support program', 'school service program']
   };
-  for (const domain of domains) for (const term of (pivotsByDomain[domain] || []).slice(0, 2)) add(term);
+  const domainPivotTerms = domains.flatMap(domain => (pivotsByDomain[domain] || []).slice(0, 2));
+  for (const term of domainPivotTerms.slice(0, workspace === 'enterprise' ? 1 : 2)) add(term);
   // Generic implementation/admin pivots remain available after domain anchors.
   // If no domain vocabulary applies, implementation program is the first generic
   // anchor so operational discovery is still represented.
