@@ -1054,7 +1054,13 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // mechanism matches above are the only route for source-text-supported relevance.
   const candidateTokens=evidenceConceptTokensForIntervention(normalizeText(candidate?.name || '').toLowerCase());
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
+  const GENERIC_FALLBACK_SIGNALS = new Set([
+    'program','programme','project','initiative','pilot','grant','fund','funding',
+    'service','scheme','action plan','benefit','support','assistance','response',
+    'training','subsidy'
+  ]);
   const titleHasStrongInterventionSignal = STRONG_INTERVENTION_TERMS.some(term =>
+    !GENERIC_FALLBACK_SIGNALS.has(String(term).toLowerCase()) &&
     candidateLower.includes(String(term).toLowerCase())
   );
   if (taxonomyHit && titleHasStrongInterventionSignal) return true;
