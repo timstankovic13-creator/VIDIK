@@ -109,7 +109,6 @@ test('flagship open-world decision traverses the complete governed decision chai
   assert.ok(run.intelligence?.discovery?.transferLeads?.length >= 2,
     'decision intelligence did not expose its canonical comparable-city transfer leads');
   const discoveryAudit = run.intelligence?.discovery?.audit;
-  console.log('DEBUG_FLAGSHIP_CANDIDATES', JSON.stringify({count: run.candidates.length, names: run.candidates.map(candidate => candidate.name), sourceTypes: [...new Set(run.candidates.map(candidate => candidate.discovery?.sourceType))]}));
   assert.ok(discoveryAudit);
   assert.equal(discoveryAudit.candidateCount, run.candidates.length);
   assert.ok(discoveryAudit.candidateNames.length >= 5, 'flagship candidate universe is too narrow');
