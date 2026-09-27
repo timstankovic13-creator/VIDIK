@@ -689,12 +689,18 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   const seen = new Set();
 
   for (const lane of laneOrder) {
+    let laneSelected = 0;
     for (const query of lanes.get(lane) || []) {
       const q = normalizeText(query);
       if (!q || seen.has(q)) continue;
       selected.push({ query: q, queryLayer: lane === 'legacy-class-expansion' ? 'missing-class-expansion' : lane });
       seen.add(q);
-      if (selected.filter(item => item.queryLayer === lane).length >= caps[lane]) break;
+      laneSelected += 1;
+      // Count against the source lane, not the public queryLayer alias. The
+      // legacy lane is emitted as "missing-class-expansion", so comparing the
+      // public label to "legacy-class-expansion" never incremented its cap and
+      // allowed it to consume every remaining slot before mechanism/admin lanes.
+      if (laneSelected >= caps[lane]) break;
     }
   }
 
