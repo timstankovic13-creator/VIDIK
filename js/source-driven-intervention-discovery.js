@@ -1053,7 +1053,8 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // a false relevance hit. General token overlap is intentionally title-based; controlled
   // mechanism matches above are the only route for source-text-supported relevance.
   const candidateTokens=evidenceConceptTokensForIntervention(normalizeText(candidate?.name || '').toLowerCase());
-  const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
+  const tokenOverlapCount = problemTokens.filter(token => candidateTokens.includes(token)).length;
+  const tokenHit = tokenOverlapCount > 0;
   const GENERIC_FALLBACK_SIGNALS = new Set([
     'program','programme','project','initiative','pilot','grant','fund','funding',
     'service','scheme','action plan','benefit','support','assistance','response',
@@ -1064,7 +1065,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     candidateLower.includes(String(term).toLowerCase())
   );
   if (taxonomyHit && titleHasStrongInterventionSignal) return true;
-  if (tokenHit && titleHasStrongInterventionSignal) return true;
+  if (tokenHit && (titleHasStrongInterventionSignal || tokenOverlapCount >= 2)) return true;
   if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
@@ -1095,7 +1096,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     const candidateHit = group.some(term => candidateLower.includes(term));
     if (problemHit && candidateHit) return true;
   }
-  return tokenHit && titleHasStrongInterventionSignal;
+  return tokenHit && (titleHasStrongInterventionSignal || tokenOverlapCount >= 2);
 }
 function missingFamilySearchQueries(problem,workspace,candidates=[]){
   const coverage=discoveryCoverage(problem,workspace,candidates),queries=[];
