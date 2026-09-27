@@ -1034,7 +1034,11 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemSpecific = problemSpecificRelevance(problem, candidate, workspace);
   if (problemSpecific === false) return false;
   if (problemSpecific === true) return true;
-  const problemLower=problemText.toLowerCase(),candidateLower=candidateText.toLowerCase();
+  const problemLower=problemText.toLowerCase();
+  // Semantic relevance must inspect the intervention title, not the source description.
+  // Otherwise a retrieved record that merely repeats the problem can satisfy a broad
+  // domain group and become a false positive.
+  const candidateLower=normalizeText(candidate?.name || '').toLowerCase();
   const problemDomains=inferWorkspaceDomains(problemText,workspace),candidateDomains=[...new Set([...discoveryDomains(candidateText),...inferWorkspaceDomains(candidateText,workspace)])];
   const taxonomy=taxonomyTerms(problemText,workspace).map(term=>term.toLowerCase()).filter(Boolean);
   const enterpriseProfile = workspace === 'enterprise' ? enterpriseProblemProfile(problemText) : null;
