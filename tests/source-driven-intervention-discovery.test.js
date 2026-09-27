@@ -362,3 +362,33 @@ test('business discovery preserves implementation pivots for arbitrary operation
   assert.ok(queries.some(query => /business grant|working capital|business retention|business program/i.test(query)));
   assert.ok(queries.some(query => /process redesign|workflow automation|operational improvement/i.test(query)));
 });
+
+
+test('semantic relevance does not promote generic source records whose descriptions merely echo the problem', () => {
+  const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
+  const decoys = [
+    ['improve knowledge transfer between teams', 'UK Prosperity Fund: Turkey'],
+    ['improve knowledge transfer between teams', 'Funding to accelerate your knowledge assets towards the market'],
+    ['reduce cloud infrastructure costs', 'Iqaluit, Nunavut (CYFB) Enhanced Site for Canadian Arctic Weather Science (CAWS) Project'],
+    ['reduce cloud infrastructure costs', 'Asset management practices for publicly owned wastewater assets'],
+    ['reduce cloud infrastructure costs', 'Treatment of oil sands process-affected waters using a pilot-scale hybrid constructed wetland'],
+    ['reduce cloud infrastructure costs', 'Indigenous Justice Program']
+  ];
+  for (const [problem, name] of decoys) {
+    assert.equal(
+      interventionMatchesProblem(problem, {
+        name,
+        discoveryText: name + ' is a project or program record mentioning ' + problem
+      }, problem.includes('cloud') ? 'enterprise' : 'enterprise'),
+      false,
+      problem + ': leaked decoy ' + name
+    );
+  }
+  assert.equal(
+    interventionMatchesProblem('reduce cloud infrastructure costs', {
+      name: 'Cloud workload rightsizing and capacity optimization',
+      discoveryText: 'Operational service that reduces cloud infrastructure costs through workload rightsizing.'
+    }, 'enterprise'),
+    true
+  );
+});
