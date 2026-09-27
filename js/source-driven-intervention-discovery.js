@@ -1095,7 +1095,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     const candidateHit = group.some(term => candidateLower.includes(term));
     if (problemHit && candidateHit) return true;
   }
-  return tokenHit;
+  return tokenHit && titleHasStrongInterventionSignal;
 }
 function missingFamilySearchQueries(problem,workspace,candidates=[]){
   const coverage=discoveryCoverage(problem,workspace,candidates),queries=[];
