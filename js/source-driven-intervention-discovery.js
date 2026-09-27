@@ -585,6 +585,13 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   const domains = inferWorkspaceDomains(normalized, workspace);
   const mechanisms = new Set();
   const add = term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); };
+  // Preserve the historically explicit workspace implementation pivots before the
+  // generic delivery vocabulary. These are retrieval channels only; the returned
+  // source record still has to establish the concrete intervention and pass all
+  // normal gates. Keeping workspace-specific pivots first is important because this
+  // lane has a deliberately small query cap.
+  if (workspace === 'business') add('process redesign', 'workflow automation', 'operational improvement');
+  if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
   // Administrative-footprint and mechanism pivots are retrieval channels only. They
   // deliberately use generic delivery nouns here because the source record—not the
   // query—must establish the concrete intervention and pass the normal gates.
@@ -679,7 +686,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     for (const query of lanes.get(lane) || []) {
       const q = normalizeText(query);
       if (!q || seen.has(q)) continue;
-      selected.push({ query: q, queryLayer: lane });
+      selected.push({ query: q, queryLayer: lane === 'legacy-class-expansion' ? 'missing-class-expansion' : lane });
       seen.add(q);
       if (selected.filter(item => item.queryLayer === lane).length >= caps[lane]) break;
     }
@@ -692,7 +699,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
       for (const query of lanes.get(lane) || []) {
         const q = normalizeText(query);
         if (!q || seen.has(q)) continue;
-        selected.push({ query: q, queryLayer: lane });
+        selected.push({ query: q, queryLayer: lane === 'legacy-class-expansion' ? 'missing-class-expansion' : lane });
         seen.add(q);
         if (selected.length >= maxQueries) break;
       }
