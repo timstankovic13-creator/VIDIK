@@ -244,6 +244,7 @@ function enterpriseProblemProfile(problem) {
       'process automation','workflow redesign','supplier diversification','capacity planning'
     ] },
     { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
+    { match: /cloud infrastructure costs|cloud costs|cloud cost optimization|cloud spending/, classes: ['cloud cost optimization','workload rightsizing','capacity optimization','autoscaling','reserved capacity optimization','storage optimization','finops'] },
     { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
     { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','permit modernization','inspection reform'] },
     { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls'] },
@@ -1044,7 +1045,10 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const GENERIC_RELEVANCE_TERMS = new Set(['governance','response','delivery','data','customer','customers','digital','service','services','access']);
   const taxonomyHit=taxonomy.some(term=>term.length > 4 && !GENERIC_RELEVANCE_TERMS.has(term) && candidateLower.includes(term));
   const problemTokens=evidenceConceptTokensForIntervention(problemLower);
-  const candidateTokens=evidenceConceptTokensForIntervention(candidateLower);
+  // Do not let the source description echo the user's problem and thereby create
+  // a false relevance hit. General token overlap is intentionally title-based; controlled
+  // mechanism matches above are the only route for source-text-supported relevance.
+  const candidateTokens=evidenceConceptTokensForIntervention(normalizeText(candidate?.name || '').toLowerCase());
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
   if(taxonomyHit) return true;
   if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
