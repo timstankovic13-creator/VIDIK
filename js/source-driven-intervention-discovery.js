@@ -994,7 +994,14 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
   if (!rule) return null;
   // Use the candidate itself as the relevance object. Do not let the user's query,
   // source query echo, or generic domain membership manufacture relevance.
-  const hit = rule.terms.some(term => name.includes(term) || text.includes(term));
+  // Relevance must be supported by the candidate title or a controlled intervention
+  // mechanism in the source text. A generic source description mentioning the problem
+  // is not enough to turn an unrelated project/report into an intervention.
+  const controlledMechanismHit = rule.terms.some(term => name.includes(term));
+  const recallMechanismHit = recallPack
+    ? recallPack.terms.some(term => name.includes(String(term).toLowerCase()))
+    : false;
+  const hit = controlledMechanismHit || recallMechanismHit;
   if (!hit) return false;
 
   // Eviction prevention is an actionable housing intervention, but it targets
@@ -1063,7 +1070,7 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
     ['water quality','drinking water','contaminated water','water pollution','water treatment','source water protection'],
     ['waste','landfill','solid waste','waste reduction','recycling','organics','collection service redesign'],
     ['mental health','psychological distress','behavioral health','mental health support','peer support','community health worker','care navigation','mobile crisis response'],
-    ['infrastructure','facility','project','preventive maintenance','asset management','capacity expansion','redundancy','retrofit']
+    ['infrastructure','facility','preventive maintenance','asset management','capacity expansion','redundancy','retrofit']
   ];
   for (const group of semanticGroups) {
     const problemHit = group.some(term => problemLower.includes(term));
