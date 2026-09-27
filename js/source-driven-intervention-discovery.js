@@ -988,6 +988,10 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
     {
       match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/,
       terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management','road resurfacing','bridge rehabilitation','water main renewal','sewer renewal','facility renewal','capital renewal']
+    },
+    {
+      match: /traffic fatalities|traffic injuries|pedestrian injuries|road safety/,
+      terms: ['traffic safety enforcement','road safety infrastructure project','traffic calming','protected bike lane','pedestrian crossing','speed management','speed enforcement','signal timing','road diet','safe routes']
     }
   ];
 
@@ -1050,7 +1054,11 @@ function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   // mechanism matches above are the only route for source-text-supported relevance.
   const candidateTokens=evidenceConceptTokensForIntervention(normalizeText(candidate?.name || '').toLowerCase());
   const tokenHit=problemTokens.some(token=>candidateTokens.includes(token));
-  if(taxonomyHit) return true;
+  const titleHasStrongInterventionSignal = STRONG_INTERVENTION_TERMS.some(term =>
+    candidateLower.includes(String(term).toLowerCase())
+  );
+  if (taxonomyHit && titleHasStrongInterventionSignal) return true;
+  if (tokenHit && titleHasStrongInterventionSignal) return true;
   if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
   const semanticGroups = [
     ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
