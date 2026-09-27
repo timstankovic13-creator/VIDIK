@@ -1153,7 +1153,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queryPlan=buildDiscoveryQueryPlan(problem,workspace),queries=queryPlan.map(item=>item.query);
   for(const source of selected){
     const attempts=[],sourceCandidates=[];
-    for(const plannedQuery of queryPlan){\n      const query = plannedQuery.query;
+    for(const plannedQuery of queryPlan){
+      const query = plannedQuery.query;
       try{
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
