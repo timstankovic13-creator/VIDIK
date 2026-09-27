@@ -585,6 +585,9 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   const domains = inferWorkspaceDomains(normalized, workspace);
   const mechanisms = new Set();
   const add = (...terms) => terms.forEach(term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); });
+  // Preserve workspace-specific operational vocabulary as a distinct channel.
+  if (workspace === 'business') add('process redesign', 'workflow automation', 'operational improvement');
+  if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
   // Preserve the historically explicit workspace implementation pivots before the
   // generic delivery vocabulary. These are retrieval channels only; the returned
   // source record still has to establish the concrete intervention and pass all
