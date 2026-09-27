@@ -499,7 +499,7 @@ function discoveryMechanismPivots(problem, workspace = 'municipal') {
   if (workspace === 'business') add('business retention', 'customer retention', 'operational improvement', 'workforce development');
   if (workspace === 'community') add('community program', 'community service', 'neighbourhood program', 'local partnership');
   if (workspace === 'research') add('program evaluation', 'intervention evaluation', 'implementation study', 'pilot program');
-  if (workspace === 'enterprise') add('process improvement', 'service modernization');
+  if (workspace === 'enterprise') add('process improvement');
   return pivots;
 }
 
