@@ -671,7 +671,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     'workspace-taxonomy': 2,
     'mechanism/admin': 2
   };
-  const laneOrder = [...caps.keys()];
+  const laneOrder = Object.keys(caps);
   const selected = [];
   const seen = new Set();
 
