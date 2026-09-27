@@ -584,7 +584,7 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   const normalized = normalizeText(problem);
   const domains = inferWorkspaceDomains(normalized, workspace);
   const mechanisms = new Set();
-  const add = term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); };
+  const add = (...terms) => terms.forEach(term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); });
   // Preserve the historically explicit workspace implementation pivots before the
   // generic delivery vocabulary. These are retrieval channels only; the returned
   // source record still has to establish the concrete intervention and pass all
@@ -592,6 +592,10 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   // lane has a deliberately small query cap.
   if (workspace === 'business') add('process redesign', 'workflow automation', 'operational improvement');
   if (workspace === 'enterprise') add('process improvement', 'service modernization', 'operational controls', 'change management');
+  // Administrative-footprint pivots remain retrieval-only and share this bounded
+  // mechanism lane so they cannot be silently lost when the planner is capped.
+  add('procurement', 'contract', 'implementation program');
+  if (workspace === 'enterprise') add('operating model', 'service delivery model');
   // Administrative-footprint and mechanism pivots are retrieval channels only. They
   // deliberately use generic delivery nouns here because the source record—not the
   // query—must establish the concrete intervention and pass the normal gates.
