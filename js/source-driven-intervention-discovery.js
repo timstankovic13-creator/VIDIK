@@ -693,7 +693,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     for (const query of lanes.get(lane) || []) {
       const q = normalizeText(query);
       if (!q || seen.has(q)) continue;
-      selected.push({ query: q, queryLayer: lane === 'legacy-class-expansion' ? 'missing-class-expansion' : lane });
+      selected.push({ query: q, queryLayer: lane });
       seen.add(q);
       laneSelected += 1;
       // Count against the source lane, not the public queryLayer alias. The
@@ -704,18 +704,41 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     }
   }
 
-  // If a lane has fewer terms than its cap, backfill from the remaining historical
-  // lanes rather than silently throwing away available source-query budget.
+  // Backfill unused capacity, then enforce representation of every non-empty
+  // late discovery lane. Deduplication can otherwise make a lane appear empty
+  // even when its retrieval vocabulary is available, which lets early recall
+  // expansion consume the entire effective budget.
   if (selected.length < maxQueries) {
     for (const lane of laneOrder) {
       for (const query of lanes.get(lane) || []) {
         const q = normalizeText(query);
         if (!q || seen.has(q)) continue;
-        selected.push({ query: q, queryLayer: lane === 'legacy-class-expansion' ? 'missing-class-expansion' : lane });
+        selected.push({ query: q, queryLayer: lane });
         seen.add(q);
         if (selected.length >= maxQueries) break;
       }
       if (selected.length >= maxQueries) break;
+    }
+  }
+
+  // The mechanism/admin lane is an independent intervention-discovery channel.
+  // Reserve one slot for it whenever it has a unique query; if all of its
+  // capped queries collided with earlier lanes, recover the first uncapped
+  // mechanism query by replacing the lowest-priority non-original expansion.
+  const mechanismQueries = lanes.get('mechanism/admin') || [];
+  const hasMechanism = selected.some(item => item.queryLayer === 'mechanism/admin');
+  if (mechanismQueries.length && !hasMechanism && selected.length >= maxQueries) {
+    const fallback = mechanismQueries.find(query => {
+      const q = normalizeText(query);
+      return q && !seen.has(q);
+    });
+    if (fallback) {
+      const replaceAt = [...selected.keys()].reverse().find(index =>
+        !['original', 'mechanism/admin'].includes(selected[index].queryLayer)
+      );
+      if (replaceAt !== undefined) {
+        selected[replaceAt] = { query: normalizeText(fallback), queryLayer: 'mechanism/admin' };
+      }
     }
   }
   return selected.slice(0, maxQueries);
@@ -1343,7 +1366,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.usableQueryCount += 1;
           sourceSearch.candidatesReturned += leads.length;
         } catch(error) {
-          sourceSearch.attempts.push({query,queryLayer:'missing-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:candidates.length});
+          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:candidates.length});
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
         }
@@ -1372,8 +1395,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     missingClasses:classCoverage.missingClasses,
     sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),
     queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original')),
-    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='missing-class-expansion')),
-    missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='missing-class-expansion').length,0),
+    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion')),
+    missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion').length,0),
     queryLaneCounts
   };
   const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
