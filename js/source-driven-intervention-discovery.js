@@ -1023,13 +1023,36 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
   const mechanismTerms = discoveryMechanismPivots(problem, workspace)
     .filter(term => /automation|redesign|training|staffing|outreach|navigation|subsidy|grant|facility|infrastructure|technology|service|program|intervention|pilot|preparedness|evacuation|retention|workflow|controls|security|maintenance/i.test(term))
     .slice(0, 6);
-  return [...new Set([
+
+  // Keep the existing problem-backed literature queries, but reserve part of the
+  // same bounded budget for controlled mechanism-only queries. Requiring the full
+  // decision sentence plus an intervention label can be too conjunctive for literature
+  // whose outcome wording differs from the decision wording. Extraction still requires
+  // a controlled VIDIK term and source-text problem-concept relevance.
+  const combined = [
     normalizedProblem,
     ...recallTerms.map(term => normalizedProblem + ' ' + term),
     ...classQueries,
     ...familyTerms.map(term => normalizedProblem + ' ' + term),
     ...taxonomy.map(term => normalizedProblem + ' ' + term),
     ...mechanismTerms.map(term => normalizedProblem + ' ' + term)
+  ].filter(Boolean);
+
+  const classMechanisms = classQueries.map(query => {
+    const prefix = normalizedProblem.toLowerCase() + ' ';
+    const lower = normalizeText(query).toLowerCase();
+    return lower.startsWith(prefix) ? normalizeText(query).slice(prefix.length) : normalizeText(query);
+  });
+  const controlledMechanisms = [
+    ...classMechanisms,
+    ...familyTerms,
+    ...mechanismTerms,
+    ...taxonomy
+  ].filter(term => String(term).length > 4);
+
+  return [...new Set([
+    ...combined,
+    ...controlledMechanisms
   ].filter(Boolean))].slice(0, 18);
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
