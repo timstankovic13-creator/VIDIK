@@ -1057,6 +1057,10 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
       terms: ['wildfire smoke mitigation','smoke filtration','air filtration','clean air shelter','wildfire evacuation support','home air filtration','wildfire smoke preparedness']
     },
     {
+      match: /sewer backups?|sewer backup|residential sewer backups?|stormwater backups?|drainage backups?/i,
+      terms: ['stormwater retrofit','stormwater and sewer retrofit','drainage improvement','drainage resilience','sewer renewal','sewer separation','backflow prevention','flood mitigation','stormwater management','stormwater retention','urban drainage','green infrastructure'],
+    },
+    {
       match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/,
       terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management','road resurfacing','bridge rehabilitation','water main renewal','sewer renewal','facility renewal','capital renewal']
     },
