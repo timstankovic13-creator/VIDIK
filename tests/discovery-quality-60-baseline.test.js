@@ -180,7 +180,14 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       ).length,
       topCandidates: candidates.slice(0, 5).map(candidate => candidate.name),
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      sourceFailureCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.failedQueryCount || 0), 0),
+      sourceEmptyCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.attempts || []).filter(attempt => attempt.status === 'searched-empty').length, 0),
+      sourceSearchCount: discovery.sourceSearches?.length || 0,
+      queryLayers: [...new Set((discovery.sourceSearches || []).flatMap(source => (source.attempts || []).map(attempt => attempt.queryLayer).filter(Boolean)))],
+      attemptedQueries: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.queriesAttempted || 0), 0),
+      missingFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
+      missingClasses: discovery.interventionUniverse.missingInterventionClasses || []
     };
   });
 
