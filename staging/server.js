@@ -3,23 +3,14 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-function loadPostgres() {
-  try {
-    return require('pg');
-  } catch (error) {
-    if (error && error.code !== 'MODULE_NOT_FOUND') throw error;
-    const { execFileSync } = require('child_process');
-    const npm = process.env.npm_execpath || 'npm';
-    console.warn('VIDIK staging: pg dependency missing; bootstrapping declared production dependency.');
-    execFileSync(npm, ['install', '--no-save', '--omit=dev', 'pg@8.16.3'], {
-      cwd: path.resolve(__dirname, '..'),
-      stdio: 'inherit',
-    });
-    return require('pg');
-  }
-}
+let Pool;
 
-const { Pool } = loadPostgres();
+function getPostgresPoolClass() {
+  if (!Pool) {
+    ({ Pool } = require('pg'));
+  }
+  return Pool;
+}
 const { executeFullCapacityDecision } = require('../js/decision-discovery-execution');
 const { buildWorkspaceContext, workspaceOutputTemplate } = require('../js/domain-workspaces');
 
@@ -48,7 +39,8 @@ function databaseSslConfig() {
 function getPool() {
   if (!databaseConfigured()) return null;
   if (!pool) {
-    pool = new Pool({
+    const PostgresPool = getPostgresPoolClass();
+    pool = new PostgresPool({
       connectionString: process.env.VIDIK_DATABASE_URL,
       ssl: databaseSslConfig(),
       connectionTimeoutMillis: 5000,

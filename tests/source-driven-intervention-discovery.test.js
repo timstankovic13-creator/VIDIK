@@ -345,3 +345,50 @@ test('municipal worker-displacement recall anchors reach the bounded source-quer
   const queries = buildDiscoveryQueries('reduce worker displacement', 'municipal');
   assert.ok(queries.slice(0, 8).some(query => /redeployment|worker transition|displacement support|reskilling/i.test(query)));
 });
+
+
+test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce cybersecurity incident risk', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(queries.some(query => /zero trust|multi factor authentication|endpoint detection/i.test(query)));
+  assert.ok(queries.some(query => /process improvement|service modernization|operational controls|change management/i.test(query)));
+  assert.ok(queries.some(query => /procurement|contract|implementation program|operating model|service delivery model/i.test(query)));
+});
+
+test('business discovery preserves implementation pivots for arbitrary operational problems', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('improve small business survival', 'business');
+  assert.ok(queries.some(query => /business grant|working capital|business retention|business program/i.test(query)));
+  assert.ok(queries.some(query => /process redesign|workflow automation|operational improvement/i.test(query)));
+});
+
+
+test('semantic relevance does not promote generic source records whose descriptions merely echo the problem', () => {
+  const { interventionMatchesProblem } = require('../js/source-driven-intervention-discovery');
+  const decoys = [
+    ['improve knowledge transfer between teams', 'UK Prosperity Fund: Turkey'],
+    ['improve knowledge transfer between teams', 'Funding to accelerate your knowledge assets towards the market'],
+    ['reduce cloud infrastructure costs', 'Iqaluit, Nunavut (CYFB) Enhanced Site for Canadian Arctic Weather Science (CAWS) Project'],
+    ['reduce cloud infrastructure costs', 'Asset management practices for publicly owned wastewater assets'],
+    ['reduce cloud infrastructure costs', 'Treatment of oil sands process-affected waters using a pilot-scale hybrid constructed wetland'],
+    ['reduce cloud infrastructure costs', 'Indigenous Justice Program']
+  ];
+  for (const [problem, name] of decoys) {
+    assert.equal(
+      interventionMatchesProblem(problem, {
+        name,
+        discoveryText: name + ' is a project or program record mentioning ' + problem
+      }, problem.includes('cloud') ? 'enterprise' : 'enterprise'),
+      false,
+      problem + ': leaked decoy ' + name
+    );
+  }
+  assert.equal(
+    interventionMatchesProblem('reduce cloud infrastructure costs', {
+      name: 'Cloud workload rightsizing and capacity optimization',
+      discoveryText: 'Operational service that reduces cloud infrastructure costs through workload rightsizing.'
+    }, 'enterprise'),
+    true
+  );
+});

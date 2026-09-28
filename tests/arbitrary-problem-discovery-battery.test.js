@@ -63,6 +63,12 @@ async function arbitraryProblemFetch(url) {
     const problem = parsed.searchParams.get('q') || 'unknown municipal problem';
     return mockResponse({ result: { results: interventionRecords(problem) } });
   }
+  if (parsed.hostname === 'api.crossref.org') {
+    const query = parsed.searchParams.get('query.bibliographic') || 'municipal intervention';
+    return mockResponse({ message: { items: [
+      { DOI: `10.5555/${encodeURIComponent(query.slice(0, 36))}`, title: [`Research evidence lead for ${query}`], abstract: `Municipal intervention evidence concerning ${query}.`, type: 'journal-article' }
+    ] } });
+  }
   if (parsed.hostname === 'api.openalex.org') {
     const query = parsed.searchParams.get('search') || 'municipal intervention';
     return mockResponse({ results: [
