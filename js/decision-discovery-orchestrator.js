@@ -65,6 +65,9 @@ function normalizeLead(lead, source = {}) {
       // and problem-relevance gates; dropping this marker here forces the older
       // generic lexical matcher to re-decide relevance and can discard valid leads.
       discoveryOnly: Boolean(lead.discovery?.discoveryOnly),
+      // Carry the explicit no-effect-import boundary as a boolean through the
+      // normalized acquisition record; undefined is not an acceptable substitute.
+      effectsImported: lead.discovery?.effectsImported === true,
       relevanceStatus: lead.discovery?.relevanceStatus || null,
       matchedProblemSignals: Array.isArray(lead.discovery?.matchedProblemSignals) ? lead.discovery.matchedProblemSignals : [],
       transferability: lead.transferability || lead.context || null,
