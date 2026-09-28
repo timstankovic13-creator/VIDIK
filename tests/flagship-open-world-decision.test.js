@@ -111,7 +111,7 @@ test('flagship open-world decision traverses the complete governed decision chai
   const discoveryAudit = run.intelligence?.discovery?.audit;
   assert.ok(discoveryAudit);
   assert.equal(discoveryAudit.candidateCount, run.candidates.length);
-  assert.ok(discoveryAudit.candidateNames.length >= 5, 'flagship candidate universe is too narrow');
+  assert.ok(discoveryAudit.candidateNames.length >= 5, `flagship candidate universe is too narrow: count=${discoveryAudit.candidateNames.length}; names=${JSON.stringify(discoveryAudit.candidateNames)}; sources=${JSON.stringify(discoveryAudit.sourceTypes)}; comparable=${discoveryAudit.comparableLeadCount}; runCandidates=${run.candidates.length}`);
   assert.ok(discoveryAudit.sourceTypes.length >= 2, 'flagship discovery used only one source channel');
   assert.equal(discoveryAudit.provenanceComplete, true);
   assert.ok(discoveryAudit.comparableLeadCount >= 2);
