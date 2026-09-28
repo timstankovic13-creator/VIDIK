@@ -15,7 +15,9 @@ function classifyDiscoveryFailure(error) {
     return { class: status === 429 ? 'rate-limited' : (status >= 500 ? 'upstream-5xx' : 'upstream-4xx'), stage: 'retrieval', terminal: status >= 400 && status < 500 && status !== 408 && status !== 425 && status !== 429 };
   }
   if (/timeout|timed out|abort|socket|fetch failed|ECONN|ENET|EAI_AGAIN/i.test(message)) return { class: 'transport-retryable', stage: 'retrieval', terminal: false };
-  if (/response-not-json/i.test(message)) return { class: 'response-parse', stage: 'retrieval', terminal: true };\n  if (/upstream-error/i.test(message)) return { class: 'upstream-response', stage: 'retrieval', terminal: true };\n  if (/too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', stage: 'source-selection', terminal: true };
+  if (/response-not-json/i.test(message)) return { class: 'response-parse', stage: 'retrieval', terminal: true };
+  if (/upstream-error/i.test(message)) return { class: 'upstream-response', stage: 'retrieval', terminal: true };
+  if (/too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', stage: 'source-selection', terminal: true };
   return { class: 'other', stage: 'retrieval', terminal: false };
 }
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
