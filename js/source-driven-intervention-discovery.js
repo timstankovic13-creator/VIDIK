@@ -1287,6 +1287,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.attempts.push({
             query,
             queryLayer: 'missing-family-expansion',
+            queryPhase: 'expansion',
             status: leads.length ? 'candidates-found' : 'searched-empty',
             candidatesReturned: leads.length,
             recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
@@ -1418,7 +1419,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.candidatesReturned += leads.length;
         } catch(error) {
           const failure = classifyDiscoveryFailure(error);
-          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
+          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',queryPhase:'expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
           if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
