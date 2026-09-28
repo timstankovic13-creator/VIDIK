@@ -57,7 +57,7 @@ test('4. evidence and ranking gates refuse unsupported candidates', () => {
 });
 
 test('5. comparable-city ideas remain transfer leads and require local validation', () => {
-  const universe = I.buildCandidateUniverse([], [{ city: 'Toronto', jurisdiction: 'Ontario', problemTags: ['pedestrian deaths'], interventions: ['School-zone speed management'] }]);
+  const universe = I.buildCandidateUniverse([], [{ city: 'Toronto', jurisdiction: 'Ontario', problemTags: ['pedestrian deaths'], interventions: ['School-zone speed management'] }], 'reduce pedestrian deaths');
   assert.equal(universe.candidates[0].leadOnly, true);
   assert.equal(universe.candidates[0].effectsImported, false);
   const transfer = I.assessTransferability({ problem: 'pedestrian deaths', population: 'large urban', jurisdiction: 'Ontario', institutionalCapacity: 'high', implementationEnvironment: 'urban', evidenceBase: 'study' }, {
