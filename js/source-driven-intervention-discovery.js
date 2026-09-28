@@ -927,7 +927,7 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
           ...queryBackedTerms.filter(term => !title.toLowerCase().includes(term))
         ])].slice(0, 3)
       : [];
-    for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
+    for (const term of [...new Set([...titleMatched, ...fallbackTerms])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
       const candidate = { name, discoveryText: searchable };
       const titleMatch = title.toLowerCase().includes(term);
