@@ -15,7 +15,8 @@ function unique(values) { return [...new Set(values.filter(Boolean).map(String))
 function comparableConcepts(text = '') {
   const normalized = String(text || '').normalize('NFKD').toLowerCase();
   const concepts = new Set(tokens(normalized));
-  // Generic safety is intentionally excluded from crime matching to prevent road-safety cross-contamination.\n  const groups = [
+  // Generic safety is intentionally excluded from crime matching to prevent road-safety cross-contamination.
+  const groups = [
     { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'public-safety', 'neighborhood safety', 'community safety', 'group violence'] },
     { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'public-safety', 'community safety', 'neighborhood safety'] },
     { match: /\bhomeless|rough\s+sleeping|housing\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
