@@ -197,11 +197,6 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   assert.equal(results.length, 60);
   assert.ok(results.every(result => result.grade));
-  assert.equal(
-    results.filter(result => result.candidateQualityDefects > 0).length,
-    results.filter(result => result.candidateQualityDefects > 0).length
-  );
-
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
     cases: results.length,
