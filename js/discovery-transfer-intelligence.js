@@ -16,7 +16,7 @@ function comparableConcepts(text = '') {
   const normalized = String(text || '').normalize('NFKD').toLowerCase();
   const concepts = new Set(tokens(normalized));
   const groups = [
-    { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'safety', 'public-safety'] },
+    { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'public-safety', 'neighborhood safety', 'community safety', 'group violence'] },
     { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'safety', 'public-safety'] },
     { match: /\bhomeless|rough\s+sleeping|housing\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
     { match: /\boverdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
