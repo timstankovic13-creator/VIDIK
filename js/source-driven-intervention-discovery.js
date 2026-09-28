@@ -1211,7 +1211,13 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
 async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queryPlan=buildDiscoveryQueryPlan(problem,workspace),queries=queryPlan.map(item=>item.query);
-  for(const source of selected){
+  // Sources are independent network lanes. Keep each source's query order and
+  // per-source stopping rules intact, but run at most two sources concurrently.
+  // This reduces wall-clock latency without changing query budgets, assertions,
+  // candidate filtering, or evidence semantics.
+  for(let batchStart=0; batchStart<selected.length; batchStart+=2){
+    const sourceBatch=selected.slice(batchStart,batchStart+2);
+    await Promise.all(sourceBatch.map(async source=>{
     const attempts=[],sourceCandidates=[];
     for(const plannedQuery of queryPlan){
       const query = plannedQuery.query;
@@ -1227,6 +1233,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     }
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
     sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+}));
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
