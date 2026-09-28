@@ -1050,9 +1050,14 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
     ...taxonomy
   ].filter(term => String(term).length > 4);
 
+  // Keep a bounded portion of the literature budget for mechanism-only retrieval.
+  // This must be an explicit allocation: appending controlled mechanisms after the
+  // full combined list would normally truncate them all away at 18.
+  const problemBackedBudget = 12;
+  const mechanismBudget = 6;
   return [...new Set([
-    ...combined,
-    ...controlledMechanisms
+    ...combined.slice(0, problemBackedBudget),
+    ...controlledMechanisms.slice(0, mechanismBudget)
   ].filter(Boolean))].slice(0, 18);
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
