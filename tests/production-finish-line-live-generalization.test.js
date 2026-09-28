@@ -53,6 +53,14 @@ test('wildfire smoke retrieval vocabulary remains actionable at the intervention
   assert.ok(queries.some(query => /wildfire smoke mitigation|smoke filtration|clean air shelter|wildfire evacuation support/i.test(query)));
 });
 
+
+test('youth unemployment expands to youth-employment intervention classes', () => {
+  const { buildDiscoveryQueries, expectedInterventionFamilies } = require('../js/source-driven-intervention-discovery');
+  const queries = buildDiscoveryQueries('reduce youth unemployment', 'municipal');
+  assert.ok(queries.some(query => /youth employment|youth apprenticeship|school-to-work transition|employment services/i.test(query)));
+  assert.ok(expectedInterventionFamilies('reduce youth unemployment', 'municipal').includes('employment'));
+});
+
 test('worker displacement expands to transition and redeployment intervention classes', async () => {
   const { buildDiscoveryQueries, taxonomyTerms, expectedInterventionFamilies } = require('../js/source-driven-intervention-discovery');
   const queries = buildDiscoveryQueries('reduce worker displacement', 'research');
