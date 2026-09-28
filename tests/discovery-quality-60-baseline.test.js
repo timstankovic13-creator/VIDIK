@@ -231,6 +231,16 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     totalCandidateQualityDefects: results.reduce(
       (sum, result) => sum + result.candidateQualityDefects, 0
     ),
+    diagnostic: {
+      casesWithSourceFailures: results.filter(result => result.sourceFailureCount > 0).length,
+      totalSourceFailures: results.reduce((sum, result) => sum + result.sourceFailureCount, 0),
+      casesWithSourceEmpties: results.filter(result => result.sourceEmptyCount > 0).length,
+      totalSourceEmpties: results.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
+      averageQueriesAttemptedPerCase: Number((results.reduce((sum, result) => sum + result.attemptedQueries, 0) / results.length).toFixed(2)),
+      queryLayerUsage: Object.fromEntries([...new Set(results.flatMap(result => result.queryLayers))].map(layer => [layer, results.filter(result => result.queryLayers.includes(layer)).length])),
+      noCandidateCasesWithSourceFailure: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount > 0).map(result => result.problem),
+      noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem)
+    },
     note: 'This is a measurement baseline, not a quality-threshold gate. Architectural invariants remain strict; quality grades are findings for comparison against later discovery work.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
