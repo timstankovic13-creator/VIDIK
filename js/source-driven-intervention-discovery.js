@@ -12,11 +12,11 @@ function classifyDiscoveryFailure(error) {
   const http = message.match(/^upstream-http:(\d{3})$/);
   if (http) {
     const status = Number(http[1]);
-    return { class: status === 429 ? 'rate-limited' : (status >= 500 ? 'upstream-5xx' : 'upstream-4xx'), terminal: status >= 400 && status < 500 && status !== 408 && status !== 425 && status !== 429 };
+    return { class: status === 429 ? 'rate-limited' : (status >= 500 ? 'upstream-5xx' : 'upstream-4xx'), stage: 'retrieval', terminal: status >= 400 && status < 500 && status !== 408 && status !== 425 && status !== 429 };
   }
-  if (/timeout|timed out|abort|socket|fetch failed|ECONN|ENET|EAI_AGAIN/i.test(message)) return { class: 'transport-retryable', terminal: false };
-  if (/response-not-json|upstream-error|too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', terminal: true };
-  return { class: 'other', terminal: false };
+  if (/timeout|timed out|abort|socket|fetch failed|ECONN|ENET|EAI_AGAIN/i.test(message)) return { class: 'transport-retryable', stage: 'retrieval', terminal: false };
+  if (/response-not-json/i.test(message)) return { class: 'response-parse', stage: 'retrieval', terminal: true };\n  if (/upstream-error/i.test(message)) return { class: 'upstream-response', stage: 'retrieval', terminal: true };\n  if (/too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', stage: 'source-selection', terminal: true };
+  return { class: 'other', stage: 'retrieval', terminal: false };
 }
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
@@ -1243,13 +1243,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       }catch(error){
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
-        attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
         if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
       }
     }
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
     const failureClasses=Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureClass||'other'))].map(kind=>[kind,attempts.filter(a=>a.status==='search-failed'&&a.failureClass===kind).length]));
-    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureClasses,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
@@ -1311,6 +1311,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             provenance: null,
             failureReason: error?.message || 'source-driven-search-failed',
             failureClass: failure.class,
+            failureStage: failure.stage,
             terminal: failure.terminal,
             cumulativeUniqueCandidates: candidates.length
           });
