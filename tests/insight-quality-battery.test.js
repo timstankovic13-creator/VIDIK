@@ -548,7 +548,7 @@ test('literature fallback reserves bounded queries for controlled mechanism-only
   const { extractOpenAlexInterventionLeads } = mod;
   const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
   const unrelated = extractOpenAlexInterventionLeads(
-    { results: [{ id: 'W-unrelated', display_name: 'Procurement process redesign for unrelated astronomical observatories' }] },
+    { results: [{ id: 'W-unrelated', display_name: 'Astronomical observatory scheduling and telescope alignment' }] },
     source,
     'reduce procurement cycle time',
     'enterprise',
