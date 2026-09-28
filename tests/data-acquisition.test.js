@@ -40,6 +40,18 @@ const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => k
   assert.strictEqual(Acquisition.classifyEvidence({ record, claimType: 'causal' }).status, 'potential');
   assert.strictEqual(Acquisition.validateRecord({ ...record, asOf: '2020-01-01' }, { now: new Date('2026-09-12T00:00:00Z'), maxAgeDays: 365 }).failures.includes('stale-source'), true);
   assert.strictEqual(Acquisition.compareSnapshot(retrieval, retrieval).changed, false);
+
+  let activeRequests = 0;
+  let maxObservedConcurrency = 0;
+  const throttledFetch = async () => {
+    activeRequests += 1;
+    maxObservedConcurrency = Math.max(maxObservedConcurrency, activeRequests);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    activeRequests -= 1;
+    return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => new TextEncoder().encode('{"value":12}').buffer };
+  };
+  await Promise.all(Array.from({ length: 8 }, () => Acquisition.retrieve(source, { fetchImpl: throttledFetch })));
+  assert.ok(maxObservedConcurrency <= Acquisition.DEFAULT_MAX_CONCURRENT_PER_HOST, 'per-host request concurrency exceeded governed limit');
   const result = Acquisition.buildAcquisitionResult({ manifest, candidates: [source], records: [record], gaps: ['cost-resource'] });
   assert.strictEqual(result.coverage.complete, false);
   assert.ok(result.coverage.missingDomains.includes('cost-resource'));
