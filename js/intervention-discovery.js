@@ -43,6 +43,18 @@ function discoveryTokens(text) {
 }
 
 function candidateMatch(candidate, problemTags, problemText) {
+  // Source-driven intervention discovery has already passed the authoritative
+  // actionable-title + problem-relevance gate. Preserve that governed result
+  // instead of re-running the older generic lexical matcher here. This marker is
+  // intentionally narrow: it is only trusted for the intervention-library
+  // channel and only when the source-driven path explicitly marked discoveryOnly.
+  if (candidate?.discovery?.sourceType === 'intervention-library' && candidate?.discovery?.discoveryOnly === true) {
+    return {
+      matchScore: 1000,
+      matchedProblemSignals: Array.isArray(candidate.discovery.matchedProblemSignals) ? candidate.discovery.matchedProblemSignals : problemTags,
+      candidateTags: Array.isArray(candidate.problemTags) ? candidate.problemTags : []
+    };
+  }
   const candidateTags = Array.isArray(candidate.problemTags) ? candidate.problemTags : [];
   const tagMatches = candidateTags.filter(tag => problemTags.includes(tag));
   const problemTokens = discoveryTokens(problemText).size ? discoveryTokens(problemText) : new Set(problemTags.flatMap(tag => discoveryTokens(tag)));
