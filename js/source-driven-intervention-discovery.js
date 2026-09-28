@@ -6,6 +6,18 @@ const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
 const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
+const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
+function classifyDiscoveryFailure(error) {
+  const message = String(error?.message || error || 'source-driven-search-failed');
+  const http = message.match(/^upstream-http:(\\d{3})$/);
+  if (http) {
+    const status = Number(http[1]);
+    return { class: status === 429 ? 'rate-limited' : (status >= 500 ? 'upstream-5xx' : 'upstream-4xx'), terminal: status >= 400 && status < 500 && status !== 408 && status !== 425 && status !== 429 };
+  }
+  if (/timeout|timed out|abort|socket|fetch failed|ECONN|ENET|EAI_AGAIN/i.test(message)) return { class: 'transport-retryable', terminal: false };
+  if (/response-not-json|upstream-error|too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', terminal: true };
+  return { class: 'other', terminal: false };
+}
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
 function buildGovUkSearchUrl(source, query, { rows = 10 } = {}) { if (!source?.url || !GOVUK_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-govuk-intervention-source'); if (!String(query || '').trim()) throw new Error('source-driven-query-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(query).trim()); url.searchParams.set('count', String(rows)); url.searchParams.set('fields', 'title,description,link,format'); return url.toString(); }
@@ -1213,8 +1225,12 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queryPlan=buildDiscoveryQueryPlan(problem,workspace),queries=queryPlan.map(item=>item.query);
   for(const source of selected){
     const attempts=[],sourceCandidates=[];
+    let consecutiveFailures = 0;
+    let terminalFailure = false;
+    let skippedQueries = 0;
     for(const plannedQuery of queryPlan){
       const query = plannedQuery.query;
+      if (terminalFailure) { skippedQueries += 1; continue; }
       try{
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
@@ -1223,10 +1239,16 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
         attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
-      }catch(error){attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});}
+      }catch(error){
+        const failure = classifyDiscoveryFailure(error);
+        consecutiveFailures += 1;
+        attempts.push({query,status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
+      }
     }
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
-    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+    const failureClasses=Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureClass||'other'))].map(kind=>[kind,attempts.filter(a=>a.status==='search-failed'&&a.failureClass===kind).length]));
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureClasses,status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
@@ -1238,7 +1260,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
-      if (!sourceSearch) continue;
+      if (!sourceSearch || sourceSearch.terminalFailure) continue;
       const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
       for (const query of sourceTargetQueries) {
         existingQueries.add(query);
@@ -1278,6 +1300,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.expectedFamilies = coverage.expectedFamilies;
           if (coverage.missingFamilies.length === 0 && candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
         } catch (error) {
+          const failure = classifyDiscoveryFailure(error);
           sourceSearch.attempts.push({
             query,
             queryLayer: 'missing-family-expansion',
@@ -1286,10 +1309,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             recordsConsidered: 0,
             provenance: null,
             failureReason: error?.message || 'source-driven-search-failed',
+            failureClass: failure.class,
+            terminal: failure.terminal,
             cumulativeUniqueCandidates: candidates.length
           });
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
+          if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
         }
       }
       if (coverage.missingFamilies.length === 0) break;
@@ -1352,6 +1378,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted);
       const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
       for (const query of sourceClassQueries) {
+        if (sourceSearch.terminalFailure) break;
         existingQueries.add(query);
         try {
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
@@ -1384,9 +1411,11 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.usableQueryCount += 1;
           sourceSearch.candidatesReturned += leads.length;
         } catch(error) {
-          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',cumulativeUniqueCandidates:candidates.length});
+          const failure = classifyDiscoveryFailure(error);
+          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
+          if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
         }
       }
       sourceSearch.missingFamilies = coverage.missingFamilies;
@@ -1423,4 +1452,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
