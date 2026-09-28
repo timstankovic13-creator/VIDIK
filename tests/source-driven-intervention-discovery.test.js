@@ -50,6 +50,32 @@ test('terminal source failures trip a circuit breaker instead of repeating the s
   assert.equal(search.status, 'search-failed');
 });
 
+test('source-aware routing skips expansion for a source with sustained non-productive failures', async () => {
+  let calls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls % 2 === 0) {
+        return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => Buffer.from(JSON.stringify({ result: { results: [] } })) };
+      }
+      return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.equal(search.routeExpansion, false);
+  assert.equal(search.candidatesReturned, 0);
+  assert.equal(search.failedQueryCount, 9);
+  assert.equal(search.queriesAttempted, 18);
+  assert.ok(search.failureRatio >= 0.5);
+  assert.equal(search.skippedQueries, 0);
+  assert.ok(search.attempts.every(attempt => attempt.queryLayer !== 'missing-family-expansion' && attempt.queryLayer !== 'legacy-class-expansion'));
+  assert.equal(calls, 18);
+});
+
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
   const mod = require('../js/source-driven-intervention-discovery');
   let calls = 0;
