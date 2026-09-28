@@ -1072,7 +1072,11 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
       terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management','road resurfacing','bridge rehabilitation','water main renewal','sewer renewal','facility renewal','capital renewal']
     },
     {
-      match: /vacant storefronts?|vacant retail space|commercial vacancy|empty storefronts?|retail vacancy/,\n      terms: ['vacant storefront activation','retail vacancy activation','temporary storefront use','pop-up retail','storefront improvement','commercial facade improvement','small business facade grant','commercial vacancy reduction']\n    },\n    {\n      match: /traffic fatalities|traffic injuries|pedestrian injuries|road safety/,
+      match: /vacant storefronts?|vacant retail space|commercial vacancy|empty storefronts?|retail vacancy/,
+      terms: ['vacant storefront activation','retail vacancy activation','temporary storefront use','pop-up retail','storefront improvement','commercial facade improvement','small business facade grant','commercial vacancy reduction']
+    },
+    {
+      match: /traffic fatalities|traffic injuries|pedestrian injuries|road safety/,
       terms: ['traffic safety enforcement','road safety infrastructure project','traffic calming','protected bike lane','pedestrian crossing','speed management','speed enforcement','signal timing','road diet','safe routes','20 mph speed limit','20 mph speed limits','speed limit reduction','road safety scheme','road safety engineering','junction redesign','protected cycle lane','safe systems']
     }
   ];
