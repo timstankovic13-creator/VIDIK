@@ -23,6 +23,54 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
+test('source failure classification distinguishes terminal API failures from retryable transport failures', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:404')), { class: 'upstream-4xx', stage: 'retrieval', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:503')), { class: 'upstream-5xx', stage: 'retrieval', terminal: false });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('fetch failed: ECONNRESET')), { class: 'transport-retryable', stage: 'retrieval', terminal: false });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'response-parse', stage: 'retrieval', terminal: true });
+});
+
+test('terminal source failures trip a circuit breaker instead of repeating the same query budget', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => ({ ok: false, status: 404, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.equal(search.terminalFailure, true);
+  assert.equal(search.queriesAttempted, 1);
+  assert.ok(search.skippedQueries > 0);
+  assert.equal(search.failureClasses['upstream-4xx'], 1);
+  assert.equal(search.failureStages.retrieval, 1);
+  assert.equal(search.attempts[0].failureClass, 'upstream-4xx');
+  assert.equal(search.attempts[0].terminal, true);
+  assert.equal(search.status, 'search-failed');
+});
+
+test('repeated retryable source failures are bounded without hiding the failure', async () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  let calls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.equal(search.terminalFailure, true);
+  assert.equal(search.queriesAttempted, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(search.failureClasses['upstream-5xx'], mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(search.status, 'search-failed');
+});
+
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
