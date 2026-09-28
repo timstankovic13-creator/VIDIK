@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const I = require('../js/discovery-transfer-intelligence');
+const { discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 
 test('1. discovery strategy expands an arbitrary problem into multiple search families', () => {
   const strategy = I.buildSearchStrategy('reduce rural ambulance response times', {
@@ -220,4 +221,40 @@ test('comparable-city channel can supply the candidate universe when ordinary so
   assert.equal(result.discovery.transferLeads[0].transferability.effectsImported, false);
   assert.equal(result.discovery.transferLeads[0].transferability.causalEffectTransferred, false);
   assert.equal(result.whyNot.winner, null);
+});
+
+
+test('source-driven discovery uses the canonical comparable-city channel without importing effects', async () => {
+  const problem = 'How should a municipality reduce serious violence?';
+  const result = await discoverSourceDrivenInterventions({
+    problem,
+    jurisdiction: 'CA',
+    workspace: 'municipal',
+    sources: [],
+    comparableCitySearcher: async ({ sourceType }) => ({
+      sourceId: 'live-comparable-provider',
+      sourceType,
+      jurisdiction: 'CA',
+      query: problem,
+      cities: [{
+        city: 'Example City',
+        jurisdiction: 'Ontario, Canada',
+        problemTags: ['group violence'],
+        matchedSignals: ['neighborhood safety'],
+        strategies: [{
+          name: 'Violence Reduction Partnership',
+          description: 'Multi-agency violence prevention and outreach.'
+        }]
+      }]
+    })
+  });
+  assert.ok(result.candidates.length >= 1);
+  const lead = result.candidates.find(candidate => candidate.discovery?.sourceType === 'comparable-city');
+  assert.ok(lead);
+  assert.equal(lead.discovery.leadOnly, true);
+  assert.equal(lead.discovery.effectsImported, false);
+  assert.equal(lead.discovery.comparableCity, 'Example City');
+  assert.ok(lead.discovery.provenance.some(record => record.sourceType === 'comparable-city'));
+  assert.equal(result.recommendationEligible, false);
+  assert.equal(result.sourceSearches.find(search => search.sourceType === 'comparable-city')?.status, 'candidates-found');
 });
