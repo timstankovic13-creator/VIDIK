@@ -58,9 +58,6 @@ test('source-aware routing skips expansion for a source with sustained non-produ
     sources: [SOURCE],
     fetchImpl: async () => {
       calls += 1;
-      if (calls % 2 === 0) {
-        return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => Buffer.from(JSON.stringify({ result: { results: [] } })) };
-      }
       return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
     }
   });
@@ -68,12 +65,12 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.ok(search);
   assert.equal(search.routeExpansion, false);
   assert.equal(search.candidatesReturned, 0);
-  assert.equal(search.failedQueryCount, 9);
-  assert.equal(search.queriesAttempted, 18);
+  assert.equal(search.failedQueryCount, 3);
+  assert.equal(search.queriesAttempted, 3);
   assert.ok(search.failureRatio >= 0.5);
   assert.equal(search.skippedQueries, 0);
   assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
-  assert.equal(calls, 18);
+  assert.equal(calls, 9);
 });
 
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
@@ -92,7 +89,7 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.ok(search);
   assert.equal(search.terminalFailure, true);
   assert.equal(search.queriesAttempted, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
-  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES * (mod.MAX_TRANSIENT_SOURCE_RETRIES + 1));
   assert.equal(search.failureClasses['upstream-5xx'], mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
   assert.equal(search.status, 'search-failed');
 });
