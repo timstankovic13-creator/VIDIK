@@ -1218,7 +1218,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   for(let batchStart=0; batchStart<selected.length; batchStart+=2){
     const sourceBatch=selected.slice(batchStart,batchStart+2);
     await Promise.all(sourceBatch.map(async source=>{
-  for(const source of selected){
     const attempts=[],sourceCandidates=[];
     for(const plannedQuery of queryPlan){
       const query = plannedQuery.query;
