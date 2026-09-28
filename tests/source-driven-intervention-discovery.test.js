@@ -25,10 +25,10 @@ function mockResponse(value) {
 
 test('source failure classification distinguishes terminal API failures from retryable transport failures', () => {
   const mod = require('../js/source-driven-intervention-discovery');
-  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:404')), { class: 'upstream-4xx', terminal: true });
-  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:503')), { class: 'upstream-5xx', terminal: false });
-  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('fetch failed: ECONNRESET')), { class: 'transport-retryable', terminal: false });
-  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'source-contract', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:404')), { class: 'upstream-4xx', stage: 'retrieval', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:503')), { class: 'upstream-5xx', stage: 'retrieval', terminal: false });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('fetch failed: ECONNRESET')), { class: 'transport-retryable', stage: 'retrieval', terminal: false });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'response-parse', stage: 'retrieval', terminal: true });
 });
 
 test('terminal source failures trip a circuit breaker instead of repeating the same query budget', async () => {
@@ -44,6 +44,7 @@ test('terminal source failures trip a circuit breaker instead of repeating the s
   assert.equal(search.queriesAttempted, 1);
   assert.ok(search.skippedQueries > 0);
   assert.equal(search.failureClasses['upstream-4xx'], 1);
+  assert.equal(search.failureStages.retrieval, 1);
   assert.equal(search.attempts[0].failureClass, 'upstream-4xx');
   assert.equal(search.attempts[0].terminal, true);
   assert.equal(search.status, 'search-failed');
