@@ -921,8 +921,11 @@ function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 
     // concept; that classifier is intentionally conservative and can miss papers
     // whose intervention language is operational rather than domain-labeled.
     // The normal interventionMatchesProblem gate remains authoritative below.
-    const fallbackTerms = !titleMatched.length && queryBackedTerms.length
-      ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3)
+    const fallbackTerms = queryBackedTerms.length
+      ? [...new Set([
+          ...matched,
+          ...queryBackedTerms.filter(term => !title.toLowerCase().includes(term))
+        ])].slice(0, 3)
       : [];
     for (const term of [...new Set([...titleMatched, ...(titleMatched.length ? [] : fallbackTerms)])].slice(0, 3)) {
       const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
