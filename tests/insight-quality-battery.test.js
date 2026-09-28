@@ -532,6 +532,26 @@ test('literature fallback inherits bounded class and mechanism coverage layers',
   assert.ok(queries.some(q => /workflow automation|process redesign/i.test(q)));
 });
 
+test('literature fallback reserves bounded queries for controlled mechanism-only retrieval', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const queries = mod.buildLiteratureFallbackQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(queries.some(q => /^procurement process redesign$/i.test(q)));
+  assert.ok(queries.some(q => /^data governance program$/i.test(
+    mod.buildLiteratureFallbackQueries('improve data governance', 'enterprise').find(q => /^data governance program$/i.test(q)) || ''
+  )));
+  const { extractOpenAlexInterventionLeads } = mod;
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const unrelated = extractOpenAlexInterventionLeads(
+    { results: [{ id: 'W-unrelated', display_name: 'Procurement process redesign for unrelated astronomical observatories' }] },
+    source,
+    'reduce procurement cycle time',
+    'enterprise',
+    'procurement process redesign'
+  );
+  assert.equal(unrelated.length, 0, 'mechanism-only query must not bypass source-text problem relevance');
+});
+
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
