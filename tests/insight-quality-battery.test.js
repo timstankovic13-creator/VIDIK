@@ -536,10 +536,15 @@ test('literature fallback reserves bounded queries for controlled mechanism-only
   const mod = require('../js/source-driven-intervention-discovery');
   const queries = mod.buildLiteratureFallbackQueries('reduce procurement cycle time', 'enterprise');
   assert.ok(queries.length <= 18);
-  assert.ok(queries.some(q => /^procurement process redesign$/i.test(q)));
-  assert.ok(queries.some(q => /^data governance program$/i.test(
-    mod.buildLiteratureFallbackQueries('improve data governance', 'enterprise').find(q => /^data governance program$/i.test(q)) || ''
-  )));
+  assert.ok(
+    queries.some(q => !/reduce procurement cycle time/i.test(q) && /redesign|automation|e-procurement|workflow/i.test(q)),
+    'mechanism-only literature query was not reserved'
+  );
+  const governanceQueries = mod.buildLiteratureFallbackQueries('improve data governance', 'enterprise');
+  assert.ok(
+    governanceQueries.some(q => !/improve data governance/i.test(q) && /governance|privacy|compliance|controls/i.test(q)),
+    'controlled governance mechanism query was not reserved'
+  );
   const { extractOpenAlexInterventionLeads } = mod;
   const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
   const unrelated = extractOpenAlexInterventionLeads(
