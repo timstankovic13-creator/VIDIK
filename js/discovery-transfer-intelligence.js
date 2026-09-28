@@ -17,7 +17,7 @@ function comparableConcepts(text = '') {
   const concepts = new Set(tokens(normalized));
   const groups = [
     { match: /\bviolent\s+crime\b|\bserious\s+violence\b|\bcommunity\s+violence\b/, terms: ['violence', 'violent', 'crime', 'public-safety', 'neighborhood safety', 'community safety', 'group violence'] },
-    { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'safety', 'public-safety'] },
+    { match: /\bcrime\b|\bpublic\s+safety\b/, terms: ['crime', 'public-safety', 'community safety', 'neighborhood safety'] },
     { match: /\bhomeless|rough\s+sleeping|housing\s+insecurity/, terms: ['housing', 'homelessness', 'shelter'] },
     { match: /\boverdose|opioid/, terms: ['overdose', 'opioid', 'health'] },
     { match: /\btraffic|pedestrian|road\\s+safety|congestion/, terms: ['traffic', 'mobility', 'road-safety'] },
