@@ -51,6 +51,7 @@ function normalizeLead(lead, source = {}) {
     problemTags: Array.isArray(lead.problemTags) ? lead.problemTags : [],
     domains: Array.isArray(lead.domains) ? lead.domains : [],
     interventionFamily: Array.isArray(lead.interventionFamily) ? lead.interventionFamily : [],
+    discoveryText: lead.discoveryText || null,
     requiredEvidence: Array.isArray(lead.requiredEvidence) ? lead.requiredEvidence : ['causal', 'implementation'],
     discovery: {
       source: sourceId,
@@ -59,7 +60,13 @@ function normalizeLead(lead, source = {}) {
       evidenceStatus: lead.evidenceStatus || lead.discovery?.evidenceStatus || 'potential',
       comparableCity: source.comparableCity || lead.discovery?.comparableCity || null,
       leadOnly: Boolean(source.comparableCity || lead.discovery?.leadOnly),
-      effectsImported: false,
+      // Preserve the source-driven discovery boundary through orchestration. The
+      // source-driven channel has already applied its own actionable-intervention
+      // and problem-relevance gates; dropping this marker here forces the older
+      // generic lexical matcher to re-decide relevance and can discard valid leads.
+      discoveryOnly: Boolean(lead.discovery?.discoveryOnly),
+      relevanceStatus: lead.discovery?.relevanceStatus || null,
+      matchedProblemSignals: Array.isArray(lead.discovery?.matchedProblemSignals) ? lead.discovery.matchedProblemSignals : [],
       transferability: lead.transferability || lead.context || null,
       provenance
     }
