@@ -64,12 +64,12 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
   assert.ok(search);
   assert.equal(search.routeExpansion, false);
-  assert.equal(search.initialCandidatesReturned, 0, JSON.stringify({ candidatesReturned: search.candidatesReturned, initialCandidatesReturned: search.initialCandidatesReturned, routeExpansion: search.routeExpansion, status: search.status, attempts: search.attempts.map(attempt => ({ query: attempt.query, status: attempt.status, candidatesReturned: attempt.candidatesReturned, queryPhase: attempt.queryPhase })) }));
+  assert.equal(search.initialCandidatesReturned, 0);
   assert.equal(search.failedQueryCount, 3);
   assert.equal(search.queriesAttempted, 3);
   assert.ok(search.failureRatio >= 0.5);
   assert.equal(search.skippedQueries, 0);
-  assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
+  assert.equal(search.attempts.filter(attempt => attempt.queryPhase === 'expansion').length, 0);
   assert.equal(calls, 9);
 });
 
