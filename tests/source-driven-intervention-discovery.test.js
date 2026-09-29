@@ -72,6 +72,30 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.equal(calls, 9);
 });
 
+test('mixed source failures do not suppress bounded expansion when the source is still usable', async () => {
+  let calls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => {
+      calls += 1;
+      // First query fails transiently, second query succeeds but is empty, third
+      // query fails transiently. This is degraded retrieval, not a terminal source.
+      if (calls <= 3 || (calls >= 7 && calls <= 9)) {
+        return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.equal(search.routeExpansion, true);
+  assert.equal(search.terminalFailure, false);
+  assert.ok(search.attempts.some(attempt => attempt.queryPhase === 'expansion'),
+    'mixed retrieval failures must not block the remaining bounded discovery expansion');
+});
+
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
   const mod = require('../js/source-driven-intervention-discovery');
   let calls = 0;
