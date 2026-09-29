@@ -76,6 +76,23 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.equal(calls, 18);
 });
 
+test('rate-limited discovery source stops the query plan after bounded retrieval retries', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [{ ...SOURCE, sourceId: 'ca-rate-limit-regression' }],
+    fetchImpl: async () => ({ ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === 'ca-rate-limit-regression');
+  assert.ok(search);
+  assert.equal(search.terminalFailure, true);
+  assert.equal(search.queriesAttempted, 1);
+  assert.ok(search.skippedQueries > 0);
+  assert.equal(search.failureClasses['rate-limited'], 1);
+  assert.equal(search.attempts[0].failureClass, 'rate-limited');
+  assert.equal(search.status, 'search-failed');
+});
+
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
   const mod = require('../js/source-driven-intervention-discovery');
   let calls = 0;
