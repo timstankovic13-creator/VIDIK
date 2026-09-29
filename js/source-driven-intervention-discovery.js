@@ -8,7 +8,7 @@ const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
 const MAX_TRANSIENT_SOURCE_RETRIES = 2;
-const TRANSIENT_RETRY_DELAYS_MS = [50, 150];
+const TRANSIENT_RETRY_DELAYS_MS = [25, 75];
 async function retrieveWithTransientRetry(source, options = {}) {
   let lastError;
   for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
