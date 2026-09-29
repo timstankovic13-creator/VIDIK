@@ -1054,7 +1054,7 @@ function selectComparableInterventionSource(problem, jurisdiction, workspace = '
     return { source, score: tagScore + domainScore + apiScore };
   });
   scored.sort((a, b) => b.score - a.score || a.source.sourceId.localeCompare(b.source.sourceId));
-  return scored[0]?.source || null;
+  return scored.slice(0, 2).map(item => item.source);
 }
 
 function buildApplicabilityAudit({ problem, jurisdiction = null, suppliedSources = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const rejectedSuppliedSources = Array.isArray(suppliedSources) && jurisdiction ? suppliedSources.filter(source => !sourceMatchesJurisdiction(source, jurisdiction)).map(source => ({ sourceId: source.sourceId, jurisdiction: source.jurisdiction, canonicalJurisdiction: canonicalSource(source)?.jurisdiction || null, reason: canonicalSource(source) ? 'jurisdiction-mismatch' : 'unregistered-source' })) : []; return { problem, jurisdiction, eligibleSources: eligible.map(source => source.sourceId), matchedSources: matched.map(source => source.sourceId), rejectedSuppliedSources, fallbackUsed: matched.length === 0 && eligible.length > 0, decision: matched.length ? 'tag-matched' : (eligible.length ? 'broad-fallback' : 'no-eligible-source'), consideredCount: eligible.length }; }
@@ -1492,8 +1492,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // behavior while giving open-world discovery a bounded second jurisdictional path.
   let comparableFallback = null;
   if (candidates.length === 0 && jurisdiction && selected.length) {
-    const comparable = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
-    if (comparable) {
+    const comparables = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
+    const attempts = [];
+    for (const comparable of comparables) {
       const comparableResult = await discoverSourceDrivenInterventions({
         problem,
         jurisdiction: null,
@@ -1503,25 +1504,26 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         now,
         rows
       });
-      if (comparableResult.candidates.length) {
-        rawCandidates.push(...comparableResult.candidates);
-        candidates = deduplicateInterventionLeads(rawCandidates);
-        coverage = discoveryCoverage(problem, workspace, candidates);
-      }
+      attempts.push({
+        sourceId: comparable.sourceId,
+        sourceJurisdiction: comparable.jurisdiction,
+        candidateCount: comparableResult.candidates.length,
+        reason: comparableResult.candidates.length ? 'jurisdiction-scoped-universe-empty' : 'comparable-search-empty-or-failed'
+      });
       sourceSearches.push(...comparableResult.sourceSearches.map(search => ({
         ...search,
         sourceType: 'intervention-library-comparable',
         discoveryRole: 'comparable-jurisdiction',
         targetJurisdiction: jurisdiction
       })));
-      comparableFallback = {
-        used: true,
-        sourceId: comparable.sourceId,
-        sourceJurisdiction: comparable.jurisdiction,
-        candidateCount: comparableResult.candidates.length,
-        reason: comparableResult.candidates.length ? 'jurisdiction-scoped-universe-empty' : 'comparable-search-empty-or-failed'
-      };
+      if (comparableResult.candidates.length) {
+        rawCandidates.push(...comparableResult.candidates);
+        candidates = deduplicateInterventionLeads(rawCandidates);
+        coverage = discoveryCoverage(problem, workspace, candidates);
+        break;
+      }
     }
+    if (attempts.length) comparableFallback = { used: true, attempts };
   }
   const classCoverage=interventionClassCoverage(problem,workspace,candidates);
   const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
@@ -1546,4 +1548,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   }
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, selectComparableInterventionSource, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
