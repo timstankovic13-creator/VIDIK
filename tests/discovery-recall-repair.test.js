@@ -65,3 +65,17 @@ test('intervention extraction vocabulary covers previously blocked operational c
     assert.equal(classification.accepted, true, title + ': ' + JSON.stringify(classification));
   }
 });
+
+
+test('description extraction recovers bounded hospital waiting-time interventions', () => {
+  const payload = {
+    result: { results: [{
+      id: 'hospital-wait-1',
+      title: 'Hospital outpatient service evaluation data',
+      notes: 'The implementation introduced queue management, appointment scheduling and patient flow redesign to reduce waiting times.'
+    }] }
+  };
+  const leads = extractCkanInterventionLeads(payload, source, 'evaluate ways to reduce hospital waiting times', 'research');
+  assert.ok(leads.some(x => /queue management|appointment scheduling|patient flow/i.test(x.name)), JSON.stringify(leads));
+  assert.ok(leads.some(x => interventionMatchesProblem('evaluate ways to reduce hospital waiting times', x, 'research')));
+});
