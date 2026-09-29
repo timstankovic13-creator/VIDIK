@@ -38,6 +38,16 @@ const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => k
   const rateLimitedResult = await Acquisition.retrieve(source, { fetchImpl: rateLimitedFetch, rateLimitBaseDelayMs: 1 });
   assert.strictEqual(rateLimitedAttempts, 3);
   assert.strictEqual(Acquisition.parsePayload(rateLimitedResult.bytes, rateLimitedResult.retrieval.contentType).value.value, 13);
+  const circuitSource = { ...source, sourceId: 'rate-limit-circuit-regression' };
+  let circuitAttempts = 0;
+  const alwaysRateLimitedFetch = async () => {
+    circuitAttempts += 1;
+    return { ok: false, status: 429, headers: { get: () => null } };
+  };
+  await assert.rejects(() => Acquisition.retrieve(circuitSource, { fetchImpl: alwaysRateLimitedFetch, rateLimitBaseDelayMs: 1 }), /upstream-http:429/);
+  await assert.rejects(() => Acquisition.retrieve(circuitSource, { fetchImpl: alwaysRateLimitedFetch, rateLimitBaseDelayMs: 1 }), /upstream-http:429/);
+  await assert.rejects(() => Acquisition.retrieve(circuitSource, { fetchImpl: alwaysRateLimitedFetch, rateLimitBaseDelayMs: 1 }), /upstream-rate-limit-circuit-open/);
+  assert.strictEqual(circuitAttempts, 6);
   const { retrieval, bytes } = await Acquisition.retrieve(source, { fetchImpl: fakeFetch, now: new Date('2026-09-12T00:00:00Z') });
   assert.strictEqual(bytes.length, 12);
   assert.strictEqual(retrieval.schemaVersion, 'vidik.source-retrieval.v2');
