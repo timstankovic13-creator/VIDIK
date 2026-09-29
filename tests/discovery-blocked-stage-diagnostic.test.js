@@ -27,8 +27,8 @@ const BLOCKED_19 = [
 
 test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extraction, relevance and expansion stages', async () => {
   const results = [];
-  for (const [workspace, jurisdiction, problem] of BLOCKED_19) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 10 });
+  async function runCase([workspace, jurisdiction, problem]) {
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 10, maxQueriesPerSource: 6 });
     const sources = (discovery.sourceSearches || []).map(source => ({
       sourceId: source.sourceId,
       sourceType: source.sourceType,
@@ -60,7 +60,7 @@ test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extractio
         missingFamilies: attempt.missingFamilies || []
       }))
     }));
-    results.push({
+    return {
       workspace, jurisdiction, problem,
       candidateCount: discovery.candidates?.length || 0,
       stoppingReason: discovery.interventionUniverse?.stoppingReason,
@@ -68,7 +68,10 @@ test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extractio
       missingClasses: discovery.interventionUniverse?.missingInterventionClasses || [],
       diagnosticCounts: discovery.interventionUniverse?.diagnosticCounts || {},
       sources
-    });
+    };
+  }
+  for (let i = 0; i < BLOCKED_19.length; i += 3) {
+    results.push(...await Promise.all(BLOCKED_19.slice(i, i + 3).map(runCase)));
   }
 
   const buckets = {
