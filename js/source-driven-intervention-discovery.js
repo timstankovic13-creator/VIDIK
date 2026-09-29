@@ -1055,8 +1055,8 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
 function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const unmatched = eligible.filter(source => !matched.includes(source)); return [...matched, ...unmatched]; }
-function selectComparableInterventionSource(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = []) {
-  if (!jurisdiction) return null;
+function selectComparableInterventionSources(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = [], limit = 2) {
+  if (!jurisdiction || !Number.isInteger(limit) || limit < 1) return [];
   const normalizedProblem = normalizeText(problem).toLowerCase();
   const terms = new Set(normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean));
   const domains = new Set(inferWorkspaceDomains(problem, workspace));
@@ -1074,7 +1074,10 @@ function selectComparableInterventionSource(problem, jurisdiction, workspace = '
     return { source, score: tagScore + domainScore + apiScore };
   });
   scored.sort((a, b) => b.score - a.score || a.source.sourceId.localeCompare(b.source.sourceId));
-  return scored[0]?.source || null;
+  return scored.slice(0, limit).map(entry => entry.source);
+}
+function selectComparableInterventionSource(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = []) {
+  return selectComparableInterventionSources(problem, jurisdiction, workspace, excludedSourceIds, 1)[0] || null;
 }
 
 function buildApplicabilityAudit({ problem, jurisdiction = null, suppliedSources = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const rejectedSuppliedSources = Array.isArray(suppliedSources) && jurisdiction ? suppliedSources.filter(source => !sourceMatchesJurisdiction(source, jurisdiction)).map(source => ({ sourceId: source.sourceId, jurisdiction: source.jurisdiction, canonicalJurisdiction: canonicalSource(source)?.jurisdiction || null, reason: canonicalSource(source) ? 'jurisdiction-mismatch' : 'unregistered-source' })) : []; return { problem, jurisdiction, eligibleSources: eligible.map(source => source.sourceId), matchedSources: matched.map(source => source.sourceId), rejectedSuppliedSources, fallbackUsed: matched.length === 0 && eligible.length > 0, decision: matched.length ? 'tag-matched' : (eligible.length ? 'broad-fallback' : 'no-eligible-source'), consideredCount: eligible.length }; }
@@ -1515,9 +1518,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // behavior while giving open-world discovery a bounded second jurisdictional path.
   let comparableFallback = null;
   if (!Array.isArray(sources) && candidates.length === 0 && jurisdiction && selected.length) {
-    const comparable = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
+    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
     const attempts = [];
-    if (comparable) {
+    for (const comparable of comparables) {
       const comparableResult = await discoverSourceDrivenInterventions({
         problem,
         jurisdiction: null,
@@ -1544,6 +1547,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         rawCandidates.push(...comparableResult.candidates);
         candidates = deduplicateInterventionLeads(rawCandidates);
         coverage = discoveryCoverage(problem, workspace, candidates);
+        if (candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
       }
     }
     if (attempts.length) comparableFallback = { used: true, attempts };
