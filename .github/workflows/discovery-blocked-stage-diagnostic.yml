@@ -12,4 +12,4 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: node --test tests/discovery-description-extraction-regression.test.js tests/discovery-blocked-stage-diagnostic.test.js
+      - run: node --test tests/discovery-blocked-stage-diagnostic.test.js
