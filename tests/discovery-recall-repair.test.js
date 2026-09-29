@@ -7,7 +7,8 @@ const {
   extractCkanInterventionLeads,
   extractGovUkInterventionLeads,
   buildDiscoveryQueryPlan,
-  interventionMatchesProblem
+  interventionMatchesProblem,
+  classifyCkanRecord
 } = require('../js/source-driven-intervention-discovery');
 
 const source = {
@@ -45,4 +46,22 @@ test('family discovery uses source-searchable intervention anchors instead of re
   const plan = buildDiscoveryQueryPlan('reduce residential energy burden', 'municipal');
   assert.ok(plan.some(x => x.query === 'home weatherization'), JSON.stringify(plan));
   assert.ok(plan.some(x => x.queryLayer === 'family-expansion'), JSON.stringify(plan));
+});
+
+test('intervention extraction vocabulary covers previously blocked operational classes', () => {
+  const cases = [
+    ['Customer Retention Program', 'improve customer churn retention'],
+    ['Energy Efficiency Retrofit', 'reduce energy costs efficiency'],
+    ['Route Optimization', 'reduce delivery delays routing'],
+    ['Job Placement Program', 'improve hiring success employment'],
+    ['Queue Management', 'reduce hospital waiting times queue'],
+    ['Disaster Preparedness Training', 'improve disaster preparedness'],
+    ['Remote Service Delivery', 'improve remote service delivery'],
+    ['Data Governance Program', 'improve data governance'],
+    ['Accessible Design', 'improve accessibility for customers with disabilities']
+  ];
+  for (const [title, notes] of cases) {
+    const classification = classifyCkanRecord({ title, notes });
+    assert.equal(classification.accepted, true, title + ': ' + JSON.stringify(classification));
+  }
 });
