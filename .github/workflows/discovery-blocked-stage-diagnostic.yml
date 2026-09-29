@@ -1,9 +1,9 @@
 name: Discovery Blocked Stage Diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - diagnostic/stage-instrumentation-2026-09-29
+      - main
     paths:
       - 'tests/discovery-blocked-stage-diagnostic.test.js'
       - 'tests/discovery-description-extraction-regression.test.js'
