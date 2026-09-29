@@ -677,7 +677,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   const familyQueries = [];
   for (const family of expected) {
     for (const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])) {
-      familyQueries.push(original + ' ' + term);
+      familyQueries.push(term);
     }
   }
   lanes.set('family-expansion', [...new Set(familyQueries)]);
@@ -793,7 +793,7 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
     if (!title) return [];
     const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
-    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : extractConcreteInterventionFromDescription(problem, workspace, description);
     return names.map((name, extractedIndex) => {
       const candidate = { name, discoveryText: description };
       const canonicalName = normalizeInterventionName(name);
@@ -812,7 +812,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
-    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (!recordLike && descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
+    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
     return names.map((item, extractedIndex) => {
       const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
       const canonicalName = normalizeInterventionName(item.name);
