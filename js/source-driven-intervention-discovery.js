@@ -842,7 +842,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' '));
     const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     const classification = classifyCkanRecord(row, problem, workspace);
-    const titleActionable = classification.accepted;
+    const titleActionable = classification.accepted || (!recordLike && problemSpecificRelevance(problem, { name: title, discoveryText: notes }, workspace) === true);
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
     const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
     const names = titleActionable
