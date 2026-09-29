@@ -93,6 +93,34 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.equal(search.status, 'search-failed');
 });
 
+test('literature fallback retries transient retrieval failures', async () => {
+  let openAlexCalls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'api.openalex.org') {
+        openAlexCalls += 1;
+        if (openAlexCalls === 1) {
+          return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+        }
+        return mockResponse({ results: [{
+          id: 'W-wildfire-smoke-retry',
+          display_name: 'Wildfire smoke mitigation intervention',
+          abstract_inverted_index: {
+            'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3],
+            'smoke': [4], 'mitigation': [5], 'interventions': [6]
+          }
+        }] });
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.equal(openAlexCalls, 2);
+  assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
+});
+
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
