@@ -282,10 +282,12 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
 }
 async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
-  const results = [];
-  for (const candidate of selectedCandidates) {
-    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }));
-  }
+  // Candidate evidence is independent: preserve result ordering while allowing the
+  // bounded candidate set to acquire evidence concurrently. This removes an avoidable
+  // serial network bottleneck without changing candidate limits, providers, or gates.
+  const results = await Promise.all(
+    selectedCandidates.map(candidate => discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }))
+  );
   const relevantLeads = results.flatMap(result => result.evidenceLeads || []).filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSources = [...new Set(relevantLeads.map(lead => lead.sourceId))];
   return {
