@@ -1487,6 +1487,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearches.push({ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, originalProblem: problem, queriesAttempted: 0, failedQueryCount: 0, usableQueryCount: 1, status: 'taxonomy-expansion-used', candidatesReturned: exploratory.length, attempts: [], expectedFamilies: coverage.expectedFamilies, observedFamilies: coverage.observedFamilies, missingFamilies: coverage.missingFamilies, failureReason: null });
     }
   }
+  // Reconcile the source-level candidate metric from its immutable attempt records after all bounded expansion passes.
+  // Expansion may append attempts later in the pipeline; deriving this field at the return boundary prevents stale
+  // mutable counts from surviving into diagnostics while preserving every candidate-bearing attempt.
+  for (const sourceSearch of sourceSearches) {
+    sourceSearch.candidatesReturned = (sourceSearch.attempts || [])
+      .filter(attempt => attempt.status === 'candidates-found')
+      .reduce((sum, attempt) => sum + Number(attempt.candidatesReturned || 0), 0);
+  }
   const classCoverage=interventionClassCoverage(problem,workspace,candidates);
   const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
   const diagnosticCounts={
