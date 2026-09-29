@@ -795,7 +795,7 @@ function extractConcreteInterventionFromDescription(problem, workspace, descript
   // Generic nouns such as "program", "service", or "intervention" are insufficient:
   // catalogue records can append those words to otherwise non-executable data/report
   // descriptions and would otherwise manufacture a lead.
-  const actionCue = /\b(provides?|provided|providing|funds?|funded|funding|offers?|offered|operates?|operated|delivers?|delivered|implements?|implemented|deploys?|deployed|supports?|supported|subsidizes?|subsidized|administers?|administered|runs?|launched?|launches?|establishes?|established|expands?|expanded|maintains?|maintained|installs?|installed|builds?|built|retrofits?|retrofitted|redesigns?|const actionCue = /\b(provides?|provide|providing|funds?|funding|funded|offers?|offer|operates?|operate|delivers?|deliver|implements?|implement|deploys?|deploy|supports?|support|subsidizes?|subsidize|administers?|administer|runs?|run|launches?|launch|establishes?|establish|expands?|expand|maintains?|maintain|service|program|programme|scheme|initiative|intervention|pilot)\b/i;
+  const actionCue = /\b(provides?|provide|providing|funds?|funding|funded|offers?|offer|operates?|operate|delivers?|deliver|implements?|implement|deploys?|deploy|supports?|support|subsidizes?|subsidize|administers?|administer|runs?|run|launches?|launch|establishes?|establish|expands?|expand|maintains?|maintain|service|program|programme|scheme|initiative|intervention|pilot)\b/i;
   extracted.push(...terms.filter(term => {
     const idx = text.indexOf(String(term).toLowerCase());
     return idx >= 0 && actionCue.test(text.slice(Math.max(0, idx - 140), Math.min(text.length, idx + String(term).length + 140)));
