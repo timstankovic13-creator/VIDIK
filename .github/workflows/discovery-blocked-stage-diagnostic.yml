@@ -1,0 +1,24 @@
+name: Discovery Blocked Stage Diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/stage-instrumentation-2026-09-29
+    paths:
+      - 'tests/discovery-blocked-stage-diagnostic.test.js'
+      - 'js/source-driven-intervention-discovery.js'
+      - 'js/source-driven-evidence-discovery.js'
+      - 'js/data-acquisition.js'
+      - 'js/source-registry.js'
+      - '.github/workflows/discovery-blocked-stage-diagnostic.yml'
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node --test tests/discovery-blocked-stage-diagnostic.test.js
