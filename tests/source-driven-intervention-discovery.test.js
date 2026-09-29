@@ -58,6 +58,7 @@ test('source-aware routing skips expansion for a source with sustained non-produ
     sources: [SOURCE],
     fetchImpl: async () => {
       calls += 1;
+      console.error('FETCH_CALL_DIAGNOSTIC', calls);
       return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
     }
   });
