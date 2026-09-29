@@ -1,4 +1,1585 @@
+'use strict';
+const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
+const { SOURCE_REGISTRY } = require('./source-registry');
+const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
+const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
+const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
+const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
+const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
+const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
+function classifyDiscoveryFailure(error) {
+  const message = String(error?.message || error || 'source-driven-search-failed');
+  const http = message.match(/^upstream-http:(\d{3})$/);
+  if (http) {
+    const status = Number(http[1]);
+    return { class: status === 429 ? 'rate-limited' : (status >= 500 ? 'upstream-5xx' : 'upstream-4xx'), stage: 'retrieval', terminal: status >= 400 && status < 500 && status !== 408 && status !== 425 && status !== 429 };
+  }
+  if (/timeout|timed out|abort|socket|fetch failed|ECONN|ENET|EAI_AGAIN/i.test(message)) return { class: 'transport-retryable', stage: 'retrieval', terminal: false };
+  if (/response-not-json/i.test(message)) return { class: 'response-parse', stage: 'retrieval', terminal: true };
+  if (/upstream-error/i.test(message)) return { class: 'upstream-response', stage: 'retrieval', terminal: true };
+  if (/too-many-redirects|redirect-missing-location|cross-host-redirect|private-network|source-url-/i.test(message)) return { class: 'source-contract', stage: 'source-selection', terminal: true };
+  return { class: 'other', stage: 'retrieval', terminal: false };
+}
+function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
 function buildGovUkSearchUrl(source, query, { rows = 10 } = {}) { if (!source?.url || !GOVUK_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-govuk-intervention-source'); if (!String(query || '').trim()) throw new Error('source-driven-query-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(query).trim()); url.searchParams.set('count', String(rows)); url.searchParams.set('fields', 'title,description,link,format'); return url.toString(); }
 function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) { if (!source?.url || !CKAN_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-ckan-intervention-source'); if (!String(problem || '').trim()) throw new Error('source-driven-problem-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(problem).trim()); url.searchParams.set('rows', String(rows)); return url.toString(); }
 const NON_INTERVENTION_TERMS = ['dataset','data set','census','statistics','statistic','report','budget','indicator','information','dashboard','administrative records','records','open data','mapping data','survey','profile','monitoring data','raw data'];
 const INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','fund','funding','scheme','action plan','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','cooling centre','cooling center','emergency response','staffing','capacity','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','digital inclusion','digital literacy','community technology centre','community technology center','computer access','deterrence','policing','deployment','hot spot policing','focused deterrence','violence interruption','community violence intervention','hospital based violence intervention','hospital-based violence intervention','lighting','street lighting','vacant property remediation','blight remediation','youth employment','paid summer employment','cognitive behavioral','behavioral intervention','public space','environmental safety','risk reduction','secure storage','secure-storage','20 mph speed limit','20 mph speed limits','speed limit reduction','road safety scheme','road safety engineering','junction redesign','protected cycle lane','safe systems','retail vacancy activation','vacant storefront activation','temporary storefront use','storefront improvement','commercial facade improvement','small business facade grant','pop-up retail','commercial vacancy reduction','water efficiency','water conservation','water-use restriction','water use restriction','energy efficiency','energy efficiency retrofit','weatherization assistance','utility assistance','energy assistance','energy management','demand management','customer retention program','customer retention','loyalty program','customer success program','service recovery','churn prevention','job placement','career pathway','apprenticeship','hiring incentive','hiring support','recruitment program','route optimization','delivery route optimization','fleet routing','delivery scheduling','logistics optimization','accessible design','assistive technology','accommodation program','inclusive customer service','disaster preparedness','disaster preparedness training','evacuation support','resilience hub','queue management','appointment scheduling','patient flow','service capacity expansion','digital service access','remote service delivery','data governance program','data governance','master data management'];
+const STRONG_INTERVENTION_TERMS = INTERVENTION_TERMS.filter(term => !['prevention','intervention'].includes(term));
+const GENERIC_ACTION_TERMS = new Set(['prevention','intervention']);
+const INTERVENTION_FAMILIES = [
+  ['housing','housing','shelter','housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','tenant legal assistance'],
+  ['food-access','food','food bank','food access','food voucher','community food hub','mobile market','community kitchen','school meal'],
+  ['public-safety','crime','violence','assault','domestic violence','sexual violence','partner assault','violence response','prevention','enforcement','patrol','policing','deterrence','violence interruption','credible messenger','safe passage'],
+  ['mobility-safety','bike lane','protected lane','bus lane','transit','traffic','traffic calming','pedestrian crossing','signal timing','bus priority'],
+  ['health-service','clinic','treatment','health','emergency response','care navigation','community paramedicine','community health worker','mobile crisis','community health worker','overdose prevention'],
+  ['climate-resilience','cooling centre','cooling center','cooling infrastructure','shade infrastructure','tree canopy','heat','smoke','emergency response','clean air shelter','home cooling','flood mitigation','stormwater','weatherization'],
+  ['employment','training','worker','employment','staffing','job placement','career pathway','apprenticeship','reskilling','wage subsidy'],
+  ['economic-support','grant','funding','subsidy','benefit','voucher','cash transfer','working capital','business financing','utility assistance','energy assistance'],
+  ['infrastructure','infrastructure','facility','project','preventive maintenance','asset management','capacity expansion','redundancy','retrofit','water efficiency','water conservation'],
+  ['digital-access','broadband','internet','wi-fi','wifi','device','digital literacy','public computer','community technology','hotspot','digital inclusion'],
+  ['regulatory','inspection','licensing','permit','regulation','compliance','internal controls','governance','water-use restriction','water use restriction'],
+  ['accessibility','accessibility','accessible design','assistive technology','accommodation','inclusive service'],
+  ['cybersecurity','zero trust','multi factor authentication','endpoint detection','security awareness','backup and recovery','incident response'],
+  ['public-service','library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
+  ['environmental','noise mitigation','noise barrier','quiet pavement','water treatment','source water protection','air pollution control','waste reduction'],
+  ['energy','home energy assistance','energy bill assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+  ['education','school meal program','after-school program','student support','early childhood education','tutoring']
+];
+const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
+  'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','street outreach','credible messenger','safe passage','place-based crime prevention','problem-oriented policing','hot spots policing','directed patrol','vacant lot greening','vacant land restoration','blighted vacant land restoration','vacant property remediation','blight remediation','intimate partner violence prevention','domestic violence prevention','reentry support','rehabilitation and re-entry','hospital violence intervention','peer support','peer navigator','environmental design','firearm violence prevention'],
+  housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
+  'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
+  'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
+  'climate-resilience':['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling','cooling infrastructure','shade infrastructure','tree canopy','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
+  'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
+  employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
+  'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
+  infrastructure:['preventive maintenance','asset management','capacity expansion','redundancy','retrofit','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
+  'digital-access':['broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','digital literacy training','community technology centre','computer access program'],
+  regulatory:['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform','licensing reform','compliance automation','internal controls','compliance workflow automation','regulatory workflow redesign','regulatory case management'],
+  accessibility:['accessible design','assistive technology','accommodation program','inclusive customer service','inclusive service design'],
+  cybersecurity:['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'],
+  'public-service':['library service redesign','extended library hours','mobile library','queue management','appointment scheduling','service capacity expansion','digital service access'],
+  environmental:['noise mitigation','noise barrier','quiet pavement','water treatment','source water protection','air pollution control','waste reduction'],
+  energy:['home energy assistance','energy bill assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+  education:['school meal program','after-school program','student support','early childhood education','tutoring']
+});
+function inferInterventionFamily(text) { const normalized = normalizeText(text).toLowerCase(); const matches = INTERVENTION_FAMILIES.filter(([, ...terms]) => terms.some(term => normalized.includes(term))); return matches.length ? matches.map(([family]) => family) : ['other']; }
+const LEGACY_INTERVENTION_CLASSES = Object.freeze({
+  municipal: {
+    safety: ['hot-spots policing','problem-oriented policing','focused deterrence','community violence intervention','place/environmental prevention','youth violence prevention','hospital-based violence intervention','victim services','justice-system diversion','police deployment/resource allocation','lighting/CCTV/place management'],
+    housing: ['supportive housing','housing first','rapid rehousing','prevention/diversion','rent assistance','support services','new affordable housing supply','zoning/planning reform','shelter/service redesign'],
+    health: ['prevention','harm reduction','treatment access','outreach','primary care expansion','mobile/community care','screening','public-health regulation','health-system coordination'],
+    mobility: ['road engineering','traffic calming','speed management','automated enforcement','intersection redesign','active transportation','transit service','parking/pricing','education/enforcement'],
+    climate: ['green infrastructure','drainage/stormwater upgrades','flood protection','land-use controls','building standards','early warning','emergency preparedness','water conservation','asset renewal'],
+    environment: ['collection/service redesign','recycling/organics','pricing/incentives','regulation','monitoring/enforcement','infrastructure investment','public education'],
+    infrastructure: ['maintenance','renewal','replacement','new capital','condition-based prioritization','demand management','shared infrastructure','procurement changes'],
+    economic: ['skills/training','business support','procurement/local purchasing','tax/fee incentives','infrastructure','placemaking','partnerships','targeted grants'],
+    food: ['income supports','food programs','service navigation','targeted subsidies','affordable services','partnerships','prevention'],
+    governance: ['zoning reform','development standards','infrastructure sequencing','incentives','fees','public land strategy','planning process redesign']
+  },
+  business: {
+    employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
+    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','route optimization','warehouse automation','emergency response coordination','business continuity response'],
+    safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
+    accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
+    governance: ['compliance automation','internal controls','data governance program','procurement reform']
+  },
+  community: {
+    safety: ['violence interruption','youth mentoring','credible messenger','community patrol','safe passage'],
+    housing: ['housing first','rental assistance','tenant support','community land trust','housing navigation'],
+    health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach'],
+    food: ['community food hub','food voucher','mobile market','community kitchen','school meal program'],
+    climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization'],
+    employment: ['job placement','bridge training','language training','apprenticeship support'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  research: {
+    safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention'],
+    housing: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
+    health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention'],
+    climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
+    mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
+    employment: ['worker transition','redeployment','displacement support','reskilling program','worker displacement','job training','wage subsidy','career pathway'],
+    digitalAccess: ['digital inclusion','broadband subsidy','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  enterprise: {
+    cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
+    governance: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'],
+    economic: ['process automation','workflow redesign','supplier diversification','capacity planning'],
+    employment: ['workforce planning','manager training','employee assistance','skills training','internal mobility'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'],
+    accessibility: ['accessible design','assistive technology','service accommodation','inclusive service design'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response']
+  }
+});
+
+function legacyClassTerms(problem, workspace = 'municipal') {
+  const domains = inferWorkspaceDomains(problem, workspace);
+  const classes = LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal;
+  return [...new Set(domains.flatMap(domain => classes[domain] || []))];
+}
+
+function interventionClassCoverage(problem, workspace, candidates = []) {
+  const expected = legacyClassTerms(problem, workspace);
+  const represented = expected.filter(className => {
+    const tokens = className.toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(t => t.length > 3);
+    return candidates.some(candidate => {
+      const haystack = normalizeText(candidate.name + ' ' + (candidate.discoveryText || '')).toLowerCase();
+      const hits = tokens.filter(token => haystack.includes(token)).length;
+      return tokens.length <= 2 ? hits >= 1 : hits >= Math.min(2, tokens.length);
+    });
+  });
+  return {
+    expectedClasses: expected,
+    representedClasses: represented,
+    missingClasses: expected.filter(className => !represented.includes(className)),
+    coverageRatio: expected.length ? represented.length / expected.length : 1
+  };
+}
+
+function missingInterventionClassSearchQueries(problem, workspace, candidates = []) {
+  const coverage = interventionClassCoverage(problem, workspace, candidates);
+  const profile = workspace === 'enterprise' ? enterpriseProblemProfile(problem) : null;
+  const classes = profile ? Object.fromEntries([['profile', profile.classes]]) : (LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal);
+  const domains = inferWorkspaceDomains(problem, workspace);
+  const compatibleDomains = domains.flatMap(domain => [...(CROSS_DOMAIN_COMPATIBILITY[domain] || [])]);
+  const searchDomains = [...new Set([...domains, ...compatibleDomains])];
+  const represented = new Set(coverage.representedClasses);
+  const queues = profile
+    ? [classes.profile.filter(className => !represented.has(className))]
+    : searchDomains.map(domain => (classes[domain] || []).filter(className => !represented.has(className)));
+  const selected = [];
+  // Stratify missing-class searches across relevant domains so the finite budget
+  // cannot be consumed by the first domain in the ontology. This is coverage
+  // discovery, never candidate synthesis.
+  for (let round = 0; round < Math.max(...queues.map(queue => queue.length), 0) && selected.length < 8; round++) {
+    for (const queue of queues) {
+      if (queue[round] && selected.length < 8) selected.push(queue[round]);
+    }
+  }
+  return selected.map(className => normalizeText(problem + ' ' + className));
+}
+
+// Workspace-specific coverage vocabulary is deliberately separate from municipal taxonomy.
+// It describes what each workspace can actually deploy/study/operate; it is not a candidate registry.
+Object.assign(LEGACY_INTERVENTION_CLASSES.business, {
+  digitalAccess: ['remote service enablement','customer self-service','accessible digital channel','device access support'],
+  health: ['occupational health program','employee assistance','mental health support','workplace health screening']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.community, {
+  accessibility: ['accessible design','assistive technology','accommodation support','inclusive service design'],
+  infrastructure: ['community facility upgrade','transport access','neighborhood infrastructure','resilience hub'],
+  publicService: ['community service navigation','extended service hours','mobile service delivery','appointment access']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.research, {
+  governance: ['implementation governance','policy implementation','regulatory design','institutional coordination'],
+  infrastructure: ['capital intervention','infrastructure retrofit','asset renewal','service capacity'],
+  economic: ['income support','wage subsidy','business support','procurement intervention']
+});
+Object.assign(LEGACY_INTERVENTION_CLASSES.enterprise, {
+  health: ['occupational health program','employee assistance','workplace health screening','mental health support'],
+  publicService: ['service redesign','queue management','appointment scheduling','self-service channel'],
+  climate: ['business continuity response','facility resilience','heat adaptation','flood preparedness']
+});
+
+const WORKSPACE_TAXONOMIES = Object.freeze({
+  municipal: {
+    safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention','street outreach','safe routes','traffic calming','automated speed enforcement'],
+    housing: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance'],
+    health: ['mobile crisis response','community paramedicine','primary care access','care navigation','overdose prevention','naloxone distribution','safe consumption services'],
+    food: ['food voucher','community food hub','school meal program','mobile market','grocery subsidy'],
+    climate: ['cooling centre','clean air shelter','home cooling','cooling infrastructure','shade infrastructure','tree canopy','smoke filtration','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage'],
+    mobility: ['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing'],
+    economic: ['small business grant','small business loan','small business financing','working capital support','business continuity support','business retention program','business advisory service','procurement support','customer retention program','job training','wage subsidy','utility assistance','cash transfer','home energy assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit','weatherization assistance'],
+    employment: ['job placement','career pathway','job training','skills training','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
+    governance: ['permit modernization','one stop permitting','one-stop permitting','one-stop shop permitting','digital permitting','online permitting','permit streamlining','permit reform','permit process redesign','permit review modernization','construction permit streamlining','inspection reform'],
+    publicService: ['library service redesign','extended library hours','mobile library','self service library','queue management','appointment scheduling','service capacity expansion','digital inclusion program','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','community technology centre','digital literacy training','computer access'],
+    environment: ['noise mitigation','noise barrier','quiet pavement','water treatment','water quality monitoring','source water protection','air pollution control','waste reduction'],
+    emergencyResponse: ['emergency response coordination','incident command','business continuity response','disaster response planning'],
+    digitalAccess: ['digital inclusion','digital inclusion program','digital inclusion programme','broadband subsidy','broadband voucher','broadband voucher scheme','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy training','community technology centre','computer access program']
+  },
+  business: {
+    employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
+    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response'],
+    safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
+    infrastructure: ['preventive maintenance','route optimization','warehouse automation','capacity expansion','redundancy'],
+    accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
+    governance: ['compliance automation','internal controls','data governance program','procurement reform']
+  },
+  community: {
+    safety: ['violence interruption','youth mentoring','credible messenger','community patrol','safe passage'],
+    housing: ['housing first','rental assistance','tenant support','community land trust','housing navigation'],
+    health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach'],
+    food: ['community food hub','food voucher','mobile market','community kitchen','school meal program'],
+    climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization'],
+    employment: ['job placement','bridge training','language training','apprenticeship support'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  research: {
+    safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention'],
+    housing: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
+    health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention'],
+    climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
+    mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
+    employment: ['job training','wage subsidy','career pathway','reskilling program','worker displacement','displacement support','redeployment','worker transition'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+  },
+  enterprise: {
+    cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
+    governance: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'],
+    economic: ['process automation','workflow redesign','supplier diversification','capacity planning'],
+    employment: ['workforce planning','manager training','employee assistance','skills training','internal mobility'],
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'],
+    accessibility: ['accessible design','assistive technology','service accommodation','inclusive service design'],
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response']
+  }
+});
+
+function inferWorkspaceDomains(problem, workspace = 'municipal') {
+  const p=normalizeText(problem).toLowerCase();
+  const aliases={municipal:{safety:['crime','violence','injur','gun','opioid','overdose','road safety'],housing:['homeless','housing','eviction','rough sleeping'],health:['health','hospital','clinic','overcrowding','opioid','overdose','mental'],food:['food','hunger','nutrition'],climate:['heat','wildfire','smoke','flood','climate','disaster'],mobility:['transit','traffic','pedestrian','mobility','congestion'],economic:['business','cost','poverty','income','affordability','energy burden','utility burden','energy bill','utility bill','energy costs'],employment:['employment','worker','workforce','job','training','displacement','redeployment','worker transition'],governance:['permit','permitting','regulatory','compliance'],publicService:['library','libraries','library service','wait time','wait times','queue','queues','service access','customer service'],environment:['water contamination','water quality','noise pollution','noise','air pollution'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access']},business:{employment:['employee','turnover','hiring','training','burnout','workforce'],economic:['business','churn','survival','supply','cost','pricing','delivery'],safety:['injury','workplace','safety'],infrastructure:['delivery','maintenance','capacity'],accessibility:['accessibility','disability','accessible'],governance:['compliance','procurement','governance']},community:{safety:['violence','safety','youth'],housing:['housing','homeless','rent','eviction'],health:['health','mental','healthcare'],food:['food','hunger'],climate:['heat','wildfire','smoke','disaster','evacuation'],employment:['employment','job','newcomer','training'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access']},research:{safety:['crime','violence','injury','opioid'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access'],housing:['homeless','housing','eviction'],health:['health','hospital','overdose','mental'],climate:['heat','wildfire','smoke','flood'],mobility:['transit','traffic','pedestrian','mobility'],employment:['employment','workforce','automation','worker displacement','displacement','redeployment','worker transition','labor','labour','job loss','job transition','workforce transition','occupational transition','career transition','worker retraining']},enterprise:{cybersecurity:['cybersecurity','cyber','security incident'],governance:['governance','data','compliance','regulatory'],economic:['procurement','cycle time','automation','workflow','supplier','capacity'],employment:['employee','burnout','workforce','training'],accessibility:['accessibility','accessible','disability'],digitalAccess:['digital access','internet access','broadband','internet','wifi','wi-fi','digital divide','device access','computer access'],infrastructure:['maintenance','infrastructure','asset','emergency response']}};
+  const taxonomy=WORKSPACE_TAXONOMIES[workspace]||WORKSPACE_TAXONOMIES.municipal, selected=aliases[workspace]||aliases.municipal, domains=[];
+  for(const [domain,keywords] of Object.entries(selected)) if(keywords.some(keyword=>p.includes(keyword))) domains.push(domain);
+  for(const [domain,phrases] of Object.entries(taxonomy)) if(phrases.some(phrase=>p.includes(String(phrase).toLowerCase()))) domains.push(domain);
+  return [...new Set([...domains,...discoveryDomains(p)])];
+}
+function enterpriseProblemProfile(problem) {
+  const p = normalizeText(problem).toLowerCase();
+  const profiles = [
+    { match: /cybersecurity|security incident/, classes: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+    { match: /procurement.*cycle|cycle.*procurement|procurement cycle time/, classes: [
+      'procurement process redesign','procurement workflow automation','e-procurement',
+      'digital procurement','procurement modernization','purchase order automation',
+      'process automation','workflow redesign','supplier diversification','capacity planning'
+    ] },
+    { match: /employee burnout|burnout/, classes: ['workforce planning','manager training','employee assistance','skills training','internal mobility'] },
+    { match: /cloud infrastructure costs|cloud costs|cloud cost optimization|cloud spending/, classes: ['cloud cost optimization','workload rightsizing','capacity optimization','autoscaling','reserved capacity optimization','storage optimization','finops'] },
+    { match: /remote service delivery/, classes: ['remote service enablement','customer self-service','accessible digital channel','device access support'] },
+    { match: /regulatory compliance delays|compliance delays|regulatory.*delays/, classes: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','permit modernization','inspection reform'] },
+    { match: /data governance|data stewardship|data quality|master data/, classes: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment','compliance automation','internal controls'] },
+    { match: /infrastructure maintenance backlog|maintenance backlog/, classes: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response','maintenance management system','condition-based maintenance','predictive maintenance','asset renewal'] },
+    { match: /emergency response coordination/, classes: ['emergency response coordination','incident command','business continuity response','emergency operations centre','mutual aid coordination'] },
+    { match: /accessibility barriers.*digital services|digital services.*accessibility barriers/, classes: ['accessible design','assistive technology','service accommodation','inclusive service design'] },
+    { match: /digital access gaps/, classes: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'] }
+  ];
+  return profiles.find(profile => profile.match.test(p)) || null;
+}
+
+function isEnterpriseProfileAlignedTitle(title) {
+  const normalizedTitle = normalizeInterventionName(title);
+  if (!normalizedTitle) return false;
+  const classes = new Set([
+    ...Object.values(LEGACY_INTERVENTION_CLASSES.enterprise || {}).flat(),
+    ...Object.values(WORKSPACE_TAXONOMIES.enterprise || {}).flat(),
+    ...[
+      'remote service enablement','customer self-service','accessible digital channel','device access support',
+      'business continuity response','incident command','emergency response coordination'
+    ]
+  ]);
+  return [...classes].some(className => normalizeInterventionName(className) === normalizedTitle);
+}
+
+function taxonomyTerms(problem, workspace = 'municipal') {
+  if (workspace === 'enterprise') {
+    const profile = enterpriseProblemProfile(problem);
+    if (profile) return [...profile.classes];
+  }
+  const domains = inferWorkspaceDomains(problem, workspace);
+  const taxonomy = WORKSPACE_TAXONOMIES[workspace] || WORKSPACE_TAXONOMIES.municipal;
+  return [...new Set(domains.flatMap(domain => taxonomy[domain] || []))];
+}
+
+const NON_INTERVENTION_ARTIFACT_PATTERNS = [
+  /\b^(audit|review|notice|letter|memorandum|memo|bulletin|technical document|technical guidance|applicant guide|user guide|handbook|framework|assessment|evaluation|study|research|survey|profile|inventory|directory|register)\b/i,
+  /\b(?:provider directory|service provider directory|provider list|service provider list|list of providers)\b/i,
+  /\b(?:a|an|the)\s+(?:review|assessment|evaluation|study|research|audit|analysis|survey)\s+(?:of|on|into)\b/i,
+  /\b(?:service|services)\s+delivery\s+by\s+type\s+of\b/i,
+  /\b(?:national|regional|annual|community|local)\s+assessment\s+of\b/i,
+  /\bbarriers\s+to\b.*\b(?:aged|age)\s+\d+\s+years?\s+and\s+over\b/i,
+  /\b(?:excellence|best practice|best-practice)\s+in\s+(?:service|customer service)\s+delivery\b/i,
+  /\b(?:use cases?|use-case catalogue|use-case catalog)\b/i,
+  /\b(funding allocations?|award allocations?|casework review|regulatory casework review|withdrawn .* notices?|technical document|applicant guide|implementation guide|annual report)\b/i,
+  // Search indexes frequently return announcements, guidance, notices, funding pages,
+  // and outcome/administrative pages that contain intervention language but are not
+  // themselves executable interventions. Reject these before positive action signals.
+  /^(?:office|department|government|minister|secretary|pm:)\b/i,
+  /\b(?:announces?|announced|awards?|awarded|launches?|launched|calls? for|expressions? of interest|prospectus|privacy notice|how to comply|success rates?|percentage of referrals|programme deep dive)\b/i,
+  /\b(?:grant|funding)\s+announcement\b/i,
+  /\b(?:fund|funding|grant)\s+(?:for|to)\s+(?:local|regional|community)\s+(?:action|projects?|organisations?|organizations?)\b/i,
+  /\b(?:funding|grant)\s+to\s+help\b/i,
+  /^supporting vulnerable people\b/i,
+  /\b(?:grant recipients?|funding recipients?|recipient list|awardees?|grantees?)\b/i,
+  /\b(?:cost effectiveness|cost-effectiveness)\s+analysis\b/i,
+  /^success profiles\b/i,
+  /\b(?:success rates?|programme deep dive|assessment findings?|evaluation findings?)\b/i,
+  /\b\b(data|dataset|statistical|statistics|indicator|dashboard|records?|catalogue|catalog|database|metadata|timeseries|time series|case study|case-study)\b/i,
+  /\b(?:letter|memorandum|memo|notice)\s+(?:from|to)\b/i,
+  /\b(?:program|programme|service)\s+management\s+(?:committee|board|meeting)\b/i,
+  /\bprivacy impact assessment\b/i,
+  /\bpre-?application\s+advice\b/i,
+  /\b(?:project|programme|program)\s+area\b/i,
+  /^(?:proportion|percentage|number|rate|share|level|uptake|coverage|access)\s+of\b/i,
+  /^(?:make|making)\s+a\s+complaint\b/i,
+  /^(?:how)\s+(?:the|to|we|you|a|an)\b/i,
+  /^(?:access|information|guidance|advice|support)\s+(?:for|on|about|to)\b/i,
+  /^(?:improving|reducing|increasing|supporting|addressing)\s+(?:attainment|learning|outcomes?|performance|access|services?)\s+(?:in|for|across)\b/i,
+  /\b(?:supports?|supporting)\s+(?:learning|attainment|access|service delivery)\b/i
+];
+function isActionableInterventionTitle(title,notes='',{allowDescriptionSignals=false}={}){
+  const titleText=normalizeText(title).toLowerCase(), text=normalizeText(title+' '+notes).toLowerCase(), signalText=allowDescriptionSignals ? text : titleText;
+  if(!titleText) return false;
+  // Exact workspace-profile intervention classes are executable interventions even when
+  // a shared noun (for example "data") would otherwise trip the artifact guard.
+  if (isEnterpriseProfileAlignedTitle(titleText)) return true;
+  if(NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern=>pattern.test(titleText))) return false;
+  // Document/status titles can contain intervention words such as "project",
+  // "program", or "funding" without describing an executable intervention.
+  // Reject those compound document signals before positive intervention signals.
+  if (/\b(status|progress report|annual report|performance report|evaluation findings|evaluation results|assessment findings|assessment results|follow[- ]?up study|case study|feasibility study|impact study|research study|successful projects|project status|project update|deep dive|natural capital tool|announces funding)\b/i.test(titleText)) return false;
+  if(/\b(data|dataset|statistics|statistic|indicator|dashboard|observations?|temperature|fatalities|measurements?|counts?|trends?|profile|census|report|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(titleText)) return false;
+  if(/\b(provider list|service provider list|list of providers|recipient|recipients|grantee|grantees|awardee|awardees|beneficiar(?:y|ies)|participant list|participant registry)\b/i.test(titleText)) return false;
+  const explicitProgram=/\b(program|programme|initiative|intervention|pilot|project|grant|fund|funding|subsidy|benefit|voucher|scheme|action plan|training|clinic|shelter|treatment|outreach|enforcement|patrol|assistance|support|response|reform|modernization|automation|navigation|governance|service)\b/i.test(signalText);
+  const concreteAction=/\b(provide|expand|deploy|implement|operate|fund|subsidize|regulate|inspect|train|hire|staff|build|install|retrofit|convert|redesign|reduce|increase|improve|prevent|manage|maintain|deliver|administer)\b/i.test(signalText);
+  const concreteServiceObject=/\b(food bank|food pantry|community food hub|stormwater retention|drainage improvement|urban drainage|flood mitigation|housing first|rapid rehousing|supportive housing|violence interruption|community violence intervention|hot spot policing|hot spots policing|problem-oriented policing|directed patrol|focused deterrence|street outreach|traffic calming|speed enforcement|protected (bike|bicycle) lane|pedestrian crossing|road safety infrastructure project|traffic infrastructure project|stormwater infrastructure project|community paramedicine|primary care clinic|community health worker|mobile clinic|care navigation|food voucher|cooling (centre|center)|shade infrastructure|tree canopy|smoke filtration|wildfire smoke mitigation|wildfire evacuation support|clean air shelter|wage subsidy|cash transfer|preventive maintenance|zero trust|multi factor authentication|endpoint detection|broadband subsidy|internet subsidy|device lending|device grant|public wi-fi|public wifi|digital inclusion|digital literacy|community technology (centre|center)|computer access program|e-procurement|digital procurement|procurement workflow automation|procurement process redesign|purchase order automation|digital permitting|online permitting|permit streamlining|public space|environmental safety|street lighting|vacant property remediation|blight remediation|built environment|vacant lot greening|lot greening|vacant land restoration|blighted vacant land restoration|reentry support|rehabilitation and re-entry|hospital violence intervention|intimate partner violence prevention|domestic violence prevention)\b/i.test(titleText);
+  // Controlled recall anchors are executable intervention vocabulary, not arbitrary
+  // search text. Allow them through the actionable gate so a recovered option such as
+  // route optimization or demand-responsive transit is not discarded merely because its
+  // title lacks the generic word "program".
+  const controlledRecallAction = DISCOVERY_RECALL_PACKS.some(pack =>
+    pack.terms.some(term => titleText.includes(String(term).toLowerCase()))
+  );
+  // Generic services are filtered by the positive intervention signals below; do not let the word service alone reject concrete interventions.
+
+  return explicitProgram || concreteAction || concreteServiceObject || controlledRecallAction;
+}
+const DISCOVERY_SYNONYM_GROUPS = Object.freeze({
+  municipal: [
+    [['reduce','lower','decrease','curb','cut','mitigate'], ['crime','violent crime','serious violence','community violence','public safety']],
+    [['homelessness','rough sleeping','housing insecurity','housing instability'], ['reduce']],
+    [['food insecurity','food insecurity and hunger','limited food access','food access gaps'], ['reduce']],
+    [['emergency department overcrowding','emergency department crowding','hospital overcrowding','ED crowding'], ['reduce']],
+    [['traffic congestion','congestion','traffic delays','travel delays'], ['reduce']],
+    [['construction permitting delays','permit delays','permitting delays','planning approval delays'], ['reduce']],
+    [['energy burden','energy affordability','utility burden','energy costs'], ['reduce']],
+    [['opioid overdose deaths','overdose deaths','opioid mortality','fatal opioid overdoses'], ['reduce']],
+    [['affordable childcare','childcare affordability','child care access','early childhood care access'], ['improve','increase']],
+    [['pedestrian injuries','pedestrian crashes','walking injuries','road user injuries'], ['reduce']],
+    [['extreme heat illness','heat-related illness','heat illness','heat health impacts'], ['reduce']],
+    [['urban flooding','urban flood','flooding','flood risk','stormwater','drainage'], ['reduce','mitigate','manage']],
+    [['wildfire smoke exposure','bushfire smoke exposure','smoke exposure','wildfire smoke impacts'], ['reduce']],
+    [['violent crime','serious violence','community violence','crime'], ['reduce']],
+  ],
+  business: [
+    [['customer churn','customer attrition','customer loss','client attrition'], ['reduce']],
+    [['employee turnover','staff turnover','workforce attrition','employee attrition'], ['reduce']],
+    [['workplace injuries','occupational injuries','work-related injuries','workplace accidents'], ['reduce']],
+    [['supply chain disruption','supply chain interruptions','supply disruption','logistics disruption'], ['reduce']],
+    [['energy costs','energy expenses','utility costs','energy expenditure'], ['reduce']],
+    [['hiring success','recruitment success','hiring outcomes','recruitment effectiveness'], ['improve','increase']],
+    [['delivery delays','delivery lead times','fulfillment delays','shipping delays'], ['reduce']],
+    [['employee training completion','training completion','workforce training completion','learning completion'], ['increase','improve']],
+    [['accessibility for customers with disabilities','accessible customer service','disability access','customer accessibility'], ['improve','increase']],
+    [['small business survival','small business continuity','business survival','business continuity'], ['improve','increase']],
+  ],
+  community: [
+    [['social isolation among seniors','senior social isolation','social isolation in older adults','loneliness among seniors'], ['reduce']],
+    [['newcomer employment','immigrant employment','newcomer workforce integration','employment integration'], ['improve','increase']],
+    [['affordable housing access','housing affordability','access to affordable housing','affordable housing availability'], ['improve','increase']],
+    [['youth violence','youth offending','youth involvement in violence','youth safety'], ['reduce','prevent']],
+    [['disaster preparedness','emergency preparedness','community disaster readiness','disaster readiness'], ['improve','increase']],
+    [['rural healthcare access','rural health access','rural healthcare availability','access to rural health services'], ['improve','increase']],
+    [['wildfire evacuation barriers','bushfire evacuation barriers','evacuation access','evacuation constraints'], ['reduce','remove']],
+  ],
+  research: [
+    [['homelessness','rough sleeping','housing insecurity','housing instability'], ['study','evaluate']],
+    [['hospital waiting times','hospital wait times','waiting times for hospital care','care delays'], ['study','evaluate']],
+    [['food insecurity','hunger','food access gaps','limited food access'], ['study','evaluate']],
+    [['heat-health interventions','heat health interventions','heat-related health interventions','heat illness prevention'], ['study','evaluate']],
+    [['pedestrian injuries','pedestrian crashes','walking injuries','road user injuries'], ['study','evaluate']],
+    [['workforce displacement from automation','automation-related job displacement','technology-driven displacement','worker displacement'], ['study','evaluate']],
+    [['opioid overdose prevention','overdose prevention','opioid mortality prevention','overdose harm reduction'], ['study','evaluate']],
+    [['energy poverty','energy insecurity','fuel poverty','energy affordability'], ['study','evaluate']],
+    [['wildfire smoke mitigation','bushfire smoke mitigation','smoke exposure mitigation','wildfire smoke reduction'], ['study','evaluate']],
+    [['rural mobility','rural transportation access','rural transport access','rural mobility barriers'], ['study','evaluate']],
+  ],
+  enterprise: [
+    [['digital access gaps','digital divide','digital exclusion','digital access barriers'], ['reduce','close','narrow']],
+    [['cybersecurity incident risk','cyber incident risk','security incident risk','cybersecurity exposure'], ['reduce','lower']],
+    [['procurement cycle time','procurement lead time','purchasing cycle time','procurement delays'], ['reduce','shorten']],
+    [['employee burnout','workforce burnout','staff burnout','occupational burnout'], ['reduce','prevent']],
+    [['remote service delivery','remote service access','digital service delivery','remote service provision'], ['improve','increase']],
+    [['accessibility barriers in digital services','digital accessibility barriers','accessible digital services','digital inclusion barriers'], ['reduce','remove']],
+    [['regulatory compliance delays','compliance delays','regulatory processing delays','regulatory approval delays'], ['reduce','shorten']],
+    [['data governance','information governance','data management governance','data stewardship'], ['improve','strengthen']],
+    [['infrastructure maintenance backlog','asset maintenance backlog','deferred maintenance','maintenance backlog'], ['reduce','clear']],
+    [['emergency response coordination','emergency coordination','incident response coordination','disaster response coordination'], ['improve','strengthen']],
+  ]
+});
+
+// Narrow recall packs for concrete no-candidate failures observed in the 60-case battery.
+// Retrieval anchors only; normal source/actionability/relevance gates remain authoritative.
+const DISCOVERY_RECALL_PACKS = Object.freeze([
+  { workspace: 'municipal', match: /violent crime|serious violence|community violence/i, terms: ['violence prevention','community safety program','street outreach','violence interruption','focused deterrence','hot spot policing','problem-oriented policing','place-based crime prevention','community violence intervention','hospital-based violence intervention','reentry support','firearm violence prevention','credible messenger','vacant property remediation'] },
+  { workspace: 'municipal', match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/i, terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management'] },
+  { workspace: 'municipal', match: /wildfire smoke exposure|bushfire smoke exposure|smoke exposure/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling'] },
+  { workspace: 'municipal', match: /extreme heat illness|heat-related illness|heat illness/i, terms: ['cooling centre','cooling infrastructure','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
+  { workspace: 'municipal', match: /worker displacement|workforce displacement|job displacement|displaced workers/i, terms: ['worker transition','redeployment','displacement support','reskilling','job placement','wage subsidy'] },
+  { workspace: 'municipal', match: /youth unemployment|youth joblessness|young people unemployment/i, terms: ['youth employment','youth job program','youth employment program','youth apprenticeship','youth traineeship','school-to-work transition','employment services','job placement','career pathway','wage subsidy'] },
+  { workspace: 'municipal', match: /construction permitting delays|construction permit delays|permitting delays|permit delays/i, terms: ['permit modernization','one stop permitting','digital permitting','permit streamlining','permit process redesign','construction permit streamlining','inspection reform'] },
+  { workspace: 'municipal', match: /housing construction delays|housing construction delay|residential construction delays|housing development delays/i, terms: ['development approval streamlining','housing approvals reform','expedited housing approvals','pre-approved housing designs','one stop development approvals','digital development approvals','planning approval reform','construction approval streamlining'] },
+
+  { workspace: 'municipal', match: /public library wait times|library wait times|library service wait times/i, terms: ['library service redesign','queue management','appointment scheduling','self service library','extended library hours','mobile library','service capacity expansion'] },
+  { workspace: 'municipal', match: /energy poverty|household energy poverty|energy burden/i, terms: ['home energy assistance benefit','home energy assistance','energy bill assistance','utility assistance','utility bill assistance','home weatherization','energy efficiency retrofit'] },
+  { workspace: 'municipal', match: /food insecurity|household food insecurity|food access gaps|hunger/i, terms: ['healthy food voucher','food voucher','community food distribution service','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'] },
+  { workspace: 'municipal', match: /vacant storefronts?|vacant retail space|commercial vacancy|empty storefronts?|retail vacancy/i, terms: ['vacant storefront activation','retail vacancy activation','temporary storefront use','pop-up retail','storefront improvement','commercial facade improvement','small business facade grant','commercial vacancy reduction'] },
+  { workspace: 'municipal', match: /food price volatility|food price instability|volatile food prices/i, terms: ['food price stabilization','food price support','food market stabilization','food price subsidy','food supply support','food affordability program'] },
+  { workspace: 'business', match: /small business survival|business survival|business continuity/i, terms: ['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service'] },
+  { workspace: 'municipal', match: /small business survival|business survival|business continuity/i, terms: ['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service'] },
+  { workspace: 'business', match: /employee turnover|staff turnover|workforce attrition|employee attrition/i, terms: ['retention program','manager training','flexible scheduling','employee assistance','career pathway','internal mobility'] },
+  { workspace: 'business', match: /workplace injuries|occupational injuries|work-related injuries|workplace accidents/i, terms: ['safety training','engineering control','ergonomic assessment','occupational health program','near miss program','safety incentive'] },
+  { workspace: 'community', match: /heat exposure|extreme heat exposure/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','cooling infrastructure'] },
+  { workspace: 'community', match: /wildfire evacuation barriers|bushfire evacuation barriers|evacuation constraints|evacuation access/i, terms: ['wildfire evacuation support','evacuation support','evacuation assistance','safe passage','emergency transportation','community evacuation planning'] },
+  { workspace: 'research', match: /food insecurity|hunger|food access gaps/i, terms: ['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'] },
+  { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
+  { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+  { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
+  { workspace: 'enterprise', match: /data governance|information governance|data stewardship|data quality/i, terms: ['data governance program','master data management','data stewardship program','data quality management','data standards program','privacy impact assessment'] },
+  { workspace: 'municipal', match: /affordable childcare|childcare affordability|child care access/i, terms: ['childcare subsidy','child care subsidy','childcare assistance','child care assistance','early childhood education','childcare centre','child care centre'] },
+  { workspace: 'municipal', match: /transit reliability|bus service delays|bus reliability/i, terms: ['transit frequency','bus priority','transit signal priority','bus rapid transit','service reliability program','transit operations improvement'] },
+  { workspace: 'municipal', match: /rough sleeping|homelessness|housing insecurity/i, terms: ['housing first','rapid rehousing','supportive housing','street outreach','shelter diversion','housing navigation'] },
+  { workspace: 'municipal', match: /bushfire smoke|wildfire smoke/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home air filtration','wildfire smoke preparedness','clean air intervention'] },
+  { workspace: 'business', match: /employee training completion|training completion|training participation/i, terms: ['learning management system','mandatory training program','manager coaching','microlearning','skills training','training incentives'] },
+  { workspace: 'municipal', match: /youth violence|youth firearm violence/i, terms: ['youth violence interruption','credible messenger','youth mentoring','focused deterrence','hospital-based violence intervention','summer youth employment'] },
+  { workspace: 'municipal', match: /disaster preparedness|emergency preparedness/i, terms: ['community emergency preparedness','emergency preparedness training','evacuation planning','resilience hub','early warning system','emergency supplies program'] },
+  { workspace: 'municipal', match: /reduce heat exposure|heat exposure|extreme heat/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','cooling infrastructure'] },
+  { workspace: 'municipal', match: /wildfire evacuation barriers|bushfire evacuation barriers|evacuation constraints|evacuation access/i, terms: ['wildfire evacuation support','evacuation assistance','emergency transportation','safe passage','community evacuation planning','evacuation route improvement'] },
+  { workspace: 'research', match: /pedestrian injuries|pedestrian crashes|walking injuries|road user injuries/i, terms: ['pedestrian crossing','protected bike lane','traffic calming','road diet','safe routes','speed management'] },
+  { workspace: 'research', match: /workforce displacement from automation|automation-related job displacement|technology-driven displacement|worker displacement/i, terms: ['worker transition','redeployment','reskilling','job placement','displacement support','wage subsidy'] },
+  { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
+  { workspace: 'enterprise', match: /digital access gaps|digital divide|digital exclusion/i, terms: ['broadband subsidy','internet access support','device lending','device grant','public wi-fi','digital literacy'] },
+  { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+  { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
+  { workspace: 'enterprise', match: /remote service delivery|remote service access|digital service delivery/i, terms: ['remote service enablement','customer self-service','accessible digital channel','device access support','digital service access','remote service provision'] },
+  { workspace: 'enterprise', match: /infrastructure maintenance backlog|asset maintenance backlog|deferred maintenance|maintenance backlog/i, terms: ['preventive maintenance','asset management','condition-based maintenance','predictive maintenance','asset renewal','maintenance management system'] },
+  { workspace: 'enterprise', match: /accessibility barriers in digital services|digital accessibility barriers|accessible digital services/i, terms: ['accessible design','assistive technology','accommodation program','inclusive service design','accessible digital channel','digital accessibility remediation'] },
+  // Recall packs for the remaining blocked cases from the 60-problem battery. These are
+  // retrieval anchors only: they never synthesize an option; a source-backed record must
+  // still pass the normal actionable/relevance gates below.
+  { workspace: 'municipal', match: /traffic congestion|traffic delays|congestion/i, terms: ['traffic signal timing','traffic signal priority','adaptive signal control','congestion pricing','bus priority','transit signal priority'] },
+  { workspace: 'municipal', match: /traffic injuries|traffic fatalities|road safety|road user injuries/i, terms: ['20 mph speed limit','20 mph speed limits','speed limit reduction','speed management','traffic calming','road safety scheme','road safety engineering','junction redesign','pedestrian crossing','protected cycle lane','safe routes','safe systems'] },
+  { workspace: 'municipal', match: /gun violence|firearm violence/i, terms: ['focused deterrence','community violence intervention','violence interruption','hospital-based violence intervention','credible messenger','firearm violence prevention'] },
+  { workspace: 'municipal', match: /school absenteeism|student absenteeism|chronic absenteeism/i, terms: ['attendance mentoring','school attendance intervention','family outreach','early warning system','school transportation support','student engagement program'] },
+  { workspace: 'business', match: /delivery delays|delivery delay|late deliveries|delivery reliability/i, terms: ['route optimization','delivery scheduling','fleet optimization','dispatch optimization','delivery tracking','warehouse automation'] },
+  { workspace: 'business', match: /employee training completion|training completion|training participation/i, terms: ['learning management system','mandatory training program','manager coaching','microlearning','skills training','training incentives'] },
+  { workspace: 'community', match: /social isolation among seniors|social isolation|loneliness among older adults/i, terms: ['befriending program','senior social prescribing','community connection program','peer support','senior centre outreach','group social activities'] },
+  { workspace: 'community', match: /access to affordable housing|affordable housing access|housing affordability/i, terms: ['rental assistance','housing navigation','rapid rehousing','supportive housing','community land trust','affordable housing development'] },
+  { workspace: 'community', match: /youth violence|youth firearm violence/i, terms: ['youth violence interruption','credible messenger','youth mentoring','focused deterrence','hospital-based violence intervention','summer youth employment'] },
+  { workspace: 'community', match: /disaster preparedness|emergency preparedness/i, terms: ['community emergency preparedness','emergency preparedness training','evacuation planning','community resilience hub','early warning system','emergency supplies program'] },
+  { workspace: 'community', match: /heat exposure|extreme heat|heat illness/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','cooling infrastructure'] },
+  { workspace: 'community', match: /wildfire evacuation barriers|bushfire evacuation barriers|evacuation constraints|evacuation access/i, terms: ['wildfire evacuation support','evacuation support','evacuation assistance','safe passage','emergency transportation','community evacuation planning'] },
+  { workspace: 'community', match: /rural healthcare access|rural health access|rural healthcare/i, terms: ['mobile clinic','community paramedicine','telehealth service','rural health outreach','community health worker','transportation to care'] },
+  { workspace: 'research', match: /evaluate interventions to reduce homelessness|interventions to reduce homelessness|reduce homelessness/i, terms: ['housing first','rapid rehousing','supportive housing','rental assistance','shelter diversion','permanent supportive housing'] },
+  { workspace: 'research', match: /heat-health interventions|heat health interventions|reduce heat illness/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
+  { workspace: 'research', match: /interventions to reduce pedestrian injuries|pedestrian injury prevention|pedestrian injuries/i, terms: ['traffic calming','protected bike lane','pedestrian crossing','safe routes','protected intersection','road diet'] },
+  { workspace: 'research', match: /workforce displacement from automation|worker displacement from automation|automation displacement/i, terms: ['worker transition','redeployment','reskilling','job placement','wage subsidy','career pathway'] },
+  { workspace: 'research', match: /wildfire smoke mitigation|bushfire smoke mitigation|smoke exposure mitigation/i, terms: ['wildfire smoke mitigation','smoke filtration','clean air shelter','home weatherization','wildfire evacuation support','clean air intervention'] },
+  { workspace: 'research', match: /interventions to improve rural mobility|rural mobility|rural transportation access/i, terms: ['demand responsive transit','community transportation','rural transit service','transit subsidy','community shuttle','non-emergency medical transportation'] },
+  { workspace: 'enterprise', match: /digital access gaps|digital access barriers|digital divide/i, terms: ['digital inclusion','broadband subsidy','internet access support','device lending','digital literacy','accessible digital channel'] },
+  { workspace: 'enterprise', match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/i, terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response'] },
+  { workspace: 'enterprise', match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/i, terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation'] },
+  { workspace: 'enterprise', match: /regulatory compliance delays|compliance delays|regulatory compliance/i, terms: ['compliance automation','internal controls','workflow redesign','process automation','digital permitting','inspection reform'] },
+  { workspace: 'enterprise', match: /infrastructure maintenance backlog|maintenance backlog|critical infrastructure maintenance/i, terms: ['preventive maintenance','asset management','condition-based maintenance','predictive maintenance','maintenance management system','asset renewal'] },
+  { workspace: 'business', match: /supply chain disruption|supply chain interruptions|supply disruption|logistics disruption/i, terms: ['supply chain visibility','demand forecasting','inventory buffer','supplier diversification','dual sourcing','logistics contingency planning'] },
+  { workspace: 'research', match: /heat-health interventions|heat health interventions|heat-related health interventions|heat illness prevention/i, terms: ['cooling centre','clean air shelter','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
+  { workspace: 'enterprise', match: /employee burnout|workforce burnout|staff burnout|occupational burnout/i, terms: ['workload management','manager training','employee assistance program','flexible work program','staffing capacity','job redesign'] },
+  { workspace: 'enterprise', match: /emergency response coordination|incident response coordination|emergency operations/i, terms: ['incident command','emergency operations centre','mutual aid coordination','crisis communication','incident management','emergency response platform'] }
+]);
+function discoveryRecallTerms(problem, workspace) {
+  const normalized = normalizeText(problem);
+  return DISCOVERY_RECALL_PACKS.filter(pack => pack.workspace === workspace && pack.match.test(normalized)).flatMap(pack => pack.terms);
+}
+
+
+function discoveryMechanismPivots(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem).toLowerCase();
+  const pivots = [];
+  const add = (...terms) => terms.forEach(term => {
+    const q = normalizeText(term);
+    if (q && !pivots.includes(q)) pivots.push(q);
+  });
+  add('program', 'service', 'initiative', 'pilot', 'grant', 'subsidy', 'funding', 'voucher', 'outreach', 'training', 'staffing', 'infrastructure', 'facility', 'capital project', 'regulation', 'licensing', 'inspection', 'technology', 'digital service', 'partnership', 'community partnership');
+  if (/\b(evict|eviction|housing|homeless|rough sleeping|rent|tenant)\b/.test(normalized)) add('rental assistance', 'tenant legal assistance', 'eviction diversion', 'landlord incentive', 'housing navigation');
+  if (/\b(small business|business survival|business continuity|customer churn|employee turnover|delivery|training completion)\b/.test(normalized)) add('business grant', 'working capital', 'retention program', 'process redesign', 'workflow automation', 'manager training');
+  if (/\b(violence|crime|safety|emergency response)\b/.test(normalized)) add('violence prevention', 'place-based prevention', 'community intervention', 'outreach', 'emergency coordination', 'incident management');
+  if (/\b(heat|smoke|wildfire|bushfire|flood|disaster|climate)\b/.test(normalized)) add('resilience program', 'preparedness program', 'early warning', 'emergency shelter', 'evacuation support', 'home retrofit');
+  if (/\b(transit|traffic|pedestrian|mobility|congestion)\b/.test(normalized)) add('service frequency', 'priority lane', 'signal priority', 'traffic calming', 'road redesign', 'fleet operations');
+  if (/\b(digital|cyber|accessibility|internet|broadband|procurement)\b/.test(normalized)) add('digital access', 'technology deployment', 'workflow automation', 'process redesign', 'accessibility remediation', 'security controls');
+  if (workspace === 'business') add('business retention', 'customer retention', 'operational improvement', 'workforce development');
+  if (workspace === 'community') add('community program', 'community service', 'neighbourhood program', 'local partnership');
+  if (workspace === 'research') add('program evaluation', 'intervention evaluation', 'implementation study', 'pilot program');
+  if (workspace === 'enterprise') add('process improvement');
+  return pivots;
+}
+
+function discoveryAdministrativePivots(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem).toLowerCase();
+  const pivots = [];
+  const add = (...terms) => terms.forEach(term => {
+    const q = normalizeText(term);
+    if (q && !pivots.includes(q)) pivots.push(q);
+  });
+  add('procurement', 'contract', 'grant program', 'funding program', 'service contract', 'implementation program');
+  if (workspace === 'municipal') add('municipal program', 'city program', 'local government program', 'public service program');
+  if (workspace === 'business') add('business program', 'operating program', 'vendor program', 'customer program');
+  if (workspace === 'community') add('community program', 'nonprofit program', 'community service');
+  if (workspace === 'research') add('pilot', 'demonstration', 'implementation study');
+  if (workspace === 'enterprise') add('operating model', 'service delivery model', 'internal program');
+  if (/\b(eviction|housing|homeless|rough sleeping)\b/.test(normalized)) add('housing program', 'rental assistance program', 'tenant support program');
+  if (/\b(violence|crime)\b/.test(normalized)) add('violence prevention program', 'community safety program', 'public safety program');
+  if (/\b(heat|smoke|wildfire|bushfire|flood|disaster)\b/.test(normalized)) add('resilience program', 'emergency preparedness program', 'evacuation program');
+  if (/\b(cyber|digital|procurement)\b/.test(normalized)) add('technology program', 'modernization program', 'security program');
+  return pivots;
+}
+
+function expandDiscoveryVocabulary(problem, workspace = 'municipal', maxVariants = 8) {
+  const original = normalizeText(problem);
+  const normalized = original.toLowerCase();
+  const groups = DISCOVERY_SYNONYM_GROUPS[workspace] || DISCOVERY_SYNONYM_GROUPS.municipal;
+  const variants = new Set([original]);
+  const verbs = new Set(['reduce','increase','improve','prevent','study','evaluate','lower','decrease','curb','cut','mitigate','close','narrow','remove','shorten','clear','strengthen']);
+  for (const [first, second] of groups) {
+    const firstVerb = first.find(value => verbs.has(value) && normalized.includes(value));
+    const secondVerb = second.find(value => verbs.has(value) && normalized.includes(value));
+    const nounList = firstVerb ? second : secondVerb ? first : (first.some(value => normalized.includes(value)) ? first : second);
+    const noun = nounList.filter(value => !verbs.has(value) && normalized.includes(value)).sort((a, b) => b.length - a.length)[0];
+    if (noun) {
+      for (const replacement of nounList) {
+        if (replacement === noun || verbs.has(replacement)) continue;
+        variants.add(normalized.replace(noun, replacement));
+        if (variants.size >= maxVariants) break;
+      }
+    }
+    const verb = firstVerb || secondVerb;
+    const verbList = firstVerb ? first : secondVerb ? second : null;
+    if (verb && verbList) {
+      for (const replacement of verbList) {
+        if (replacement === verb) continue;
+        variants.add(normalized.replace(verb, replacement));
+        if (variants.size >= maxVariants) break;
+      }
+    }
+    if (variants.size >= maxVariants) break;
+  }
+  return [...variants].slice(0, maxVariants);
+}
+
+function evidenceConceptTokensForIntervention(value){
+  return [...new Set(normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/)
+    .filter(token=>token.length>3 && !['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','evaluate','study','effective','problem','access','service','program','programme','intervention','ways','measure','measures','local','delay','delays','audit','governance','response','delivery','data','customer','customers','digital'].includes(token))
+    .map(token=>token.replace(/ies$/,'y').replace(/s$/,'')))];
+}
+function expectedInterventionFamilies(problem,workspace='municipal'){
+  const domains=inferWorkspaceDomains(problem,workspace),map={safety:['public-safety'],housing:['housing'],health:['health-service'],food:['food-access'],climate:['climate-resilience'],mobility:['mobility-safety'],economic:['economic-support'],employment:['employment'],governance:['regulatory'],publicService:['public-service'],environment:['environmental'],cybersecurity:['cybersecurity'],infrastructure:['infrastructure'],accessibility:['accessibility'],digitalAccess:['digital-access'],energy:['energy'],education:['education'],emergencyResponse:['infrastructure']};
+  return [...new Set(domains.flatMap(domain=>map[domain]||[]))];
+}
+function discoveryCoverage(problem,workspace,candidates){
+  const expected=expectedInterventionFamilies(problem,workspace),observed=[...new Set(candidates.flatMap(candidate=>candidate.interventionFamily||[]))],matched=expected.filter(family=>observed.includes(family));
+  return {expectedFamilies:expected,observedFamilies:observed,missingFamilies:expected.filter(family=>!observed.includes(family)),coverageRatio:expected.length?matched.length/expected.length:1};
+}
+function classifyDiscoveryQuery(query, problem, workspace='municipal') {
+  const q=normalizeText(query).toLowerCase(), p=normalizeText(problem).toLowerCase();
+  if(q===p) return 'original';
+  if(q.includes('systematic review')||q.includes('meta analysis')) return 'evidence-index';
+  const families=expectedInterventionFamilies(problem,workspace);
+  if(families.some(f => (INTERVENTION_FAMILY_SEARCH_TERMS[f]||[]).some(t=>q.endsWith(' '+t)))) return 'family-expansion';
+  if(legacyClassTerms(problem, workspace).some(t => q.endsWith(' ' + t.toLowerCase()))) return 'legacy-class-expansion';
+  const taxonomy=(WORKSPACE_TAXONOMIES[workspace]||{});
+  if(Object.values(taxonomy).flat().some(t=>q.endsWith(' '+t))) return 'workspace-taxonomy';
+  return 'vocabulary-expansion';
+}
+
+function buildMechanismSearchQueries(problem, workspace = 'municipal') {
+  const normalized = normalizeText(problem);
+  const domains = inferWorkspaceDomains(normalized, workspace);
+  const mechanisms = new Set();
+  const add = (...terms) => terms.forEach(term => { if (term) mechanisms.add(normalizeText(normalized + ' ' + term)); });
+  // Preserve workspace-specific operational vocabulary as a distinct channel.
+  if (workspace === 'business') add('process redesign', 'workflow automation', 'operational improvement');
+  if (workspace === 'enterprise') add('process improvement');
+  // Domain-specific implementation pivots get first claim on this bounded lane.
+  // Generic administrative terms are retained as fallback, but must not displace
+  // the problem-domain vocabulary when the two-query cap is reached.
+  const pivotsByDomain = {
+    'public-safety': ['municipal program', 'service delivery', 'implementation program'],
+    housing: ['housing program', 'housing service', 'rental assistance program'],
+    'health-service': ['health service', 'care program', 'service delivery'],
+    'food-access': ['food access program', 'food assistance program', 'community food service'],
+    'climate-resilience': ['resilience program', 'adaptation program', 'emergency preparedness program'],
+    'mobility-safety': ['road safety program', 'transport service', 'traffic safety program'],
+    employment: ['employment program', 'workforce program', 'job training program'],
+    'economic-support': ['grant program', 'funding program', 'business support program'],
+    infrastructure: ['capital program', 'maintenance program', 'asset management program'],
+    'digital-access': ['digital inclusion program', 'broadband program', 'device access program'],
+    regulatory: ['regulatory program', 'permit modernization program', 'inspection program'],
+    accessibility: ['accessibility program', 'accessible service', 'accommodation program'],
+    cybersecurity: ['cybersecurity program', 'security program', 'incident response program'],
+    'public-service': ['service redesign program', 'service delivery', 'capacity expansion program'],
+    environmental: ['environmental program', 'pollution control program', 'waste reduction program'],
+    energy: ['energy assistance program', 'energy efficiency program', 'weatherization program'],
+    education: ['education program', 'student support program', 'school service program']
+  };
+  const domainPivotTerms = domains.flatMap(domain => (pivotsByDomain[domain] || []).slice(0, 2));
+  for (const term of domainPivotTerms.slice(0, workspace === 'enterprise' ? 1 : 2)) add(term);
+  // Generic implementation/admin pivots remain available after domain anchors.
+  // If no domain vocabulary applies, implementation program is the first generic
+  // anchor so operational discovery is still represented.
+  add('implementation program', 'procurement', 'contract');
+  if (workspace === 'enterprise') add('operating model', 'service delivery model');
+  if (!mechanisms.size) {
+    add('program');
+    add('service');
+  }
+  return [...mechanisms];
+}
+
+function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = DISCOVERY_MAX_QUERIES_PER_SOURCE) {
+  const original = normalizeText(problem);
+  const normalized = original.toLowerCase();
+  const lanes = new Map([
+    ['original', [original]],
+    ['recall', []],
+    ['vocabulary-expansion', expandDiscoveryVocabulary(original, workspace, 8)],
+    ['family-expansion', []],
+    ['legacy-class-expansion', missingInterventionClassSearchQueries(problem, workspace, [])],
+    ['workspace-taxonomy', []],
+    ['business-implementation', workspace === 'business' ? ['process redesign', 'workflow automation', 'operational improvement'].map(term => normalizeText(original + ' ' + term)) : []],
+    ['mechanism/admin', buildMechanismSearchQueries(original, workspace)]
+  ]);
+
+  // Historical recall packs are a first-class acquisition lane, but only a bounded,
+  // diverse slice gets budget. Direct anchors are especially useful for CKAN/GOV.UK
+  // indexes that behave like AND queries.
+  const recallTerms = discoveryRecallTerms(original, workspace);
+  lanes.set('recall', [...new Set([
+    ...recallTerms,
+    ...recallTerms.map(term => original + ' ' + term)
+  ])]);
+
+  const expected = [...new Set([
+    ...expectedInterventionFamilies(original, workspace),
+    ...inferInterventionFamily(normalized)
+  ])];
+  const familyQueries = [];
+  for (const family of expected) {
+    for (const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])) {
+      familyQueries.push(term);
+    }
+  }
+  lanes.set('family-expansion', [...new Set(familyQueries)]);
+
+  const taxonomy = taxonomyTerms(original, workspace);
+  const domains = inferWorkspaceDomains(original, workspace);
+  const workspaceTaxonomy = WORKSPACE_TAXONOMIES[workspace] || {};
+  const taxonomyQueries = [];
+  for (const domain of domains) {
+    const first = workspaceTaxonomy[domain]?.[0];
+    if (first) taxonomyQueries.push(original + ' ' + first);
+  }
+  taxonomyQueries.push(...taxonomy.map(term => original + ' ' + term));
+  lanes.set('workspace-taxonomy', [...new Set(taxonomyQueries)]);
+
+  // Fixed lane caps prevent a large recall pack from consuming the entire source
+  // budget and starving the older missing-family/class mechanisms.
+  const caps = {
+    original: 1,
+    recall: 4,
+    'vocabulary-expansion': 2,
+    'family-expansion': 2,
+    'legacy-class-expansion': 3,
+    'workspace-taxonomy': 1,
+    'business-implementation': 3,
+    'mechanism/admin': workspace === 'enterprise' ? 5 : 2
+  };
+  const laneOrder = Object.keys(caps);
+  const selected = [];
+  const seen = new Set();
+
+  for (const lane of laneOrder) {
+    let laneSelected = 0;
+    for (const query of lanes.get(lane) || []) {
+      const q = normalizeText(query);
+      if (!q || seen.has(q)) continue;
+      selected.push({ query: q, queryLayer: lane });
+      seen.add(q);
+      laneSelected += 1;
+      // Count against the source lane, not the public queryLayer alias. The
+      // legacy lane is emitted as "missing-class-expansion", so comparing the
+      // public label to "legacy-class-expansion" never incremented its cap and
+      // allowed it to consume every remaining slot before mechanism/admin lanes.
+      if (laneSelected >= caps[lane]) break;
+    }
+  }
+
+  // Backfill unused capacity, then enforce representation of every non-empty
+  // late discovery lane. Deduplication can otherwise make a lane appear empty
+  // even when its retrieval vocabulary is available, which lets early recall
+  // expansion consume the entire effective budget.
+  if (selected.length < maxQueries) {
+    for (const lane of laneOrder) {
+      for (const query of lanes.get(lane) || []) {
+        const q = normalizeText(query);
+        if (!q || seen.has(q)) continue;
+        selected.push({ query: q, queryLayer: lane });
+        seen.add(q);
+        if (selected.length >= maxQueries) break;
+      }
+      if (selected.length >= maxQueries) break;
+    }
+  }
+
+  // The mechanism/admin lane is an independent intervention-discovery channel.
+  // Reserve one slot for it whenever it has a unique query; if all of its
+  // capped queries collided with earlier lanes, recover the first uncapped
+  // mechanism query by replacing the lowest-priority non-original expansion.
+  const mechanismQueries = lanes.get('mechanism/admin') || [];
+  const hasMechanism = selected.some(item => item.queryLayer === 'mechanism/admin');
+  if (mechanismQueries.length && !hasMechanism && selected.length >= maxQueries) {
+    const fallback = mechanismQueries.find(query => {
+      const q = normalizeText(query);
+      return q && !seen.has(q);
+    });
+    if (fallback) {
+      const replaceAt = [...selected.keys()].reverse().find(index =>
+        !['original', 'mechanism/admin'].includes(selected[index].queryLayer)
+      );
+      if (replaceAt !== undefined) {
+        selected[replaceAt] = { query: normalizeText(fallback), queryLayer: 'mechanism/admin' };
+      }
+    }
+  }
+  return selected.slice(0, maxQueries);
+}
+
+function buildDiscoveryQueries(problem, workspace = 'municipal') {
+  return buildDiscoveryQueryPlan(problem, workspace).map(item => item.query);
+}
+
+function extractConcreteInterventionFromDescription(problem, workspace, description = '') {
+  const text = normalizeText(description).toLowerCase();
+  if (!text) return [];
+  const extracted = [];
+  // Evidence records often describe the intervention by mechanism rather than using
+  // the exact intervention label. These bounded co-occurrence rules recover the
+  // executable intervention without treating the paper/report itself as the option.
+  if (/\bvacant\s+(?:and\s+)?blighted?\s+(?:urban\s+)?land\b|\bvacant\s+lots?\b/i.test(text) && /\b(greening|green(?:ed|ing)?|clean(?:ing|ed)?|plant(?:ing|ed)?|restor(?:e|ation|ed)|remediat(?:e|ion|ed)|maintain(?:ed|ance)?)\b/i.test(text)) extracted.push('vacant lot greening');
+  if (/\bblighted\s+vacant\s+land\b/i.test(text) && /\b(restor(?:e|ation|ed)|remediat(?:e|ion|ed)|treat(?:ment|ed)?)\b/i.test(text)) extracted.push('vacant land restoration');
+  if (/\bhospital(?:-based|\s+based)?\b/i.test(text) && /\bviolence\b/i.test(text) && /\b(peer[- ]support|peer\s+support|navigator)\b/i.test(text)) extracted.push('hospital-based violence intervention with peer support navigators');
+  else if (/\bhospital(?:-based|\s+based)?\b/i.test(text) && /\bviolence\b/i.test(text) && /\bviolence\s+intervention\b/i.test(text)) extracted.push('hospital-based violence intervention');
+  const terms = [...new Set([...taxonomyTerms(problem, workspace), ...expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])])].sort((a,b) => b.length - a.length);
+  // Description extraction is intentionally gated on a concrete executable verb.
+  // Generic nouns such as "program", "service", or "intervention" are insufficient:
+  // catalogue records can append those words to otherwise non-executable data/report
+  // descriptions and would otherwise manufacture a lead.
+  const actionCue = /\b(provides?|provided|providing|funds?|funded|funding|offers?|offered|operates?|operated|delivers?|delivered|implements?|implemented|deploys?|deployed|supports?|supported|subsidizes?|subsidized|administers?|administered|runs?|launched?|launches?|establishes?|established|expands?|expanded|maintains?|maintained|installs?|installed|builds?|built|retrofits?|retrofitted|redesigns?|redesigned)\b/i;
+  extracted.push(...terms.filter(term => {
+    const idx = text.indexOf(String(term).toLowerCase());
+    return idx >= 0 && actionCue.test(text.slice(Math.max(0, idx - 140), Math.min(text.length, idx + String(term).length + 140)));
+  }));
+  return [...new Set(extracted)].slice(0, 4);
+}
+function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); if (NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => pattern.test(title))) return { accepted: false, reason: 'non-intervention-artifact-pattern', positiveSignals: [], negativeSignals: [], families: [] }; const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' ')); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const positive = INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
+function titleHasControlledInterventionAnchor(problem, workspace, title) {
+  const lower = normalizeText(title).toLowerCase();
+  if (!lower) return false;
+  const controlled = [
+    ...taxonomyTerms(problem, workspace),
+    ...discoveryRecallTerms(problem, workspace),
+    ...expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])
+  ].map(term => normalizeText(term).toLowerCase()).filter(term => term.length > 4);
+  return [...new Set(controlled)].some(term => lower.includes(term));
+}
+
+function extractGovUkInterventionLeads(payload, source, problem, workspace = 'municipal') {
+  const results = Array.isArray(payload?.results) ? payload.results : [];
+  return results.flatMap((row, index) => {
+    const title = normalizeText(row?.title), description = normalizeText(row?.description);
+    if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
+    if (!title) return [];
+    const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
+    const descriptionNames = extractConcreteInterventionFromDescription(problem, workspace, description);
+    const names = titleActionable
+      ? [title]
+      : (descriptionNames.length && (!recordLike || descriptionNames.some(name => titleHasControlledInterventionAnchor(problem, workspace, name))) ? descriptionNames : []);
+    return names.map((name, extractedIndex) => {
+      const candidate = { name, discoveryText: description };
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) return null;
+      return { id: `source:${source.sourceId}:${row?.link || index + 1}:${extractedIndex}`, name, canonicalName, interventionFamily: inferInterventionFamily(name + ' ' + description), problemTags: [String(problem).toLowerCase()], domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${description}`.trim(), evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.link || null, classification: { basis: titleActionable ? 'official-government-search-result' : 'description-extracted-intervention', format: row?.format || null }, provenance: [{ sourceId: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.link || null }] } };
+    }).filter(Boolean);
+  });
+}
+function extractCkanInterventionLeads(payload, source, problem, workspace = 'municipal') {
+  const results = Array.isArray(payload?.result?.results) ? payload.result.results : [];
+  return results.flatMap((row, index) => {
+    const title = normalizeText(row?.title || row?.name);
+    if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
+    const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' '));
+    const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
+    const classification = classifyCkanRecord(row);
+    const titleActionable = classification.accepted && isActionableInterventionTitle(title);
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
+    const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
+    const names = titleActionable
+      ? [{ name: title, family: classification.families, basis: classification.reason }]
+      : (descriptionExtracted.length && (!recordLike || descriptionExtracted.some(name => titleHasControlledInterventionAnchor(problem, workspace, name)))
+        ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' }))
+        : []);
+    return names.map((item, extractedIndex) => {
+      const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
+      const canonicalName = normalizeInterventionName(item.name);
+      if (!canonicalName) return null;
+      const id = row.id || row.name || `${source.sourceId}-${index + 1}`;
+      return { id: `source:${source.sourceId}:${id}:${extractedIndex}`, name: item.name, canonicalName, interventionFamily: item.family, problemTags: [String(problem).toLowerCase(), ...tags].filter(Boolean).slice(0, 13), domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: candidate.discoveryText, evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, datasetId: row.id || row.name || null, classification: { basis: item.basis, positiveSignals: classification.positiveSignals, negativeSignals: classification.negativeSignals, families: item.family }, provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, evidenceStatus: 'potential' }] } };
+    }).filter(Boolean);
+  });
+}
+function buildOpenAlexInterventionSearchUrl(source, query, { rows = 10 } = {}) {
+  if (!source || source.sourceId !== 'openalex-works') throw new Error('unsupported-openalex-intervention-source');
+  const url = new URL(source.url);
+  url.searchParams.set('search', String(query || '').trim());
+  url.searchParams.set('per-page', String(rows));
+  return url.toString();
+}
+function openAlexAbstractText(row) {
+  const index = row?.abstract_inverted_index;
+  if (!index || typeof index !== 'object') return '';
+  const tokens = [];
+  for (const [term, positions] of Object.entries(index)) {
+    if (!Array.isArray(positions)) continue;
+    for (const position of positions) tokens.push([position, term]);
+  }
+  return tokens.sort((x, y) => x[0] - y[0]).map(item => item[1]).join(' ');
+}
+function literatureProblemConceptRelevant(problem, searchable, workspace = 'municipal') {
+  const text = normalizeText(searchable).toLowerCase();
+  const verbs = new Set(['reduce','increase','improve','prevent','study','evaluate','lower','decrease','curb','cut','mitigate','close','narrow','remove','shorten','clear','strengthen']);
+  const stop = new Set(['and','the','for','of','to','in','on','from','with','a','an','intervention','program','programme','service','initiative','ways','effective','effectiveness']);
+  const variants = expandDiscoveryVocabulary(problem, workspace, 12);
+  const anchors = new Set();
+  for (const variant of variants) {
+    const normalized = normalizeText(variant).toLowerCase();
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const anchor = words.filter(word => !verbs.has(word) && !stop.has(word)).join(' ').trim();
+    if (anchor.length > 4) anchors.add(anchor);
+  }
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
+  const domainAnchors = problemDomains.flatMap(domain => {
+    const taxonomy = WORKSPACE_TAXONOMIES[workspace] || {};
+    return (taxonomy[domain] || []).map(term => normalizeText(term).toLowerCase());
+  });
+  for (const anchor of [...anchors, ...domainAnchors]) {
+    if (anchor.length > 4 && text.includes(anchor)) return true;
+  }
+  // Also accept a substantive problem concept when the source uses a different
+  // operational phrasing. Require a meaningful token from the problem itself;
+  // generic words (including economic/candidate vocabulary) cannot satisfy this gate.
+  const conceptStop = new Set([
+    ...verbs, ...stop,
+    'address','issue','issues','problem','problems','employee','employees',
+    'cycle','time','gap','gaps','outcome','outcomes','risk','risks',
+    'organization','organizations','organizational','company','companies'
+  ]);
+  const problemTokens = normalizeText(problem).toLowerCase()
+    .split(/[^a-z0-9-]+/)
+    .map(token => token.trim())
+    .filter(token => token.length > 4 && !conceptStop.has(token));
+  if (problemTokens.some(token => text.includes(token))) return true;
+  return false;
+}
+function extractOpenAlexInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
+  const rows = Array.isArray(payload?.results) ? payload.results : [];
+  const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+  const familyTerms = expectedFamilies.flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
+  // Literature is evidence about interventions, not an intervention registry. Do not let
+  // generic words such as "program", "service", or "intervention" manufacture candidates.
+  const recallTerms = discoveryRecallTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const terms = [...new Set([...taxonomy, ...familyTerms, ...recallTerms])];
+  const leads = [];
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
+  for (const row of rows.slice(0, 20)) {
+    const title = normalizeText(row?.display_name || '');
+    if (!title) continue;
+    const abstract = normalizeText(openAlexAbstractText(row));
+    const searchable = (title + ' ' + abstract).trim();
+    const lower = searchable.toLowerCase();
+    const matched = terms.filter(term => lower.includes(term)).sort((x,y)=>y.length-x.length).slice(0, 3);
+    const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
+    const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
+    const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
+    const queryLower = String(query || '').toLowerCase();
+    const queryTerms = terms.filter(term => queryLower.includes(term)).slice(0, 4);
+    // A bounded query-backed lead is allowed only when the literature result itself
+    // is relevant and the matched term is controlled by VIDIK's retrieval vocabulary.
+    // The term must come from VIDIK's existing workspace/family vocabulary and be
+    // present in the actual source query; arbitrary query text can never become a
+    // candidate name.
+    const problemLower = normalizeText(problem).toLowerCase();
+    const querySuffix = queryLower
+      .replace(problemLower, '')
+      .replace(/["']/g, '')
+      .trim();
+    const queryBackedTerms = [...new Set([
+      ...queryTerms,
+      ...terms.filter(term => queryLower.includes(term))
+    ])]
+      .filter(term => term.length > 4 && !/^(reduce|increase|improve|prevent|study|evaluate|intervention|program|service|access|gaps?)$/i.test(term))
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 3);
+    // A query-backed term is already constrained twice: it must belong to VIDIK's
+    // controlled intervention vocabulary and appear in the actual source query.
+    // Do not require the paper's generic domain classifier to recognize the same
+    // concept; that classifier is intentionally conservative and can miss papers
+    // whose intervention language is operational rather than domain-labeled.
+    // The normal interventionMatchesProblem gate remains authoritative below.
+    const fallbackTerms = queryBackedTerms.length
+      ? [...new Set([
+          ...matched,
+          ...queryBackedTerms.filter(term => !title.toLowerCase().includes(term))
+        ])].slice(0, 3)
+      : [];
+    for (const term of [...new Set([...titleMatched, ...fallbackTerms])].slice(0, 3)) {
+      const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
+      const candidate = { name, discoveryText: searchable };
+      const titleMatch = title.toLowerCase().includes(term);
+      const queryMatch = String(query || '').toLowerCase().includes(term);
+      const queryBackedTerm = queryMatch && queryBackedTerms.includes(term);
+      const queryBackedRelevant = Boolean(
+        queryBackedTerm &&
+        domainRelevant &&
+        literatureProblemConceptRelevant(problem, searchable, workspace)
+      );
+      // Query-backed literature candidates require independent problem-concept evidence
+      // from the source itself. This gate is deliberately evaluated even when the
+      // candidate term is already in VIDIK's taxonomy: otherwise interventionMatchesProblem()
+      // can make the candidate appear relevant merely because the candidate name is itself
+      // a known intervention for the problem. Title/abstract relevance must come first;
+      // candidate vocabulary cannot be its own evidence.
+      if (queryBackedTerm) {
+        if (!queryBackedRelevant) continue;
+      } else if (!interventionMatchesProblem(problem, candidate, workspace)) {
+        continue;
+      }
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
+      leads.push({
+        id: 'source:' + source.sourceId + ':' + (row.id || row.doi || canonicalName) + ':' + canonicalName,
+        name, canonicalName, interventionFamily: inferInterventionFamily(name),
+        problemTags: [String(problem).toLowerCase()], domains: [source.domain],
+        requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: searchable, evidenceStatus: 'potential',
+        discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row.id || row.doi || null,
+          extraction: titleMatch ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row.id || row.doi || null, discoveryQuery: query || null, relevanceStatus: queryMatch ? 'query-match' : (titleMatch ? 'title-match' : 'abstract-match') }] }
+      });
+    }
+  }
+  return leads;
+}
+function stripLiteratureHtml(value) {
+  return normalizeText(String(value || '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' '));
+}
+function extractCrossrefInterventionLeads(payload, source, problem, workspace = 'municipal', query = '') {
+  const rows = Array.isArray(payload?.message?.items) ? payload.message.items : [];
+  const taxonomy = taxonomyTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const familyTerms = expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).map(term => String(term).toLowerCase());
+  const recallTerms = discoveryRecallTerms(problem, workspace).map(term => String(term).toLowerCase()).filter(term => term.length > 4);
+  const terms = [...new Set([...taxonomy, ...familyTerms, ...recallTerms])];
+  const problemDomains = inferWorkspaceDomains(problem, workspace);
+  const leads = [];
+  for (const row of rows.slice(0, 20)) {
+    const title = normalizeText(Array.isArray(row?.title) ? row.title[0] : row?.title || '');
+    if (!title) continue;
+    const abstract = stripLiteratureHtml(row?.abstract);
+    const searchable = normalizeText(title + ' ' + abstract);
+    const lower = searchable.toLowerCase();
+    const matched = terms.filter(term => lower.includes(term)).sort((a, b) => b.length - a.length).slice(0, 3);
+    const titleMatched = matched.filter(term => title.toLowerCase().includes(term));
+    const explicitResearchCue = /\b(randomi[sz]ed|trial|quasi-experimental|difference-in-differences|policy evaluation|program evaluation|service evaluation|implementation evaluation|evaluated|implemented|implementation|assigned|intervention group|control group|pilot|program|programme|service|initiative|treatment)\b/i.test(searchable);
+    const textDomains = [...new Set([...discoveryDomains(searchable), ...inferWorkspaceDomains(searchable, workspace)])];
+    const domainRelevant = !problemDomains.length || problemDomains.some(domain => textDomains.includes(domain));
+    const queryLower = String(query || '').toLowerCase();
+    const queryBackedTerms = terms
+      .filter(term => queryLower.includes(term))
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 3);
+    const selectedTerms = titleMatched.length
+      ? titleMatched
+      : (queryBackedTerms.length ? [...new Set([...matched, ...queryBackedTerms])].slice(0, 3) : []);
+    for (const term of selectedTerms) {
+      const name = term.replace(/\b(programme|initiative|project|pilot)\b/g,'program').replace(/\b(centre|center)\b/g,'centre');
+      const candidate = { name, discoveryText: searchable };
+      if (!interventionMatchesProblem(problem, candidate, workspace)) continue;
+      const canonicalName = normalizeInterventionName(name);
+      if (!canonicalName) continue;
+      leads.push({
+        id: 'source:' + source.sourceId + ':' + (row?.DOI || row?.URL || canonicalName) + ':' + canonicalName,
+        name, canonicalName, interventionFamily: inferInterventionFamily(name),
+        problemTags: [String(problem).toLowerCase()], domains: [source.domain],
+        requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: searchable, evidenceStatus: 'potential',
+        discovery: { source: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.DOI || row?.URL || null,
+          extraction: title.toLowerCase().includes(term) ? 'taxonomy-term-from-literature-title' : 'taxonomy-term-from-literature-abstract',
+          provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-literature', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.DOI || row?.URL || null, discoveryQuery: query || null, relevanceStatus: queryLower.includes(term) ? 'query-match' : 'title-match' }] }
+      });
+    }
+  }
+  return leads;
+}
+function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
+  const normalizedProblem = normalizeText(problem);
+  const expectedFamilies = expectedInterventionFamilies(problem, workspace);
+  const familyTerms = expectedFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 6));
+  const recallTerms = discoveryRecallTerms(problem, workspace);
+  const taxonomy = taxonomyTerms(problem, workspace);
+  const classQueries = missingInterventionClassSearchQueries(problem, workspace, []).slice(0, 8);
+  const mechanismTerms = discoveryMechanismPivots(problem, workspace)
+    .filter(term => /automation|redesign|training|staffing|outreach|navigation|subsidy|grant|facility|infrastructure|technology|service|program|intervention|pilot|preparedness|evacuation|retention|workflow|controls|security|maintenance/i.test(term))
+    .slice(0, 6);
+  return [...new Set([
+    normalizedProblem,
+    ...recallTerms.map(term => normalizedProblem + ' ' + term),
+    ...classQueries,
+    ...familyTerms.map(term => normalizedProblem + ' ' + term),
+    ...taxonomy.map(term => normalizedProblem + ' ' + term),
+    ...mechanismTerms.map(term => normalizedProblem + ' ' + term)
+  ].filter(Boolean))].slice(0, 18);
+}
+function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
+function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
+function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const unmatched = eligible.filter(source => !matched.includes(source)); return [...matched, ...unmatched]; }
+function selectComparableInterventionSources(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = [], limit = 2) {
+  if (!jurisdiction || !Number.isInteger(limit) || limit < 1) return [];
+  const normalizedProblem = normalizeText(problem).toLowerCase();
+  const terms = new Set(normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean));
+  const domains = new Set(inferWorkspaceDomains(problem, workspace));
+  const candidates = SOURCE_REGISTRY
+    .filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)))
+    .filter(source => source.jurisdiction !== jurisdiction && !excludedSourceIds.includes(source.sourceId));
+  const scored = candidates.map(source => {
+    const tagScore = source.discoveryTags.reduce((score, tag) => {
+      const normalizedTag = String(tag).toLowerCase();
+      return score + (terms.has(normalizedTag) || normalizedProblem.includes(normalizedTag) ? 2 : 0);
+    }, 0);
+    const domainScore = [...domains].reduce((score, domain) =>
+      score + (source.discoveryTags.includes(domain) ? 1 : 0), 0);
+    const apiScore = GOVUK_SOURCE_IDS.has(source.sourceId) ? 0.25 : 0;
+    return { source, score: tagScore + domainScore + apiScore };
+  });
+  scored.sort((a, b) => b.score - a.score || a.source.sourceId.localeCompare(b.source.sourceId));
+  return scored.slice(0, limit).map(entry => entry.source);
+}
+function selectComparableInterventionSource(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = []) {
+  return selectComparableInterventionSources(problem, jurisdiction, workspace, excludedSourceIds, 1)[0] || null;
+}
+
+function buildApplicabilityAudit({ problem, jurisdiction = null, suppliedSources = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const rejectedSuppliedSources = Array.isArray(suppliedSources) && jurisdiction ? suppliedSources.filter(source => !sourceMatchesJurisdiction(source, jurisdiction)).map(source => ({ sourceId: source.sourceId, jurisdiction: source.jurisdiction, canonicalJurisdiction: canonicalSource(source)?.jurisdiction || null, reason: canonicalSource(source) ? 'jurisdiction-mismatch' : 'unregistered-source' })) : []; return { problem, jurisdiction, eligibleSources: eligible.map(source => source.sourceId), matchedSources: matched.map(source => source.sourceId), rejectedSuppliedSources, fallbackUsed: matched.length === 0 && eligible.length > 0, decision: matched.length ? 'tag-matched' : (eligible.length ? 'broad-fallback' : 'no-eligible-source'), consideredCount: eligible.length }; }
+function deduplicateInterventionLeads(leads = []) { const groups = new Map(); for (const lead of leads) { const key = lead.canonicalName || normalizeInterventionName(lead.name); if (!key) continue; const existing = groups.get(key); if (!existing) { groups.set(key, { ...lead, id: `universe:${sha256(key).slice(0, 16)}`, sourceIds: [lead.discovery?.source].filter(Boolean), sourceCount: 1, sourceProvenance: lead.discovery?.provenance || [], interventionFamily: lead.interventionFamily || ['other'] }); continue; } existing.sourceIds = [...new Set([...existing.sourceIds, lead.discovery?.source].filter(Boolean))]; existing.sourceCount = existing.sourceIds.length; existing.sourceProvenance = [...existing.sourceProvenance, ...(lead.discovery?.provenance || [])]; existing.interventionFamily = [...new Set([...existing.interventionFamily, ...(lead.interventionFamily || [])])]; existing.discovery = { ...existing.discovery, corroboratedBySources: existing.sourceIds.length, leadOnly: true, effectsImported: false, discoveryOnly: true }; } return [...groups.values()]; }
+function buildInterventionUniverseAssessment({ problem, jurisdiction = null, sourceSearches = [], candidates = [], requestedSourceCount = 0 } = {}) { const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const deduped = deduplicateInterventionLeads(candidates); const families = [...new Set(deduped.flatMap(candidate => candidate.interventionFamily || ['other']))]; const coverage = requestedSourceCount > 0 ? usable.length / requestedSourceCount : 0; const evidenceReadyLeads = deduped.filter(candidate => candidate.requiredEvidence?.length).length; return { problem, jurisdiction, sourcesAttempted: sourceSearches.length, usableSources: usable.length, failedSources: failed.length, sourceCoverageRatio: coverage, rawCandidateCount: candidates.length, uniqueCandidateCount: deduped.length, interventionFamilies: families, evidenceRequirementsAttached: evidenceReadyLeads === deduped.length, discoveryComplete: sourceSearches.length > 0 && failed.length === 0 && deduped.length > 0, recommendationEligible: false, stoppingReason: sourceSearches.length === 0 ? 'no-source-searches' : failed.length === sourceSearches.length ? 'all-sources-failed' : deduped.length === 0 ? 'no-intervention-candidates' : failed.length ? 'partial-source-failure' : 'candidate-universe-discovered' }; }
+const DISCOVERY_DOMAIN_GROUPS = [['public-safety',['crime','violence','assault','robbery','homicide','policing','enforcement','patrol','public safety']],['housing',['housing','homeless','shelter','rent','rehousing','tenancy','eviction']],['food',['food','nutrition','grocery','meal','hunger','food insecurity','food access']],['energy',['energy','utility','electricity','weatherization','heating','cooling','fuel','power','energy burden']],['mobility',['transit','bus','rail','mobility','commute','signal','traffic','delay','congestion','travel time','pedestrian','crossing','sidewalk','bike','bicycle','road safety']],['health',['health','hospital','clinic','patient','treatment','care','emergency department','urgent care','overcrowding','patient flow','opioid','overdose','mortality']],['climate',['wildfire','smoke','air quality','filtration','clean air','fire season','heat','heatwave','extreme heat','cooling','temperature','flood','flooding','stormwater','drainage','resilience']],['employment',['employment','worker','job','workforce','training','displacement']],['economic',['poverty','low income','income','benefit','subsidy','grant','voucher','affordability','economic hardship']],['education',['youth','child','children','student','school','education']],['accessibility',['senior','seniors','aging','elderly','disability','accessible','accessibility','caregiver']],['environment',['environment','pollution','waste','recycling','emissions','air pollution']],['infrastructure',['infrastructure','road resurfacing','water billing','drainage','stormwater','utility billing']]];
+const CROSS_DOMAIN_COMPATIBILITY = {'public-safety':new Set(['housing','health','mobility','food','climate']),housing:new Set(['public-safety','health','economic','infrastructure']),food:new Set(['housing','economic','health','infrastructure']),energy:new Set(['housing','health','climate','economic','infrastructure']),mobility:new Set(['public-safety','infrastructure']),health:new Set(['public-safety','housing','food','energy','climate','infrastructure']),climate:new Set(['health','mobility','infrastructure']),employment:new Set(['economic','housing']),economic:new Set(['housing','food','employment','health','energy']),education:new Set(['housing','employment','health']),accessibility:new Set(['housing','health','mobility']),environment:new Set(['climate','health','infrastructure']),infrastructure:new Set(['mobility','climate','environment'])};
+function discoveryDomains(text) { const normalized = normalizeText(text).toLowerCase(); return DISCOVERY_DOMAIN_GROUPS.filter(([,terms]) => terms.some(term => normalized.includes(term))).map(([name]) => name); }
+function directConceptOverlap(problem, candidate) { const stop = new Set(['reduce','increase','improve','prevent','address','mitigate','lower','decrease','support','expand','eliminate','household','households','community','municipal','program','programme','project','service','services','initiative','intervention','pilot','public','local','city','cities','problem','issues','issue','and','the','for','of','to','in','on','from','with','governance','response','delivery','data','customer','customers','digital','access']); const tokens = value => normalizeText(value).toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(token => token && token.length > 2 && !stop.has(token)).map(token => token.replace(/ies$/,'y').replace(/s$/,'')); const p = new Set(tokens(problem)); return tokens(candidate).some(token => p.has(token)); }
+function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
+  const p = normalizeText(problem).toLowerCase();
+  const name = normalizeText(candidate?.name || '').toLowerCase();
+  const text = normalizeText((candidate?.name || '') + ' ' + (candidate?.discoveryText || '')).toLowerCase();
+
+  // Reuse the same controlled recall vocabulary used to retrieve weak/blocked lanes.
+  // This keeps retrieval and relevance aligned without allowing arbitrary query text to
+  // manufacture a candidate. The source record still has to pass actionable filtering.
+  const recallPack = DISCOVERY_RECALL_PACKS.find(pack => pack.workspace === workspace && pack.match.test(p));
+  if (recallPack) {
+    const recallHit = recallPack.terms.some(term => name.includes(String(term).toLowerCase()) || text.includes(String(term).toLowerCase()));
+    if (recallHit) return true;
+  }
+
+  const rules = [
+    {
+      match: /violent crime|serious violence|community violence/,
+      terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','community violence prevention','violence intervention','supportive housing','housing first','housing stabilization','youth employment','paid summer employment','cognitive behavioral','behavioral intervention','substance use treatment','diversion','firearm violence risk reduction','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
+    },
+    {
+      match: /chronic homelessness|homelessness|rough sleeping|housing insecurity/,
+      terms: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','housing navigation','homelessness support','permanent supportive housing','community land trust','affordable housing development']
+    },
+    {
+      match: /emergency[- ]department|hospital overcrowding|patient[- ]flow|ed crowding/,
+      terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','mobile health outreach','primary care clinic','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
+    },
+    {
+      match: /extreme heat|heat-related illness|heat illness/,
+      terms: ['cooling centre','cooling center','cooling infrastructure','home cooling','shade infrastructure','tree canopy','cool roof','heat retrofit','heat-health','heat health','heatwave response','extreme heat response','thermal retrofit']
+    },
+    {
+      match: /wildfire smoke|bushfire smoke|smoke exposure/,
+      terms: ['wildfire smoke mitigation','smoke filtration','air filtration','clean air shelter','wildfire evacuation support','home air filtration','wildfire smoke preparedness']
+    },
+    {
+      match: /sewer backups?|sewer backup|residential sewer backups?|stormwater backups?|drainage backups?/i,
+      terms: ['stormwater retrofit','stormwater and sewer retrofit','drainage improvement','drainage resilience','sewer renewal','sewer separation','backflow prevention','flood mitigation','stormwater management','stormwater retention','urban drainage','green infrastructure'],
+    },
+    {
+      match: /drinking[- ]water demand|water conservation|water efficiency|water scarcity|drought.*water demand|municipal.*water demand/i,
+      terms: ['water efficiency','water conservation','water-use restriction','water use restriction','water demand management','water efficiency incentive','water conservation incentive','drought water-use restriction','seasonal water restriction','leak detection','water metering']
+    },
+    {
+      match: /critical infrastructure maintenance backlog|infrastructure maintenance backlog|maintenance backlog/,
+      terms: ['preventive maintenance','asset management','condition-based maintenance','asset renewal','infrastructure renewal','infrastructure replacement','critical infrastructure repair','maintenance prioritization','lifecycle asset management','road resurfacing','bridge rehabilitation','water main renewal','sewer renewal','facility renewal','capital renewal']
+    },
+    {
+      match: /vacant storefronts?|vacant retail space|commercial vacancy|empty storefronts?|retail vacancy/,
+      terms: ['vacant storefront activation','retail vacancy activation','temporary storefront use','pop-up retail','storefront improvement','commercial facade improvement','small business facade grant','commercial vacancy reduction']
+    },
+    {
+      match: /traffic fatalities|traffic injuries|pedestrian injuries|road safety/,
+      terms: ['traffic safety enforcement','road safety infrastructure project','traffic calming','protected bike lane','pedestrian crossing','speed management','speed enforcement','signal timing','road diet','safe routes','20 mph speed limit','20 mph speed limits','speed limit reduction','road safety scheme','road safety engineering','junction redesign','protected cycle lane','safe systems']
+    }
+  ];
+
+  const rule = rules.find(item => item.match.test(p));
+  if (!rule) return null;
+  // Use the candidate itself as the relevance object. Do not let the user's query,
+  // source query echo, or generic domain membership manufacture relevance.
+  // Relevance must be supported by the candidate title or a controlled intervention
+  // mechanism in the source text. A generic source description mentioning the problem
+  // is not enough to turn an unrelated project/report into an intervention.
+  const controlledMechanismHit = rule.terms.some(term => name.includes(term));
+  const recallMechanismHit = recallPack
+    ? recallPack.terms.some(term => name.includes(String(term).toLowerCase()))
+    : false;
+  const hit = controlledMechanismHit || recallMechanismHit;
+  if (!hit) return false;
+
+  // Eviction prevention is an actionable housing intervention, but it targets
+  // homelessness inflow rather than chronic homelessness itself. Keep it out of
+  // the direct intervention universe for this consequential decision unless the
+  // source record explicitly ties the intervention to people experiencing chronic
+  // homelessness; otherwise it belongs in an upstream/adjacent option class.
+  if (/chronic homelessness|homelessness|rough sleeping|housing insecurity/.test(p) &&
+      /^(eviction prevention|eviction diversion)$/.test(name) &&
+      !/chronic homelessness|people experiencing homelessness|people who are homeless|homeless population/.test(text)) {
+    return false;
+  }
+
+  // For broad multi-domain interventions, require the candidate title itself to
+  // expose an actionable mechanism. This blocks generic grants, casework, reports,
+  // and service records whose descriptions merely mention the target problem.
+  const genericOnly = /^(grant|funding|support|service|program|programme|capacity expansion|redundancy|response|assistance|training)\b/i.test(name);
+  if (genericOnly) return false;
+  return true;
+}
+
+function interventionMatchesProblem(problem,candidate,workspace='municipal'){
+  const problemText=normalizeText(problem),candidateText=normalizeText((candidate?.name||'')+' '+(candidate?.discoveryText||''));
+  if(!isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true })) return false;
+  const problemSpecific = problemSpecificRelevance(problem, candidate, workspace);
+  if (problemSpecific === false) return false;
+  if (problemSpecific === true) return true;
+  const problemLower=problemText.toLowerCase();
+  // Semantic relevance must inspect the intervention title, not the source description.
+  // Otherwise a retrieved record that merely repeats the problem can satisfy a broad
+  // domain group and become a false positive.
+  const candidateLower=normalizeText(candidate?.name || '').toLowerCase();
+  const problemDomains=inferWorkspaceDomains(problemText,workspace),candidateDomains=[...new Set([...discoveryDomains(candidateText),...inferWorkspaceDomains(candidateText,workspace)])];
+  const taxonomy=taxonomyTerms(problemText,workspace).map(term=>term.toLowerCase()).filter(Boolean);
+  const enterpriseProfile = workspace === 'enterprise' ? enterpriseProblemProfile(problemText) : null;
+  if (enterpriseProfile) {
+    const profileHit = enterpriseProfile.classes.some(term => candidateLower.includes(term.toLowerCase()));
+    if (profileHit) return true;
+    const profileProblemTokens = evidenceConceptTokensForIntervention(problemLower);
+    const profileCandidateTokens = evidenceConceptTokensForIntervention(candidateLower);
+    const profileTokenHit = profileProblemTokens.some(token => profileCandidateTokens.includes(token));
+    if (!profileTokenHit) return false;
+  }
+  const GENERIC_RELEVANCE_TERMS = new Set(['governance','response','delivery','data','customer','customers','digital','service','services','access']);
+  const taxonomyHit=taxonomy.some(term=>term.length > 4 && !GENERIC_RELEVANCE_TERMS.has(term) && candidateLower.includes(term));
+  const problemTokens=evidenceConceptTokensForIntervention(problemLower);
+  // Do not let the source description echo the user's problem and thereby create
+  // a false relevance hit. General token overlap is intentionally title-based; controlled
+  // mechanism matches above are the only route for source-text-supported relevance.
+  const candidateTokens=evidenceConceptTokensForIntervention(normalizeText(candidate?.name || '').toLowerCase());
+  const tokenOverlapCount = problemTokens.filter(token => candidateTokens.includes(token)).length;
+  const tokenHit = tokenOverlapCount > 0;
+  const GENERIC_FALLBACK_SIGNALS = new Set([
+    'program','programme','project','initiative','pilot','grant','fund','funding',
+    'service','scheme','action plan','benefit','support','assistance','response',
+    'training','subsidy'
+  ]);
+  const titleHasStrongInterventionSignal = STRONG_INTERVENTION_TERMS.some(term =>
+    !GENERIC_FALLBACK_SIGNALS.has(String(term).toLowerCase()) &&
+    candidateLower.includes(String(term).toLowerCase())
+  );
+  if (taxonomyHit && titleHasStrongInterventionSignal) return true;
+  if (tokenHit && (titleHasStrongInterventionSignal || tokenOverlapCount >= 2)) return true;
+  if (/\b(violent crime|serious violence|community violence|crime)\b/i.test(problemLower) && /\b(public space|environmental safety|street lighting|vacant property|blight remediation|built environment)\b/i.test(candidateLower)) return true;
+  const semanticGroups = [
+    ['flood','flooding','stormwater','drainage','inundation','flood mitigation','stormwater retention','drainage improvement'],
+    ['violent crime','violence','assault','crime','violence interruption','community violence intervention','focused deterrence','hot spot policing','supportive housing','housing first','housing stabilization','rental assistance','public space','environmental safety','street lighting','vacant property','blight remediation','built environment'],
+    ['pedestrian','walk','walking','crossing','pedestrian crossing','protected bike lane','traffic calming','safe routes','intersection safety','protected intersection','crosswalk','safe crossing','pedestrian safety'],
+    ['wildfire','smoke','air quality','smoke filtration','clean air shelter','wildfire preparedness','evacuation support'],
+    ['digital access gaps','digital divide','digital exclusion','digital access barriers','broadband access','internet access','broadband subsidy','broadband voucher','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy'],
+    ['heat','extreme heat','cooling','cooling centre','cooling infrastructure','shade infrastructure','tree canopy','home cooling','cool roof','cool-roof','roof retrofit','reflective roof','building retrofit','heat retrofit'],
+    ['worker displacement','displaced worker','redeployment','reskilling','automation','worker transition','job placement','career pathway','wage subsidy'],
+    ['unemployment','employment','job placement','career pathway','apprenticeship','wage subsidy','skills training','reskilling','workforce development'],
+    ['overdose','opioid','opioids','overdose deaths','opioid mortality','naloxone','overdose prevention','community paramedicine','addiction treatment','substance use treatment','medication treatment','treatment access'],
+    ['emergency department','emergency room','hospital overcrowding','ED crowding','crowding','care navigation','community paramedicine','mobile clinic','mobile health outreach','community health outreach','primary care clinic'],
+    ['primary care','primary care access','primary care clinic','community health worker','care navigation','community paramedicine','mobile clinic','urgent care','same-day access'],
+    ['food security','food insecurity','hunger','food access','food access gaps','food voucher','community food hub','food bank','mobile market','community kitchen','school meal'],
+    ['homelessness','rough sleeping','housing insecurity','housing instability','housing first','rapid rehousing','rehousing','supportive housing','rental assistance','rental affordability','housing affordability','affordable housing','below-market housing','housing supply','affordable housing development','shelter','shelter diversion','homelessness support'],
+    ['traffic congestion','congestion','traffic delays','travel delays','transit delay','transit delays','bus delay','transit reliability','transit frequency','bus priority','signal timing','traffic signal priority','road pricing'],
+    ['childcare','child care','early childhood','childcare affordability','child care access','early childhood education','childcare subsidy'],
+    ['energy burden','energy affordability','utility burden','energy costs','home energy assistance','utility bill assistance','weatherization assistance','energy efficiency retrofit'],
+    ['construction permitting','permit delays','permitting delays','planning approval delays','permit modernization','one stop permitting','digital permitting','permit streamlining'],
+    ['noise pollution','noise','traffic noise','noise exposure','noise mitigation','noise barrier','quiet pavement'],
+    ['air pollution','air quality','particulate','emissions','air pollution control','clean air shelter','source air protection'],
+    ['water quality','drinking water','contaminated water','water pollution','water treatment','source water protection'],
+    ['waste','landfill','solid waste','waste reduction','recycling','organics','collection service redesign'],
+    ['mental health','psychological distress','behavioral health','mental health support','peer support','community health worker','care navigation','mobile crisis response'],
+    ['infrastructure','facility','preventive maintenance','asset management','capacity expansion','redundancy','retrofit']
+  ];
+  for (const group of semanticGroups) {
+    const problemHit = group.some(term => problemLower.includes(term));
+    const candidateHit = group.some(term => candidateLower.includes(term));
+    if (problemHit && candidateHit) return true;
+  }
+  return tokenHit && (titleHasStrongInterventionSignal || tokenOverlapCount >= 2);
+}
+function missingFamilySearchQueries(problem,workspace,candidates=[]){
+  const coverage=discoveryCoverage(problem,workspace,candidates),queries=[];
+  for(const family of coverage.missingFamilies){
+    for(const term of (INTERVENTION_FAMILY_SEARCH_TERMS[family]||[]).slice(0,3)) queries.push(`${normalizeText(problem)} ${term}`);
+  }
+  return [...new Set(queries)].slice(0,12);
+}
+function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
+  const families = expectedInterventionFamilies(problem, workspace);
+  const existingFamilies = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
+  const missingFamilies = families.filter(family => !existingFamilies.has(family));
+  if (!missingFamilies.length) return [];
+  return missingFamilies.flatMap(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).slice(0, 3).map((term, index) => {
+    const name = normalizeText(term).replace(/\b\w/g, character => character.toUpperCase());
+    const canonicalName = normalizeInterventionName(name);
+    if (!canonicalName) return null;
+    return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
+  }).filter(Boolean));
+}
+async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null}={}){
+  const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
+  const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[];
+  const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
+  const queryPlan = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0 ? fullQueryPlan.slice(0, maxQueriesPerSource) : fullQueryPlan;
+  const queries=queryPlan.map(item=>item.query);
+  for(const source of selected){
+    const attempts=[],sourceCandidates=[];
+    let consecutiveFailures = 0;
+    let terminalFailure = false;
+    let skippedQueries = 0;
+    for(const plannedQuery of queryPlan){
+      const query = plannedQuery.query;
+      if (terminalFailure) { skippedQueries += 1; continue; }
+      try{
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        if(payload.format!=='json')throw new Error('source-driven-response-not-json');
+        if(payload.value?.error)throw new Error('source-driven-upstream-error');
+        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
+        const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,relevanceRejectedCount,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        consecutiveFailures = 0;
+        if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
+      }catch(error){
+        const failure = classifyDiscoveryFailure(error);
+        consecutiveFailures += 1;
+        attempts.push({query,queryPhase:'initial-plan',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        // A 429 is a source-level capacity signal, not an ordinary empty-search failure.
+        // Once bounded retrieval retries are exhausted, stop querying this source for this
+        // discovery pass. Healthy selected sources still get their full opportunity.
+        if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+          terminalFailure = true;
+        } else if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) {
+          terminalFailure = true;
+        }
+      }
+    }
+    const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
+    const failureClasses=Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureClass||'other'))].map(kind=>[kind,attempts.filter(a=>a.status==='search-failed'&&a.failureClass===kind).length]));
+    const failureRatio = attempts.length ? failedAttempts / attempts.length : 0;
+    const routeExpansion = !(finalCandidates.length === 0 && failedAttempts >= 3 && failureRatio >= 0.5);
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+  }
+  let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
+  // If the first bounded search finds candidates but misses intervention families, run a
+  // second, explicitly family-targeted pass. This is the missing-option safeguard: family
+  // expansion must not depend solely on the original query vocabulary. Keep it bounded and
+  // source-backed; never synthesize candidates from taxonomy terms.
+  if (coverage.missingFamilies.length && selected.length) {
+    const targetedQueries = missingFamilySearchQueries(problem, workspace, candidates);
+    const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
+    for (const source of selected) {
+      const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
+      if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
+      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
+      for (const query of sourceTargetQueries) {
+        existingQueries.add(query);
+        try {
+          const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? buildGovUkSearchUrl(source, query, { rows })
+            : buildCkanSearchUrl(source, query, { rows });
+          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
+          if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const extractedLeads = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          const relevanceRejectedCount = Math.max(0, extractedLeads.length - leads.length);
+          rawCandidates.push(...leads);
+          candidates = deduplicateInterventionLeads(rawCandidates);
+          coverage = discoveryCoverage(problem, workspace, candidates);
+          sourceSearch.attempts.push({
+            query,
+            queryLayer: 'missing-family-expansion',
+            queryPhase: 'expansion',
+            status: leads.length ? 'candidates-found' : 'searched-empty',
+            candidatesReturned: leads.length,
+            recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
+            extractedCandidates: extractedLeads.length,
+            relevanceRejectedCount,
+            provenance: snapshot.retrieval,
+            failureReason: null,
+            cumulativeUniqueCandidates: candidates.length,
+            expectedFamilies: coverage.expectedFamilies,
+            observedFamilies: coverage.observedFamilies,
+            missingFamilies: coverage.missingFamilies
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.usableQueryCount += 1;
+          sourceSearch.candidatesReturned += leads.length;
+          sourceSearch.missingFamilies = coverage.missingFamilies;
+          sourceSearch.observedFamilies = coverage.observedFamilies;
+          sourceSearch.expectedFamilies = coverage.expectedFamilies;
+          if (coverage.missingFamilies.length === 0 && candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
+        } catch (error) {
+          const failure = classifyDiscoveryFailure(error);
+          sourceSearch.attempts.push({
+            query,
+            queryLayer: 'missing-family-expansion',
+            status: 'search-failed',
+            candidatesReturned: 0,
+            recordsConsidered: 0,
+            provenance: null,
+            failureReason: error?.message || 'source-driven-search-failed',
+            failureClass: failure.class,
+            failureStage: failure.stage,
+            terminal: failure.terminal,
+            cumulativeUniqueCandidates: candidates.length
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.failedQueryCount += 1;
+          if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+            // Do not spend the remaining expansion budget against a rate-limited source.
+            sourceSearch.terminalFailure = true;
+            break;
+          }
+          if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
+        }
+      }
+      if (coverage.missingFamilies.length === 0) break;
+    }
+  }
+  const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId));
+  if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
+    const literatureSources = ['openalex-works','crossref-works'].map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId)).filter(Boolean).filter(source => sourceMatchesJurisdiction(source, jurisdiction));
+    if (literatureSources.length) {
+      const literatureQueries = buildLiteratureFallbackQueries(problem, workspace);
+      for (const source of literatureSources) {
+        const attempts = [];
+        const sourceCandidateStart = rawCandidates.length;
+        let stopReason = 'query-budget-exhausted';
+        for (const query of literatureQueries) {
+          try {
+            const url = source.sourceId === 'openalex-works'
+              ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
+              : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
+            const snapshot = await retrieve({...source, url},{fetchImpl,now});
+            const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+            if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
+            const leads = source.sourceId === 'openalex-works'
+              ? extractOpenAlexInterventionLeads(payload.value, source, problem, workspace, query)
+              : extractCrossrefInterventionLeads(payload.value, source, problem, workspace, query);
+            rawCandidates.push(...leads);
+            const interim = deduplicateInterventionLeads(rawCandidates);
+            const interimCoverage = discoveryCoverage(problem, workspace, interim);
+            const records = source.sourceId === 'openalex-works'
+              ? payload.value?.results
+              : payload.value?.message?.items;
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(records)?records.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:interimCoverage.expectedFamilies,observedFamilies:interimCoverage.observedFamilies,missingFamilies:interimCoverage.missingFamilies});
+            if (interim.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES && (!interimCoverage.expectedFamilies.length || interimCoverage.coverageRatio >= DISCOVERY_TARGET_FAMILY_COVERAGE)) {
+              stopReason = 'candidate-and-family-threshold';
+              break;
+            }
+          } catch (error) {
+            const failure = classifyDiscoveryFailure(error);
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+              // Literature providers are already bounded by retrieve() retries + circuit breaker.
+              // Stop this provider's query loop after a verified 429 rather than amplifying load.
+              stopReason = 'rate-limit-circuit-open';
+              break;
+            }
+          }
+        }
+        const sourceCandidates = deduplicateInterventionLeads(rawCandidates.slice(sourceCandidateStart))
+          .filter(candidate => candidate.discovery?.source === source.sourceId);
+        const sourceCoverage = discoveryCoverage(problem, workspace, sourceCandidates);
+        sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-literature',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:literatureQueries.length,stopReason,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:sourceCandidates.length?(sourceCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),recordsConsidered:attempts.reduce((sum,a)=>sum+a.recordsConsidered,0),attempts,expectedFamilies:sourceCoverage.expectedFamilies,observedFamilies:sourceCoverage.observedFamilies,missingFamilies:sourceCoverage.missingFamilies,failureReason:sourceCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
+      }
+      candidates=deduplicateInterventionLeads(rawCandidates);
+      coverage=discoveryCoverage(problem,workspace,candidates);
+    }
+  }
+  // If families are present but major intervention classes are still missing, spend
+  // remaining source budget on stratified class-specific searches. This is the
+  // explicit missing-option detector: it searches for absent real-world classes
+  // rather than treating family coverage as proof that the universe is complete.
+  const classTargetedQueries = missingInterventionClassSearchQueries(problem, workspace, candidates);
+  if (classTargetedQueries.length && selected.length) {
+    const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
+    for (const source of selected) {
+      const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
+      if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
+      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted);
+      const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
+      for (const query of sourceClassQueries) {
+        if (sourceSearch.terminalFailure) break;
+        existingQueries.add(query);
+        try {
+          const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? buildGovUkSearchUrl(source, query, { rows })
+            : buildCkanSearchUrl(source, query, { rows });
+          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
+          if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const extractedLeads = GOVUK_SOURCE_IDS.has(source.sourceId)
+            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+          const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          rawCandidates.push(...leads);
+          candidates = deduplicateInterventionLeads(rawCandidates);
+          coverage = discoveryCoverage(problem, workspace, candidates);
+          sourceSearch.attempts.push({
+            query, queryLayer:'missing-class-expansion',
+            status:leads.length?'candidates-found':'searched-empty',
+            candidatesReturned:leads.length,
+            recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,
+            provenance:snapshot.retrieval, failureReason:null,
+            cumulativeUniqueCandidates:candidates.length,
+            expectedFamilies:coverage.expectedFamilies,
+            observedFamilies:coverage.observedFamilies,
+            missingFamilies:coverage.missingFamilies,
+            missingClasses:interventionClassCoverage(problem,workspace,candidates).missingClasses
+          });
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.usableQueryCount += 1;
+          sourceSearch.candidatesReturned += leads.length;
+        } catch(error) {
+          const failure = classifyDiscoveryFailure(error);
+          sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',queryPhase:'expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
+          sourceSearch.queriesAttempted += 1;
+          sourceSearch.failedQueryCount += 1;
+          if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
+        }
+      }
+      sourceSearch.missingFamilies = coverage.missingFamilies;
+      sourceSearch.observedFamilies = coverage.observedFamilies;
+      sourceSearch.expectedFamilies = coverage.expectedFamilies;
+    }
+  }
+  if (false && candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
+    const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
+    if (exploratory.length) {
+      rawCandidates.push(...exploratory);
+      candidates = deduplicateInterventionLeads(rawCandidates);
+      coverage = discoveryCoverage(problem, workspace, candidates);
+      sourceSearches.push({ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, originalProblem: problem, queriesAttempted: 0, failedQueryCount: 0, usableQueryCount: 1, status: 'taxonomy-expansion-used', candidatesReturned: exploratory.length, attempts: [], expectedFamilies: coverage.expectedFamilies, observedFamilies: coverage.observedFamilies, missingFamilies: coverage.missingFamilies, failureReason: null });
+    }
+  }
+  // Comparable-jurisdiction fallback is discovery-only. It activates only when the
+  // jurisdiction-scoped intervention universe produced no candidates, preserving local-first
+  // behavior while giving open-world discovery a bounded second jurisdictional path.
+  let comparableFallback = null;
+  if (!Array.isArray(sources) && candidates.length === 0 && jurisdiction && selected.length) {
+    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
+    const attempts = [];
+    for (const comparable of comparables) {
+      const comparableResult = await discoverSourceDrivenInterventions({
+        problem,
+        jurisdiction: null,
+        workspace,
+        sources: [{ ...comparable, discoveryRole: 'comparable-jurisdiction', targetJurisdiction: jurisdiction }],
+        fetchImpl,
+        now,
+        rows,
+        maxQueriesPerSource: 6
+      });
+      attempts.push({
+        sourceId: comparable.sourceId,
+        sourceJurisdiction: comparable.jurisdiction,
+        candidateCount: comparableResult.candidates.length,
+        reason: comparableResult.candidates.length ? 'jurisdiction-scoped-universe-empty' : 'comparable-search-empty-or-failed'
+      });
+      sourceSearches.push(...comparableResult.sourceSearches.map(search => ({
+        ...search,
+        sourceType: 'intervention-library-comparable',
+        discoveryRole: 'comparable-jurisdiction',
+        targetJurisdiction: jurisdiction
+      })));
+      if (comparableResult.candidates.length) {
+        rawCandidates.push(...comparableResult.candidates);
+        candidates = deduplicateInterventionLeads(rawCandidates);
+        coverage = discoveryCoverage(problem, workspace, candidates);
+        if (candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
+      }
+    }
+    if (attempts.length) comparableFallback = { used: true, attempts };
+  }
+  const classCoverage=interventionClassCoverage(problem,workspace,candidates);
+  const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
+  const diagnosticCounts={
+    noCandidates:candidates.length===0,
+    candidateUniverseWeak:candidates.length>0&&(coverage.expectedFamilies.length>0&&coverage.coverageRatio<DISCOVERY_TARGET_FAMILY_COVERAGE),
+    classCoverageWeak:candidates.length>0&&classCoverage.expectedClasses.length>0&&classCoverage.coverageRatio<0.5,
+    missingFamilies:coverage.missingFamilies,
+    missingClasses:classCoverage.missingClasses,
+    sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),
+    queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original')),
+    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion')),
+    missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion').length,0),
+    queryLaneCounts
+  };
+  const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
+  universe.expectedInterventionFamilies=coverage.expectedFamilies;universe.observedInterventionFamilies=coverage.observedFamilies;universe.missingInterventionFamilies=coverage.missingFamilies;universe.coverageRatio=coverage.coverageRatio;universe.expectedInterventionClasses=classCoverage.expectedClasses;universe.observedInterventionClasses=classCoverage.representedClasses;universe.missingInterventionClasses=classCoverage.missingClasses;universe.classCoverageRatio=classCoverage.coverageRatio;universe.discoveryExpandedWhenWeak=sourceSearches.some(s=>s.queriesAttempted>1);
+  universe.diagnosticCounts=diagnosticCounts;
+  universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
+  if (comparableFallback) {
+    applicability.comparableFallback = comparableFallback;
+  }
+  return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
+}
+module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, selectComparableInterventionSource, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
