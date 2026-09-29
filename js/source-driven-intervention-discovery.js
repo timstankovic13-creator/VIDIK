@@ -1515,9 +1515,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // behavior while giving open-world discovery a bounded second jurisdictional path.
   let comparableFallback = null;
   if (!Array.isArray(sources) && candidates.length === 0 && jurisdiction && selected.length) {
-    const comparables = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
+    const comparable = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
     const attempts = [];
-    for (const comparable of comparables) {
+    if (comparable) {
       const comparableResult = await discoverSourceDrivenInterventions({
         problem,
         jurisdiction: null,
@@ -1525,7 +1525,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         sources: [{ ...comparable, discoveryRole: 'comparable-jurisdiction', targetJurisdiction: jurisdiction }],
         fetchImpl,
         now,
-        rows
+        rows,
+        maxQueriesPerSource: 6
       });
       attempts.push({
         sourceId: comparable.sourceId,
