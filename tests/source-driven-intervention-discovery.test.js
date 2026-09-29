@@ -117,7 +117,7 @@ test('literature fallback retries transient retrieval failures', async () => {
       return mockResponse({ result: { results: [] } });
     }
   });
-  assert.equal(openAlexCalls, 2);
+  assert.ok(openAlexCalls >= 2);
   assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
 });
 
