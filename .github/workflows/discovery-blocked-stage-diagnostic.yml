@@ -1,18 +1,7 @@
 name: Discovery Blocked Stage Diagnostic
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'tests/discovery-blocked-stage-diagnostic.test.js'
-      - 'tests/discovery-description-extraction-regression.test.js'
-      - 'tests/discovery-recall-repair.test.js'
-      - 'js/source-driven-intervention-discovery.js'
-      - 'js/source-driven-evidence-discovery.js'
-      - 'js/data-acquisition.js'
-      - 'js/source-registry.js'
-      - '.github/workflows/discovery-blocked-stage-diagnostic.yml'
+  workflow_dispatch:
 
 jobs:
   diagnostic:
