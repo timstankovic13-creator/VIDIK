@@ -1250,7 +1250,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
         attempts.push({query,queryPhase:'initial-plan',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
-        if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
+        // A 429 is a source-level capacity signal, not an ordinary empty-search failure.
+        // Once bounded retrieval retries are exhausted, stop querying this source for this
+        // discovery pass. Healthy selected sources still get their full opportunity.
+        if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+          terminalFailure = true;
+        } else if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) {
+          terminalFailure = true;
+        }
       }
     }
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
@@ -1329,6 +1336,11 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           });
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
+          if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+            // Do not spend the remaining expansion budget against a rate-limited source.
+            sourceSearch.terminalFailure = true;
+            break;
+          }
           if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
         }
       }
@@ -1367,7 +1379,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
               break;
             }
           } catch (error) {
-            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            const failure = classifyDiscoveryFailure(error);
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
+              // Literature providers are already bounded by retrieve() retries + circuit breaker.
+              // Stop this provider's query loop after a verified 429 rather than amplifying load.
+              stopReason = 'rate-limit-circuit-open';
+              break;
+            }
           }
         }
         const sourceCandidates = deduplicateInterventionLeads(rawCandidates.slice(sourceCandidateStart))
