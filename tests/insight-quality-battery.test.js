@@ -113,6 +113,11 @@ const CASES = [
   ['enterprise','AU','improve records retention compliance'],
 ];
 
+const CASE_LIMIT = Number.parseInt(process.env.VIDIK_CASE_LIMIT || '', 10);
+const ACTIVE_CASES = Number.isInteger(CASE_LIMIT) && CASE_LIMIT > 0
+  ? CASES.slice(0, Math.min(CASE_LIMIT, CASES.length))
+  : CASES;
+
 const DOMAIN_TERMS = {
   safety: ['crime','violence','injur','overdose','safety','firearm','emergency'],
   housing: ['homeless','housing','eviction','shelter','rough sleeping'],
@@ -347,7 +352,7 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
-  const results = await mapWithConcurrency(CASES, 8, async ([workspace, jurisdiction, problem]) => {
+  const results = await mapWithConcurrency(ACTIVE_CASES, 8, async ([workspace, jurisdiction, problem]) => {
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -422,12 +427,13 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
 
-  assert.equal(results.length, CASES.length);
+  assert.equal(results.length, ACTIVE_CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
   // Quality grades are findings, not pass/fail assertions. A zero-STRONG result is intentionally reportable evidence that the insight layer needs work.
   console.log(JSON.stringify({
     battery: 'VIDIK Insight Quality Battery v2 — 100-problem generalization',
     cases: results.length,
+    caseLimit: CASE_LIMIT || null,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
     averageActionableRatio: Number((results.reduce((n,r) => n + (r.candidateCount ? r.actionableCount/r.candidateCount : 0),0)/results.length).toFixed(2)),
