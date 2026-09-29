@@ -825,7 +825,7 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     const descriptionNames = extractConcreteInterventionFromDescription(problem, workspace, description);
     const names = titleActionable
       ? [title]
-      : (descriptionNames.length && (!recordLike || descriptionNames.some(name => titleHasControlledInterventionAnchor(problem, workspace, name))) ? descriptionNames : []);
+      : (descriptionNames.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title)) ? descriptionNames : []);
     return names.map((name, extractedIndex) => {
       const candidate = { name, discoveryText: description };
       const canonicalName = normalizeInterventionName(name);
@@ -847,7 +847,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
     const names = titleActionable
       ? [{ name: title, family: classification.families, basis: classification.reason }]
-      : (descriptionExtracted.length && (!recordLike || descriptionExtracted.some(name => titleHasControlledInterventionAnchor(problem, workspace, name)))
+      : (descriptionExtracted.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title)))
         ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' }))
         : []);
     return names.map((item, extractedIndex) => {
