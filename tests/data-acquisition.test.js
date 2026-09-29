@@ -29,6 +29,15 @@ assert.ok(plan.schemaVersion.endsWith('.v1'));
 const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => new TextEncoder().encode('{"value":12}').buffer });
 (async () => {
   const source = { url: 'https://city.example/data.json', provider: 'city', jurisdiction: 'CA-ON', domain: 'local-baseline', tier: 'official_machine_readable', datasetId: 'x' };
+  let rateLimitedAttempts = 0;
+  const rateLimitedFetch = async () => {
+    rateLimitedAttempts += 1;
+    if (rateLimitedAttempts < 3) return { ok: false, status: 429, headers: { get: () => null } };
+    return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => new TextEncoder().encode('{"value":13}').buffer };
+  };
+  const rateLimitedResult = await Acquisition.retrieve(source, { fetchImpl: rateLimitedFetch, rateLimitBaseDelayMs: 1 });
+  assert.strictEqual(rateLimitedAttempts, 3);
+  assert.strictEqual(Acquisition.parsePayload(rateLimitedResult.bytes, rateLimitedResult.retrieval.contentType).value.value, 13);
   const { retrieval, bytes } = await Acquisition.retrieve(source, { fetchImpl: fakeFetch, now: new Date('2026-09-12T00:00:00Z') });
   assert.strictEqual(bytes.length, 12);
   assert.strictEqual(retrieval.schemaVersion, 'vidik.source-retrieval.v2');
