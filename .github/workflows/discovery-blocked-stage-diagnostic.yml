@@ -6,6 +6,7 @@ on:
       - diagnostic/stage-instrumentation-2026-09-29
     paths:
       - 'tests/discovery-blocked-stage-diagnostic.test.js'
+      - 'tests/discovery-description-extraction-regression.test.js'
       - 'js/source-driven-intervention-discovery.js'
       - 'js/source-driven-evidence-discovery.js'
       - 'js/data-acquisition.js'
@@ -21,4 +22,4 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: node --test tests/discovery-blocked-stage-diagnostic.test.js
+      - run: node --test tests/discovery-description-extraction-regression.test.js tests/discovery-blocked-stage-diagnostic.test.js
