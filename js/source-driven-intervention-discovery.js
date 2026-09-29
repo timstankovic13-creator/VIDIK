@@ -1491,7 +1491,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // jurisdiction-scoped intervention universe produced no candidates, preserving local-first
   // behavior while giving open-world discovery a bounded second jurisdictional path.
   let comparableFallback = null;
-  if (candidates.length === 0 && jurisdiction && selected.length) {
+  if (!Array.isArray(sources) && candidates.length === 0 && jurisdiction && selected.length) {
     const comparables = selectComparableInterventionSource(problem, jurisdiction, workspace, selected.map(source => source.sourceId));
     const attempts = [];
     for (const comparable of comparables) {
