@@ -786,6 +786,17 @@ function extractConcreteInterventionFromDescription(problem, workspace, descript
   return [...new Set(extracted)].slice(0, 4);
 }
 function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); if (NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => pattern.test(title))) return { accepted: false, reason: 'non-intervention-artifact-pattern', positiveSignals: [], negativeSignals: [], families: [] }; const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' ')); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const positive = INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
+function titleHasControlledInterventionAnchor(problem, workspace, title) {
+  const lower = normalizeText(title).toLowerCase();
+  if (!lower) return false;
+  const controlled = [
+    ...taxonomyTerms(problem, workspace),
+    ...discoveryRecallTerms(problem, workspace),
+    ...expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])
+  ].map(term => normalizeText(term).toLowerCase()).filter(term => term.length > 4);
+  return [...new Set(controlled)].some(term => lower.includes(term));
+}
+
 function extractGovUkInterventionLeads(payload, source, problem, workspace = 'municipal') {
   const results = Array.isArray(payload?.results) ? payload.results : [];
   return results.flatMap((row, index) => {
@@ -793,7 +804,11 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
     if (!title) return [];
     const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
-    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : extractConcreteInterventionFromDescription(problem, workspace, description);
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
+    const descriptionNames = extractConcreteInterventionFromDescription(problem, workspace, description);
+    const names = titleActionable
+      ? [title]
+      : (descriptionNames.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title)) ? descriptionNames : []);
     return names.map((name, extractedIndex) => {
       const candidate = { name, discoveryText: description };
       const canonicalName = normalizeInterventionName(name);
@@ -811,8 +826,13 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
-    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
-    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
+    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
+    const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
+    const names = titleActionable
+      ? [{ name: title, family: classification.families, basis: classification.reason }]
+      : (descriptionExtracted.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title))
+        ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' }))
+        : []);
     return names.map((item, extractedIndex) => {
       const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
       const canonicalName = normalizeInterventionName(item.name);
