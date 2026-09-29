@@ -1,0 +1,27 @@
+name: VIDIK Diagnostic Full 60 Certification
+on:
+  push:
+    branches: [diagnostic/stage-instrumentation-2026-09-29]
+    paths:
+      - 'js/**'
+      - 'tests/insight-quality-battery.test.js'
+      - 'tests/open-world-discovery-expansion.test.js'
+      - 'package.json'
+      - '.github/workflows/diagnostic-full-60.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  NODE_VERSION: 24
+jobs:
+  full-60:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - name: Full 60-case certification
+        run: npm run test:insight-quality-battery
