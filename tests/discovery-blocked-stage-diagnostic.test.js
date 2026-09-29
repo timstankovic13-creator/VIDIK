@@ -28,9 +28,7 @@ const BLOCKED_19 = [
 test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extraction, relevance and expansion stages', async () => {
   const results = [];
   for (const [workspace, jurisdiction, problem] of BLOCKED_19) {
-    const discovery = await discoverSourceDrivenInterventions({
-      problem, jurisdiction, workspace, rows: 10
-    });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 10 });
     const sources = (discovery.sourceSearches || []).map(source => ({
       sourceId: source.sourceId,
       sourceType: source.sourceType,
@@ -49,6 +47,7 @@ test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extractio
       attempts: (source.attempts || []).map(attempt => ({
         query: attempt.query,
         queryLayer: attempt.queryLayer,
+        queryPhase: attempt.queryPhase || null,
         status: attempt.status,
         recordsConsidered: attempt.recordsConsidered,
         extractedCandidates: attempt.extractedCandidates,
@@ -75,15 +74,10 @@ test('VIDIK blocked-case stage diagnostic: classify source, retrieval, extractio
   const buckets = {
     allSourcesFailed: results.filter(r => r.sources.length && r.sources.every(s => s.status === 'search-failed')).length,
     allSourcesEmpty: results.filter(r => r.candidateCount === 0 && r.sources.length && r.sources.every(s => s.status === 'searched-empty')).length,
-    extractionLoss: results.filter(r => r.sources.some(s => (s.attempts || []).some(a => a.recordsConsidered > 0 && a.extractedCandidates === 0))).length,
+    extractionLoss: results.filter(r => r.sources.some(s => (s.attempts || []).some(a => a.recordsConsidered > 0 && (a.extractedCandidates ?? 0) === 0))).length,
     relevanceLoss: results.filter(r => r.sources.some(s => (s.attempts || []).some(a => (a.extractedCandidates || 0) > (a.candidatesReturned || 0)))).length,
     candidatesRecoveredByFallback: results.filter(r => r.candidateCount > 0).length
   };
 
-  console.log(JSON.stringify({
-    diagnostic: 'blocked-19-stage-instrumentation',
-    cases: results.length,
-    buckets,
-    results
-  }, null, 2));
+  console.log(JSON.stringify({ diagnostic: 'blocked-19-stage-instrumentation', cases: results.length, buckets, results }, null, 2));
 });
