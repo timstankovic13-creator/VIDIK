@@ -31,9 +31,12 @@ test.before(async () => {
 test.after(() => child?.kill('SIGTERM'));
 
 test('business workspace can actually submit a decision to the production discovery endpoint', async () => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90000);
   const response = await fetch(`${base}/api/decision/discover`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
+    signal: controller.signal,
     body: JSON.stringify({
       problem: 'improve small business survival',
       jurisdiction: 'US',
@@ -42,6 +45,7 @@ test('business workspace can actually submit a decision to the production discov
       workspace: { decisionType: 'market entry', market: 'US Midwest', capital: '500000', horizon: '24 months', constraints: 'regulatory and staffing' }
     })
   });
+  clearTimeout(timeout);
   const result = await response.json();
   assert.equal(response.status, 200);
   assert.equal(result.problem, 'improve small business survival');
