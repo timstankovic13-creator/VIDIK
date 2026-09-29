@@ -76,6 +76,28 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.equal(calls, 18);
 });
 
+test('empty local jurisdiction opens one bounded comparable-jurisdiction discovery lane', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async url => {
+      const host = new URL(url).hostname;
+      if (host === 'open.canada.ca') {
+        return { ok: false, status: 404, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+      }
+      return mockResponse({ result: { results: [
+        { id: 'comparable-violence', title: 'Community Violence Intervention Program', notes: 'Community violence intervention program for serious violence.' }
+      ] } });
+    }
+  });
+  assert.ok(result.candidates.some(candidate => /community violence intervention/i.test(candidate.name)));
+  assert.equal(result.sourceApplicability.comparableFallback.used, true);
+  assert.equal(result.sourceApplicability.comparableFallback.targetJurisdiction, undefined);
+  assert.notEqual(result.sourceApplicability.comparableFallback.sourceJurisdiction, 'CA');
+  assert.ok(result.sourceSearches.some(search => search.sourceType === 'intervention-library-comparable'));
+});
+
 test('rate-limited discovery source stops the query plan after bounded retrieval retries', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
