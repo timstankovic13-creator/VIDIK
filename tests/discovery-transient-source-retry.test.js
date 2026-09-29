@@ -59,3 +59,14 @@ test('discovery does not retry terminal 4xx retrieval failures', async () => {
   assert.equal(calls, 1);
   assert.equal(MAX_TRANSIENT_SOURCE_RETRIES, 2);
 });
+
+
+test('all discovery source-search lanes use the bounded transient retry wrapper', async () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(require.resolve('../js/source-driven-intervention-discovery'), 'utf8');
+  const directRetrievals = source.match(/await retrieve\(/g) || [];
+  assert.equal(directRetrievals.length, 1, 'only retrieveWithTransientRetry may call retrieve directly');
+  assert.match(source, /family-targeted pass[\s\S]*retrieveWithTransientRetry/);
+  assert.match(source, /literature fallback[\s\S]*retrieveWithTransientRetry/);
+  assert.match(source, /missing-option detector[\s\S]*retrieveWithTransientRetry/);
+});
