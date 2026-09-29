@@ -1241,9 +1241,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
-        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); rawCandidates.push(...leads); sourceCandidates.push(...leads);
+        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
-        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,relevanceRejectedCount,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         consecutiveFailures = 0;
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
       }catch(error){
@@ -1285,6 +1285,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
             : extractCkanInterventionLeads(payload.value, source, problem, workspace);
           const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          const relevanceRejectedCount = Math.max(0, extractedLeads.length - leads.length);
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
@@ -1295,6 +1296,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             status: leads.length ? 'candidates-found' : 'searched-empty',
             candidatesReturned: leads.length,
             recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
+            extractedCandidates: extractedLeads.length,
+            relevanceRejectedCount,
             provenance: snapshot.retrieval,
             failureReason: null,
             cumulativeUniqueCandidates: candidates.length,
