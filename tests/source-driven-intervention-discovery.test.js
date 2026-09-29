@@ -58,22 +58,18 @@ test('source-aware routing skips expansion for a source with sustained non-produ
     sources: [SOURCE],
     fetchImpl: async () => {
       calls += 1;
-      if (calls % 2 === 0) {
-        return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => Buffer.from(JSON.stringify({ result: { results: [] } })) };
-      }
       return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
     }
   });
   const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
   assert.ok(search);
   assert.equal(search.routeExpansion, false);
-  assert.equal(search.candidatesReturned, 0);
-  assert.equal(search.failedQueryCount, 9);
-  assert.equal(search.queriesAttempted, 18);
+  assert.equal(search.failedQueryCount, 3);
+  assert.equal(search.queriesAttempted, 3);
   assert.ok(search.failureRatio >= 0.5);
-  assert.equal(search.skippedQueries, 0);
-  assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
-  assert.equal(calls, 18);
+  assert.equal(search.skippedQueries, 15);
+  assert.equal(search.attempts.filter(attempt => attempt.queryPhase === 'expansion').length, 0);
+  assert.equal(calls, 9);
 });
 
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
@@ -92,9 +88,37 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.ok(search);
   assert.equal(search.terminalFailure, true);
   assert.equal(search.queriesAttempted, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
-  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES * (mod.MAX_TRANSIENT_SOURCE_RETRIES + 1));
   assert.equal(search.failureClasses['upstream-5xx'], mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
   assert.equal(search.status, 'search-failed');
+});
+
+test('literature fallback retries transient retrieval failures', async () => {
+  let openAlexCalls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'api.openalex.org') {
+        openAlexCalls += 1;
+        if (openAlexCalls === 1) {
+          return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+        }
+        return mockResponse({ results: [{
+          id: 'W-wildfire-smoke-retry',
+          display_name: 'Wildfire smoke mitigation intervention',
+          abstract_inverted_index: {
+            'This': [0], 'study': [1], 'describes': [2], 'wildfire': [3],
+            'smoke': [4], 'mitigation': [5], 'interventions': [6]
+          }
+        }] });
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.ok(openAlexCalls >= 2);
+  assert.ok(result.candidates.some(candidate => /wildfire smoke mitigation/i.test(candidate.name)));
 });
 
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
