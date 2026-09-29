@@ -80,10 +80,9 @@ test('empty local jurisdiction opens one bounded comparable-jurisdiction discove
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
     jurisdiction: 'CA',
-    sources: [SOURCE],
     fetchImpl: async url => {
-      const host = new URL(url).hostname;
-      if (host === 'open.canada.ca') {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'open.canada.ca' || parsed.hostname === 'data.ontario.ca') {
         return { ok: false, status: 404, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
       }
       return mockResponse({ result: { results: [
@@ -92,7 +91,6 @@ test('empty local jurisdiction opens one bounded comparable-jurisdiction discove
     }
   });
   assert.ok(result.candidates.some(candidate => /community violence intervention/i.test(candidate.name)));
-  assert.equal(result.sourceApplicability.comparableFallback.used, true);
   assert.equal(result.sourceApplicability.comparableFallback.used, true);
   assert.ok(result.sourceApplicability.comparableFallback.attempts.length >= 1);
   assert.notEqual(result.sourceApplicability.comparableFallback.attempts[0].sourceJurisdiction, 'CA');
@@ -103,10 +101,10 @@ test('rate-limited discovery source stops the query plan after bounded retrieval
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
     jurisdiction: 'CA',
-    sources: [{ ...SOURCE, sourceId: 'ca-rate-limit-regression' }],
+    sources: [SOURCE],
     fetchImpl: async () => ({ ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) })
   });
-  const search = result.sourceSearches.find(item => item.sourceId === 'ca-rate-limit-regression');
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
   assert.ok(search);
   assert.equal(search.terminalFailure, true);
   assert.equal(search.queriesAttempted, 1);
