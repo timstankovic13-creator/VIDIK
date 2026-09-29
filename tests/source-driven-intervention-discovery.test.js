@@ -93,8 +93,9 @@ test('empty local jurisdiction opens one bounded comparable-jurisdiction discove
   });
   assert.ok(result.candidates.some(candidate => /community violence intervention/i.test(candidate.name)));
   assert.equal(result.sourceApplicability.comparableFallback.used, true);
-  assert.equal(result.sourceApplicability.comparableFallback.targetJurisdiction, undefined);
-  assert.notEqual(result.sourceApplicability.comparableFallback.sourceJurisdiction, 'CA');
+  assert.equal(result.sourceApplicability.comparableFallback.used, true);
+  assert.ok(result.sourceApplicability.comparableFallback.attempts.length >= 1);
+  assert.notEqual(result.sourceApplicability.comparableFallback.attempts[0].sourceJurisdiction, 'CA');
   assert.ok(result.sourceSearches.some(search => search.sourceType === 'intervention-library-comparable'));
 });
 
