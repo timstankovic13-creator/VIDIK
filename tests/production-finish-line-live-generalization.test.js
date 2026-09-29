@@ -69,46 +69,38 @@ test('worker displacement expands to transition and redeployment intervention cl
   assert.ok(expectedInterventionFamilies('reduce worker displacement', 'research').includes('employment'));
 });
 
+async function runWithTimeout(task, label, timeoutMs = 90000) {
+  let timer;
+  try {
+    return await Promise.race([task(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('live finish-line timeout after ' + timeoutMs + 'ms: ' + label)), timeoutMs); })]);
+  } finally { clearTimeout(timer); }
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length); let next = 0;
+  async function runWorker() { while (true) { const index = next++; if (index >= items.length) return; results[index] = await worker(items[index]); } }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
+  return results;
+}
+
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
-  const summaries = [];
-  for (const [problem, jurisdiction] of CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
-    const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
-
-    if (boundary.sourceFailureClosed) {
-      summaries.push({
-        jurisdiction,
-        problem,
-        interventionSources: 0,
-        interventionLeads: 0,
-        evidenceSources: 0,
-        evidenceLeads: 0,
-        sourceFailureClosed: true
-      });
-      continue;
-    }
-
-    const candidate = discovery.candidates[0];
-    const evidence = await discoverCandidateEvidence({ problem, candidate, rows: 5 });
-    assert.equal(evidence.recommendationEligible, false);
-    // Two independent candidate-matched sources satisfy evidence sufficiency; this still does not make the candidate recommendation-eligible.\n    assert.equal(evidence.evidenceComplete, true);
-    assert.equal(evidence.effectsImported, false);
-    assert.ok(evidence.sourceSearches.length >= 2, `${jurisdiction}:${problem} did not diversify causal evidence search`);
-    assert.ok(evidence.sourceSearches.some(item => item.status !== 'search-failed'), `${jurisdiction}:${problem} all evidence sources failed`);
-    assert.ok(evidence.discoveryHash, `${jurisdiction}:${problem} missing evidence discovery hash`);
-    assert.ok(evidence.evidenceLeads.every(lead => lead.evidenceLeadOnly === true && lead.causalEffectImported === false), `${jurisdiction}:${problem} evidence crossed authority boundary`);
-
-    summaries.push({
-      jurisdiction,
-      problem,
-      interventionSources: discovery.sourceSearches.filter(item => item.status !== 'search-failed').length,
-      interventionLeads: discovery.candidates.length,
-      evidenceSources: evidence.sourceSearches.filter(item => item.status !== 'search-failed').length,
-      evidenceLeads: evidence.evidenceLeads.length,
-      sourceFailureClosed: false
-    });
-  }
-
+  const summaries = await mapWithConcurrency(CASES, 4, async ([problem, jurisdiction]) => {
+    return runWithTimeout(async () => {
+      const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
+      const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
+      if (boundary.sourceFailureClosed) return { jurisdiction, problem, interventionSources: 0, interventionLeads: 0, evidenceSources: 0, evidenceLeads: 0, sourceFailureClosed: true };
+      const candidate = discovery.candidates[0];
+      const evidence = await discoverCandidateEvidence({ problem, candidate, rows: 5 });
+      assert.equal(evidence.recommendationEligible, false);
+      assert.equal(evidence.evidenceComplete, true);
+      assert.equal(evidence.effectsImported, false);
+      assert.ok(evidence.sourceSearches.length >= 2, jurisdiction + ':' + problem + ' did not diversify causal evidence search');
+      assert.ok(evidence.sourceSearches.some(item => item.status !== 'search-failed'), jurisdiction + ':' + problem + ' all evidence sources failed');
+      assert.ok(evidence.discoveryHash, jurisdiction + ':' + problem + ' missing evidence discovery hash');
+      assert.ok(evidence.evidenceLeads.every(lead => lead.evidenceLeadOnly === true && lead.causalEffectImported === false), jurisdiction + ':' + problem + ' evidence crossed authority boundary');
+      return { jurisdiction, problem, interventionSources: discovery.sourceSearches.filter(item => item.status !== 'search-failed').length, interventionLeads: discovery.candidates.length, evidenceSources: evidence.sourceSearches.filter(item => item.status !== 'search-failed').length, evidenceLeads: evidence.evidenceLeads.length, sourceFailureClosed: false };
+    }, jurisdiction + ':' + problem);
+  });
   assert.equal(summaries.length, CASES.length);
   assert.ok(summaries.some(item => item.jurisdiction === 'CA'));
   assert.ok(summaries.some(item => item.jurisdiction === 'US'));
