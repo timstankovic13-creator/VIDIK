@@ -1128,6 +1128,10 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
       terms: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','housing navigation','homelessness support','permanent supportive housing','community land trust','affordable housing development']
     },
     {
+      match: /emergency[- ]department|hospital overcrowding|patient[- ]flow|ed crowding|hospital waiting times?|hospital wait times?|waiting times? for hospital care|hospital waiting list/,
+      terms: ['queue management','appointment scheduling','patient flow','care navigation','community health worker','community paramedicine','mobile crisis response','hospital discharge','same-day access','urgent care','triage','observation unit','primary care access','service capacity expansion','clinic capacity expansion','waiting list management']
+    },
+    {
       match: /emergency[- ]department|hospital overcrowding|patient[- ]flow|ed crowding/,
       terms: ['community health worker','care navigation','community paramedicine','mobile crisis response','mobile health outreach','primary care clinic','primary care access','mobile clinic','urgent care','triage','patient flow','hospital discharge','same-day access','observation unit']
     },
