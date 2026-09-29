@@ -1544,7 +1544,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         rawCandidates.push(...comparableResult.candidates);
         candidates = deduplicateInterventionLeads(rawCandidates);
         coverage = discoveryCoverage(problem, workspace, candidates);
-        break;
       }
     }
     if (attempts.length) comparableFallback = { used: true, attempts };
