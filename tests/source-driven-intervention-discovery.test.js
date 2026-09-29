@@ -504,3 +504,46 @@ test('semantic relevance does not promote generic source records whose descripti
     true
   );
 });
+
+
+test('description extraction regression: record-like titles can yield controlled interventions', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const source = {
+    sourceId: 'ca-program-discovery',
+    provider: 'Government of Canada Open Government Portal',
+    jurisdiction: 'CA',
+    domain: 'intervention-universe',
+    tier: 'official_machine_readable',
+    accessMethod: 'ckan-action-api',
+    url: 'https://open.canada.ca/data/en/api/3/action/package_search?q='
+  };
+  const leads = mod.extractCkanInterventionLeads({
+    result: { results: [{
+      id: 'pedestrian-study',
+      title: 'Pedestrian safety evaluation report',
+      notes: 'The intervention implemented traffic calming, protected bike lanes and pedestrian crossings around high-injury corridors.'
+    }] }
+  }, source, 'reduce pedestrian injuries', 'municipal');
+  assert.ok(leads.some(lead => /traffic calming|protected bike lane|pedestrian crossing/i.test(lead.name)));
+});
+
+test('description extraction regression: generic program/data wording remains rejected', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const source = {
+    sourceId: 'ca-program-discovery',
+    provider: 'Government of Canada Open Government Portal',
+    jurisdiction: 'CA',
+    domain: 'intervention-universe',
+    tier: 'official_machine_readable',
+    accessMethod: 'ckan-action-api',
+    url: 'https://open.canada.ca/data/en/api/3/action/package_search?q='
+  };
+  const leads = mod.extractCkanInterventionLeads({
+    result: { results: [{
+      id: 'housing-dataset',
+      title: 'Housing dataset',
+      notes: 'Supportive housing program data and information for residents.'
+    }] }
+  }, source, 'reduce homelessness', 'municipal');
+  assert.equal(leads.length, 0);
+});
