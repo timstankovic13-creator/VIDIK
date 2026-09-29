@@ -532,6 +532,31 @@ test('literature fallback inherits bounded class and mechanism coverage layers',
   assert.ok(queries.some(q => /workflow automation|process redesign/i.test(q)));
 });
 
+test('literature fallback reserves bounded queries for controlled mechanism-only retrieval', () => {
+  const mod = require('../js/source-driven-intervention-discovery');
+  const queries = mod.buildLiteratureFallbackQueries('reduce procurement cycle time', 'enterprise');
+  assert.ok(queries.length <= 18);
+  assert.ok(
+    queries.some(q => !/reduce procurement cycle time/i.test(q) && /redesign|automation|e-procurement|workflow/i.test(q)),
+    'mechanism-only literature query was not reserved'
+  );
+  const governanceQueries = mod.buildLiteratureFallbackQueries('improve data governance', 'enterprise');
+  assert.ok(
+    governanceQueries.some(q => !/improve data governance/i.test(q) && /governance|privacy|compliance|controls/i.test(q)),
+    'controlled governance mechanism query was not reserved'
+  );
+  const { extractOpenAlexInterventionLeads } = mod;
+  const source = { sourceId: 'openalex-works', jurisdiction: 'international', domain: 'causal-evidence' };
+  const unrelated = extractOpenAlexInterventionLeads(
+    { results: [{ id: 'W-unrelated', display_name: 'Astronomical observatory scheduling and telescope alignment' }] },
+    source,
+    'reduce procurement cycle time',
+    'enterprise',
+    'procurement process redesign'
+  );
+  assert.equal(unrelated.length, 0, 'mechanism-only query must not bypass source-text problem relevance');
+});
+
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);

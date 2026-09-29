@@ -7,6 +7,22 @@ const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
+const MAX_TRANSIENT_SOURCE_RETRIES = 2;
+const TRANSIENT_RETRY_DELAYS_MS = [0, 0];
+async function retrieveWithTransientRetry(source, options = {}) {
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
+    try { return await retrieve(source, options); }
+    catch (error) {
+      lastError = error;
+      const failure = classifyDiscoveryFailure(error);
+      if (failure.terminal || !['transport-retryable', 'rate-limited', 'upstream-5xx'].includes(failure.class) || attempt >= MAX_TRANSIENT_SOURCE_RETRIES) throw error;
+      const delay = TRANSIENT_RETRY_DELAYS_MS[attempt] || TRANSIENT_RETRY_DELAYS_MS[TRANSIENT_RETRY_DELAYS_MS.length - 1];
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
 function classifyDiscoveryFailure(error) {
   const message = String(error?.message || error || 'source-driven-search-failed');
   const http = message.match(/^upstream-http:(\d{3})$/);
@@ -1023,13 +1039,41 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
   const mechanismTerms = discoveryMechanismPivots(problem, workspace)
     .filter(term => /automation|redesign|training|staffing|outreach|navigation|subsidy|grant|facility|infrastructure|technology|service|program|intervention|pilot|preparedness|evacuation|retention|workflow|controls|security|maintenance/i.test(term))
     .slice(0, 6);
-  return [...new Set([
+
+  // Keep the existing problem-backed literature queries, but reserve part of the
+  // same bounded budget for controlled mechanism-only queries. Requiring the full
+  // decision sentence plus an intervention label can be too conjunctive for literature
+  // whose outcome wording differs from the decision wording. Extraction still requires
+  // a controlled VIDIK term and source-text problem-concept relevance.
+  const combined = [
     normalizedProblem,
     ...recallTerms.map(term => normalizedProblem + ' ' + term),
     ...classQueries,
     ...familyTerms.map(term => normalizedProblem + ' ' + term),
     ...taxonomy.map(term => normalizedProblem + ' ' + term),
     ...mechanismTerms.map(term => normalizedProblem + ' ' + term)
+  ].filter(Boolean);
+
+  const classMechanisms = classQueries.map(query => {
+    const prefix = normalizedProblem.toLowerCase() + ' ';
+    const lower = normalizeText(query).toLowerCase();
+    return lower.startsWith(prefix) ? normalizeText(query).slice(prefix.length) : normalizeText(query);
+  });
+  const controlledMechanisms = [
+    ...classMechanisms,
+    ...familyTerms,
+    ...mechanismTerms,
+    ...taxonomy
+  ].filter(term => String(term).length > 4);
+
+  // Keep a bounded portion of the literature budget for mechanism-only retrieval.
+  // This must be an explicit allocation: appending controlled mechanisms after the
+  // full combined list would normally truncate them all away at 18.
+  const problemBackedBudget = 12;
+  const mechanismBudget = 6;
+  return [...new Set([
+    ...combined.slice(0, problemBackedBudget),
+    ...controlledMechanisms.slice(0, mechanismBudget)
   ].filter(Boolean))].slice(0, 18);
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
@@ -1238,7 +1282,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); rawCandidates.push(...leads); sourceCandidates.push(...leads);
@@ -1256,8 +1300,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
     const failureClasses=Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureClass||'other'))].map(kind=>[kind,attempts.filter(a=>a.status==='search-failed'&&a.failureClass===kind).length]));
     const failureRatio = attempts.length ? failedAttempts / attempts.length : 0;
+    const initialCandidatesReturned = finalCandidates.length;
     const routeExpansion = !(finalCandidates.length === 0 && failedAttempts >= 3 && failureRatio >= 0.5);
-    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:initialCandidatesReturned,initialCandidatesReturned,attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
@@ -1304,7 +1349,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           });
           sourceSearch.queriesAttempted += 1;
           sourceSearch.usableQueryCount += 1;
-          sourceSearch.candidatesReturned += leads.length;
           sourceSearch.missingFamilies = coverage.missingFamilies;
           sourceSearch.observedFamilies = coverage.observedFamilies;
           sourceSearch.expectedFamilies = coverage.expectedFamilies;
@@ -1420,7 +1464,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           });
           sourceSearch.queriesAttempted += 1;
           sourceSearch.usableQueryCount += 1;
-          sourceSearch.candidatesReturned += leads.length;
         } catch(error) {
           const failure = classifyDiscoveryFailure(error);
           sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',queryPhase:'expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
@@ -1463,4 +1506,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { classifyDiscoveryFailure, retrieveWithTransientRetry, MAX_TRANSIENT_SOURCE_RETRIES, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
