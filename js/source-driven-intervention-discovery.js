@@ -847,7 +847,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
     const names = titleActionable
       ? [{ name: title, family: classification.families, basis: classification.reason }]
-      : (descriptionExtracted.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title)))
+      : (descriptionExtracted.length && (!recordLike || titleHasControlledInterventionAnchor(problem, workspace, title))
         ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' }))
         : []);
     return names.map((item, extractedIndex) => {
