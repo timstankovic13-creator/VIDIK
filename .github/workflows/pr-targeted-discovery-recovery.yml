@@ -1,0 +1,25 @@
+name: VIDIK PR Targeted Discovery Recovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'tests/targeted-discovery-recovery-2026-09-29.test.js'
+      - 'tests/source-driven-intervention-discovery.test.js'
+      - 'package.json'
+      - '.github/workflows/pr-targeted-discovery-recovery.yml'
+permissions:
+  contents: read
+env:
+  NODE_VERSION: 24
+jobs:
+  targeted-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install
+      - run: node --test tests/targeted-discovery-recovery-2026-09-29.test.js
