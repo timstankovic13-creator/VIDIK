@@ -1301,7 +1301,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const failureClasses=Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureClass||'other'))].map(kind=>[kind,attempts.filter(a=>a.status==='search-failed'&&a.failureClass===kind).length]));
     const failureRatio = attempts.length ? failedAttempts / attempts.length : 0;
     const routeExpansion = !(finalCandidates.length === 0 && failedAttempts >= 3 && failureRatio >= 0.5);
-    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.filter(a=>a.status==='candidates-found').reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:sourceCandidates.length,attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
@@ -1484,19 +1484,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       coverage = discoveryCoverage(problem, workspace, candidates);
       sourceSearches.push({ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, originalProblem: problem, queriesAttempted: 0, failedQueryCount: 0, usableQueryCount: 1, status: 'taxonomy-expansion-used', candidatesReturned: exploratory.length, attempts: [], expectedFamilies: coverage.expectedFamilies, observedFamilies: coverage.observedFamilies, missingFamilies: coverage.missingFamilies, failureReason: null });
     }
-  }
-  // Candidate count is a derived view of attempt records, not mutable state. Expansion passes
-  // append attempts; they must never maintain a second counter that can drift from those records.
-  for (const sourceSearch of sourceSearches) {
-    Object.defineProperty(sourceSearch, 'candidatesReturned', {
-      enumerable: true,
-      configurable: true,
-      get() {
-        return (this.attempts || [])
-          .filter(attempt => attempt.status === 'candidates-found')
-          .reduce((sum, attempt) => sum + Number(attempt.candidatesReturned || 0), 0);
-      }
-    });
   }
   const classCoverage=interventionClassCoverage(problem,workspace,candidates);
   const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
