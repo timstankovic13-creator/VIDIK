@@ -7,6 +7,7 @@ on:
     paths:
       - 'tests/discovery-blocked-stage-diagnostic.test.js'
       - 'tests/discovery-description-extraction-regression.test.js'
+      - 'tests/discovery-recall-repair.test.js'
       - 'js/source-driven-intervention-discovery.js'
       - 'js/source-driven-evidence-discovery.js'
       - 'js/data-acquisition.js'
