@@ -1200,8 +1200,9 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
 
 function interventionMatchesProblem(problem,candidate,workspace='municipal'){
   const problemText=normalizeText(problem),candidateText=normalizeText((candidate?.name||'')+' '+(candidate?.discoveryText||''));
-  if(!isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true })) return false;
   const problemSpecific = problemSpecificRelevance(problem, candidate, workspace);
+  const controlledTitle = titleHasControlledInterventionAnchor(problem, workspace, candidate?.name || '');
+  if(!isActionableInterventionTitle(candidate?.name || '', candidate?.discoveryText || '', { allowDescriptionSignals: true }) && !controlledTitle && problemSpecific !== true) return false;
   if (problemSpecific === false) return false;
   if (problemSpecific === true) return true;
   const problemLower=problemText.toLowerCase();
