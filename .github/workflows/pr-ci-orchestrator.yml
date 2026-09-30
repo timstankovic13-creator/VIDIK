@@ -65,3 +65,16 @@ jobs:
           node-version: 24
       - name: Run focused extraction-loss diagnostic
         run: node --test tests/focused-blocked-case-diagnostic.test.js
+
+  insight-quality-40-routing-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VIDIK_CASE_LIMIT: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Run 40-case discovery quality validation
+        run: node --test tests/insight-quality-battery.test.js
