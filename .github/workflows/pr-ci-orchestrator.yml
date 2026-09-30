@@ -54,3 +54,14 @@ jobs:
           node-version: 24
       - name: Run blocked-case stage histogram
         run: node --test tests/discovery-blocked-stage-diagnostic.test.js
+
+  focused-blocked-case-extraction-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Run focused extraction-loss diagnostic
+        run: node --test tests/focused-blocked-case-diagnostic.test.js
