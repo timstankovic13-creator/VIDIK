@@ -7,6 +7,22 @@ const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
+const MAX_TRANSIENT_SOURCE_RETRIES = 2;
+const TRANSIENT_RETRY_DELAYS_MS = [0, 0];
+async function retrieveWithTransientRetry(source, options = {}) {
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
+    try { return await retrieveWithTransientRetry(source, options); }
+    catch (error) {
+      lastError = error;
+      const failure = classifyDiscoveryFailure(error);
+      if (failure.terminal || !['transport-retryable', 'rate-limited', 'upstream-5xx'].includes(failure.class) || attempt >= MAX_TRANSIENT_SOURCE_RETRIES) throw error;
+      const delay = TRANSIENT_RETRY_DELAYS_MS[attempt] || TRANSIENT_RETRY_DELAYS_MS[TRANSIENT_RETRY_DELAYS_MS.length - 1];
+      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
 function classifyDiscoveryFailure(error) {
   const message = String(error?.message || error || 'source-driven-search-failed');
   const http = message.match(/^upstream-http:(\d{3})$/);
@@ -1353,7 +1369,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
@@ -1399,7 +1415,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
@@ -1482,7 +1498,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             const url = source.sourceId === 'openalex-works'
               ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
               : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
-            const snapshot = await retrieve({...source, url},{fetchImpl,now});
+            const snapshot = await retrieveWithTransientRetry({...source, url},{fetchImpl,now});
             const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
             if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
             const leads = source.sourceId === 'openalex-works'
@@ -1538,7 +1554,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieve({...source, url: sourceUrl}, {fetchImpl, now});
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
