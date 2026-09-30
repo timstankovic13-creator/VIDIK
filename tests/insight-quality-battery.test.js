@@ -352,7 +352,7 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
-  const results = await mapWithConcurrency(ACTIVE_CASES, 8, async ([workspace, jurisdiction, problem]) => {
+  const DISCOVERY_CONCURRENCY = Number.parseInt(process.env.VIDIK_DISCOVERY_CONCURRENCY || '8', 10); const results = await mapWithConcurrency(ACTIVE_CASES, Number.isInteger(DISCOVERY_CONCURRENCY) && DISCOVERY_CONCURRENCY > 0 ? DISCOVERY_CONCURRENCY : 8, async ([workspace, jurisdiction, problem]) => {
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
