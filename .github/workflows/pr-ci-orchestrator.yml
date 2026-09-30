@@ -78,3 +78,14 @@ jobs:
           node-version: 24
       - name: Run 40-case discovery quality validation
         run: node --test tests/insight-quality-battery.test.js
+
+  remaining-blocked-40-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Trace remaining blocked first-40 cases
+        run: node --test tests/remaining-blocked-40-diagnostic.test.js
