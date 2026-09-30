@@ -55,9 +55,18 @@ const EXTRA_CASES = [
 ];
 
 test('VIDIK open-world discovery expansion: 40 additional unseen problems remain inspectable and governed', async () => {
-  const results = [];
-  for (const [workspace, jurisdiction, problem] of EXTRA_CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4 });
+  const results = new Array(EXTRA_CASES.length);
+  let next = 0;
+  const runWorker = async () => {
+    while (true) {
+      const index = next++;
+      if (index >= EXTRA_CASES.length) return;
+      const [workspace, jurisdiction, problem] = EXTRA_CASES[index];
+      let timer;
+      const discovery = await Promise.race([
+        discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4 }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('open-world discovery timeout after 90000ms: ' + workspace + ':' + jurisdiction + ':' + problem)), 90000); })
+      ]).finally(() => clearTimeout(timer));
     const candidates = discovery.candidates || [];
     const relevant = candidates.filter(c => interventionMatchesProblem(problem, c, workspace));
     const actionable = candidates.filter(c => isActionableInterventionTitle(c.name, c.discoveryText));
@@ -70,7 +79,7 @@ test('VIDIK open-world discovery expansion: 40 additional unseen problems remain
     assert.ok(candidates.every(c => c.discovery?.leadOnly === true));
     assert.ok(candidates.every(c => c.discovery?.effectsImported === false));
     assert.equal(discovery.interventionUniverse.recommendationEligible, false);
-    results.push({
+    results[index] = {
       workspace, jurisdiction, problem,
       candidates: candidates.length,
       relevant: relevant.length,
@@ -79,8 +88,9 @@ test('VIDIK open-world discovery expansion: 40 additional unseen problems remain
       taxonomyHit: taxonomyTerms(problem, workspace).some(term =>
         candidates.some(c => String(c.name + ' ' + c.discoveryText).toLowerCase().includes(String(term).toLowerCase()))
       )
-    });
+    };
   }
+  await Promise.all(Array.from({ length: 4 }, () => runWorker()));
   assert.equal(results.length, 40);
   assert.ok(results.every(r => r.candidates >= 0));
   console.log(JSON.stringify({
