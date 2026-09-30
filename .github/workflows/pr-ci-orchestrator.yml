@@ -71,6 +71,7 @@ jobs:
     timeout-minutes: 12
     env:
       VIDIK_CASE_LIMIT: 40
+      VIDIK_DISCOVERY_CONCURRENCY: 2
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
