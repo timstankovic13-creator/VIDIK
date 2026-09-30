@@ -1449,7 +1449,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   }
   const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId));
   if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
-    const literatureSources = ['openalex-works','crossref-works'].map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId)).filter(Boolean).filter(source => sourceMatchesJurisdiction(source, jurisdiction));
+    // Literature indexes are jurisdiction-neutral discovery/evidence channels. The
+    // jurisdiction boundary applies to intervention-program sources, not global
+    // bibliographic indexes; filtering Crossref/OpenAlex by the requested country
+    // can otherwise leave a single transient provider failure with no fallback.
+    const literatureSources = ['openalex-works','crossref-works']
+      .map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId))
+      .filter(Boolean);
     if (literatureSources.length) {
       const literatureQueries = buildLiteratureFallbackQueries(problem, workspace);
       for (const source of literatureSources) {
