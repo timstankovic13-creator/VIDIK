@@ -244,36 +244,51 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     query
   ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE);
   const searches = [], rawLeads = [];
-  for (const source of selected) {
-    for (const searchQuery of diversifiedQueries) {
-      try {
-        const url = buildEvidenceSearchUrl(source, searchQuery);
-        const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
-        const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
-        if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
-        let evidencePayload = payload.value;
-        if (source.sourceId === 'pubmed-eutils') {
-          const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
-          if (ids.length) {
-            const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now });
-            const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
-            if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
-            const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now });
-            const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
-            evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
+  // Evidence providers are independent, but query order within each provider remains
+  // sequential to preserve bounded retrieval and avoid turning rate limits into false
+  // evidence gaps. Run at most two providers concurrently.
+  const sourceResults = new Array(selected.length);
+  let nextSourceIndex = 0;
+  async function runSourceWorker() {
+    while (true) {
+      const sourceIndex = nextSourceIndex++;
+      if (sourceIndex >= selected.length) return;
+      const source = selected[sourceIndex];
+      const sourceSearches = [], sourceLeads = [];
+      for (const searchQuery of diversifiedQueries) {
+        try {
+          const url = buildEvidenceSearchUrl(source, searchQuery);
+          const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
+          let evidencePayload = payload.value;
+          if (source.sourceId === 'pubmed-eutils') {
+            const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
+            if (ids.length) {
+              const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now });
+              const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
+              if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
+              const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now });
+              const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
+              evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
+            }
           }
+          const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
+          sourceLeads.push(...found);
+          sourceSearches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
+          const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
+          if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
+        } catch (error) {
+          sourceSearches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
         }
-        const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
-        rawLeads.push(...found);
-        searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
-        // Stop once this source has produced relevant leads. Independence still requires
-        // a second source; extra queries after success only add external load.
-        const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
-        if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
-      } catch (error) {
-        searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
+      sourceResults[sourceIndex] = { searches: sourceSearches, leads: sourceLeads };
     }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, selected.length) }, () => runSourceWorker()));
+  for (const result of sourceResults) {
+    searches.push(...result.searches);
+    rawLeads.push(...result.leads);
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
