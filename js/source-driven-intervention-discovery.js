@@ -12,7 +12,7 @@ const TRANSIENT_RETRY_DELAYS_MS = [0, 0];
 async function retrieveWithTransientRetry(source, options = {}) {
   let lastError;
   for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
-    try { return await retrieveWithTransientRetry(source, options); }
+    try { return await retrieve(source, options); }
     catch (error) {
       lastError = error;
       const failure = classifyDiscoveryFailure(error);
