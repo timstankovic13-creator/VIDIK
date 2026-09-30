@@ -185,16 +185,25 @@ function extractEvidenceLeads(payload, source, candidate, problem) {
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
 function deduplicateEvidenceLeads(leads = []) { const seen = new Map(); for (const lead of leads) { const safe = sanitizeEvidenceLead(lead); const key = String(safe.id || '').toLowerCase(); if (!key) continue; const existing = seen.get(key); if (!existing) seen.set(key, { ...safe, sourceIds: [safe.sourceId] }); else existing.sourceIds = [...new Set([...existing.sourceIds, safe.sourceId])]; } return [...seen.values()]; }
 function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], requiredEvidence = ['causal','implementation','cost','equity'] } = {}) {
-  const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
+  const sourceIds = [...new Set(sourceSearches.map(search => search.sourceId))];
+  const usableSourceIds = sourceIds.filter(sourceId => sourceSearches.some(search => search.sourceId === sourceId && search.status !== 'search-failed'));
+  const failedSourceIds = sourceIds.filter(sourceId => !usableSourceIds.includes(sourceId));
+  const usable = usableSourceIds;
+  const failed = failedSourceIds;
+  const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
   const relevantLeads = uniqueLeads.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSourceCount = new Set(relevantLeads.map(lead => lead.sourceId)).size;
   const independentSourceFamilyCount = new Set(relevantLeads.map(lead => lead.sourceFamily || EVIDENCE_SOURCE_FAMILIES[lead.sourceId] || lead.sourceId)).size;
   const causalSourceCount = new Set(relevantLeads.filter(lead => EVIDENCE_CAUSAL_SOURCE_IDS.has(lead.sourceId)).map(lead => lead.sourceId)).size;
+  // A transient failed query is not the same as a failed provider. A source remains
+  // usable when any bounded query succeeded; a provider is failure-closed only when
+  // every query attempted for that provider failed. This preserves source failures
+  // while preventing one flaky request from invalidating otherwise independent evidence.
   // Crossref can improve provider diversity and recall, but it is a bibliographic
   // metadata index, not causal identification. Completion therefore requires at
   // least one causal provider plus two independent provider families.
   const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && independentSourceFamilyCount >= 2 && causalSourceCount >= 1 && relevantLeads.length > 0;
-  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
+  return { sourceCount: sourceIds.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
