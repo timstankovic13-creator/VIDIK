@@ -1271,7 +1271,7 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
     return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
   }).filter(Boolean));
 }
-async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null}={}){
+async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null,skipExpansion=false}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[];
   const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
@@ -1319,7 +1319,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // second, explicitly family-targeted pass. This is the missing-option safeguard: family
   // expansion must not depend solely on the original query vocabulary. Keep it bounded and
   // source-backed; never synthesize candidates from taxonomy terms.
-  if (coverage.missingFamilies.length && selected.length) {
+  if (!skipExpansion && coverage.missingFamilies.length && selected.length) {
     const targetedQueries = missingFamilySearchQueries(problem, workspace, candidates);
     const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
     for (const source of selected) {
@@ -1450,7 +1450,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // remaining source budget on stratified class-specific searches. This is the
   // explicit missing-option detector: it searches for absent real-world classes
   // rather than treating family coverage as proof that the universe is complete.
-  const classTargetedQueries = missingInterventionClassSearchQueries(problem, workspace, candidates);
+  const classTargetedQueries = skipExpansion ? [] : missingInterventionClassSearchQueries(problem, workspace, candidates);
   if (classTargetedQueries.length && selected.length) {
     const existingQueries = new Set(sourceSearches.flatMap(search => (search.attempts || []).map(attempt => attempt.query)));
     for (const source of selected) {
@@ -1531,7 +1531,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         fetchImpl,
         now,
         rows,
-        maxQueriesPerSource: 3
+        maxQueriesPerSource: 3,
+        skipExpansion: true
       });
       attempts.push({
         sourceId: comparable.sourceId,
