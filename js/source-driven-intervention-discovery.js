@@ -1513,12 +1513,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearches.push({ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, originalProblem: problem, queriesAttempted: 0, failedQueryCount: 0, usableQueryCount: 1, status: 'taxonomy-expansion-used', candidatesReturned: exploratory.length, attempts: [], expectedFamilies: coverage.expectedFamilies, observedFamilies: coverage.observedFamilies, missingFamilies: coverage.missingFamilies, failureReason: null });
     }
   }
-  // Comparable-jurisdiction fallback is discovery-only. It activates only when the
-  // jurisdiction-scoped intervention universe produced no candidates, preserving local-first
-  // behavior while giving open-world discovery a bounded second jurisdictional path.
+  // Comparable-jurisdiction fallback is discovery-only. It activates when the
+  // jurisdiction-scoped path has no candidates OR has candidates that all fail the
+  // authoritative problem-relevance gate. This prevents an irrelevant local lead from
+  // blocking a bounded transfer-discovery lane while preserving local-first provenance.
   let comparableFallback = null;
-  if (!Array.isArray(sources) && candidates.length === 0 && jurisdiction && selected.length) {
-    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
+  const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
+  if (!Array.isArray(sources) && !locallyRelevantCandidate && jurisdiction && selected.length) {
+    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 3);
     const attempts = [];
     for (const comparable of comparables) {
       const comparableResult = await discoverSourceDrivenInterventions({
