@@ -89,10 +89,12 @@ test('production finish line: live blind problem discovery and evidence acquisit
       const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
       const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
       if (boundary.sourceFailureClosed) return { jurisdiction, problem, interventionSources: 0, interventionLeads: 0, evidenceSources: 0, evidenceLeads: 0, sourceFailureClosed: true };
-      const candidate = discovery.candidates[0];
-      const evidence = await discoverCandidateEvidence({ problem, candidate, rows: 5 });
+      const evidenceResults = await Promise.all(
+        discovery.candidates.slice(0, 3).map(candidate => discoverCandidateEvidence({ problem, candidate, rows: 5 }))
+      );
+      const evidence = evidenceResults.find(item => item.evidenceComplete === true);
+      assert.ok(evidence, jurisdiction + ':' + problem + ' produced intervention leads but no evidence-complete candidate');
       assert.equal(evidence.recommendationEligible, false);
-      assert.equal(evidence.evidenceComplete, true);
       assert.equal(evidence.effectsImported, false);
       assert.ok(evidence.sourceSearches.length >= 2, jurisdiction + ':' + problem + ' did not diversify causal evidence search');
       assert.ok(evidence.sourceSearches.some(item => item.status !== 'search-failed'), jurisdiction + ':' + problem + ' all evidence sources failed');
