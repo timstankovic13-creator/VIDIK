@@ -1103,6 +1103,58 @@ function problemSpecificRelevance(problem, candidate, workspace = 'municipal') {
 
   const rules = [
     {
+      match: /customer churn|customer attrition|customer loss|client attrition/,
+      terms: ['customer retention program','loyalty program','customer success program','retention campaign','customer engagement program','service recovery','pricing intervention']
+    },
+    {
+      match: /employee turnover|staff turnover|workforce attrition|employee attrition/,
+      terms: ['retention program','manager training','flexible scheduling','employee assistance','career pathway','internal mobility','skills training']
+    },
+    {
+      match: /energy costs|energy expenses|utility costs|energy expenditure/,
+      terms: ['energy efficiency','energy management','demand response','energy procurement','load management','building retrofit','energy storage','solar installation']
+    },
+    {
+      match: /hiring success|recruitment success|hiring outcomes|recruitment effectiveness/,
+      terms: ['structured interview','skills-based hiring','recruitment training','candidate screening','employee referral program','apprenticeship','workforce recruitment']
+    },
+    {
+      match: /accessibility for customers with disabilities|customer accessibility|accessible customer service|disability access/,
+      terms: ['accessible design','assistive technology','accommodation program','inclusive customer service','accessible customer support','universal design']
+    },
+    {
+      match: /eviction filings|eviction prevention|eviction diversion/,
+      terms: ['eviction prevention','eviction diversion','tenant legal assistance','rental assistance','emergency rental assistance','tenant mediation','right to counsel']
+    },
+    {
+      match: /hospital waiting times|hospital wait times|waiting times for hospital care|care delays/,
+      terms: ['care navigation','patient flow','hospital discharge','same-day access','urgent care','triage','appointment scheduling','community paramedicine']
+    },
+    {
+      match: /energy poverty|energy insecurity|fuel poverty|energy affordability/,
+      terms: ['home energy assistance','energy bill assistance','utility bill assistance','weatherization','energy efficiency retrofit','energy affordability program','fuel poverty program']
+    },
+    {
+      match: /rural mobility|rural transportation access|rural transport access|rural mobility barriers/,
+      terms: ['demand-responsive transit','community transport','rural transit service','dial-a-ride','transport voucher','bus service','mobility service','transportation service']
+    },
+    {
+      match: /digital access gaps|digital divide|digital exclusion|digital access barriers/,
+      terms: ['digital inclusion','broadband voucher','internet access support','device lending','device grant','public wi-fi','digital literacy']
+    },
+    {
+      match: /cybersecurity incident risk|cyber incident risk|security incident risk|cybersecurity exposure/,
+      terms: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery','incident response']
+    },
+    {
+      match: /procurement cycle time|procurement lead time|purchasing cycle time|procurement delays/,
+      terms: ['procurement process redesign','procurement workflow automation','e-procurement','digital procurement','procurement modernization','purchase order automation']
+    },
+    {
+      match: /remote service delivery|remote service access|digital service delivery|remote service provision/,
+      terms: ['remote service enablement','customer self-service','accessible digital channel','device access support','telehealth','virtual service delivery']
+    },
+    {
       match: /violent crime|serious violence|community violence/,
       terms: ['focused deterrence','community violence intervention','violence interruption','hot spot policing','hot spots policing','problem-oriented policing','directed patrol','hospital violence intervention','community violence prevention','violence intervention','supportive housing','housing first','housing stabilization','youth employment','paid summer employment','cognitive behavioral','behavioral intervention','substance use treatment','diversion','firearm violence risk reduction','street outreach','credible messenger','firearm violence prevention','vacant property remediation','vacant lot greening','vacant land restoration','blight remediation','place-based crime prevention','youth violence prevention','justice-system diversion','police deployment','street lighting','environmental safety','intimate partner violence prevention','domestic violence prevention','reentry support']
     },
