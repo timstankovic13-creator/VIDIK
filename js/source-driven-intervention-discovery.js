@@ -1520,7 +1520,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   let comparableFallback = null;
   const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
   if (!Array.isArray(sources) && !locallyRelevantCandidate && jurisdiction && selected.length) {
-    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 3);
+    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
     const attempts = [];
     for (const comparable of comparables) {
       const comparableResult = await discoverSourceDrivenInterventions({
@@ -1531,7 +1531,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         fetchImpl,
         now,
         rows,
-        maxQueriesPerSource: 6
+        maxQueriesPerSource: 3
       });
       attempts.push({
         sourceId: comparable.sourceId,
