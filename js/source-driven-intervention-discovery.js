@@ -1589,7 +1589,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         fetchImpl,
         now,
         rows,
-        maxQueriesPerSource: 3,
+        maxQueriesPerSource: 6,
         skipExpansion: true
       });
       attempts.push({
