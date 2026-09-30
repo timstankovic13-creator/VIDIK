@@ -1085,7 +1085,7 @@ function buildLiteratureFallbackQueries(problem, workspace = 'municipal') {
 }
 function canonicalSource(source) { return SOURCE_REGISTRY.find(candidate => candidate.sourceId === source?.sourceId) || null; }
 function sourceMatchesJurisdiction(source, jurisdiction) { const canonical = canonicalSource(source); if (!canonical) return false; if (source.jurisdiction !== canonical.jurisdiction) return false; return !jurisdiction || canonical.jurisdiction === jurisdiction || canonical.jurisdiction === 'international'; }
-function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => (CKAN_SOURCE_IDS.has(source.sourceId) || GOVUK_SOURCE_IDS.has(source.sourceId)) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const unmatched = eligible.filter(source => !matched.includes(source)); return [...matched, ...unmatched]; }
+function selectInterventionSources({ problem, jurisdiction = null } = {}) { const normalizedProblem = String(problem || '').toLowerCase(); const terms = normalizedProblem.split(/[^a-z0-9-]+/).filter(Boolean); const eligible = SOURCE_REGISTRY.filter(source => GOVUK_SOURCE_IDS.has(source.sourceId) && sourceMatchesJurisdiction(source, jurisdiction)); const matched = eligible.filter(source => source.discoveryTags.some(tag => terms.includes(String(tag).toLowerCase()) || normalizedProblem.includes(String(tag).toLowerCase()))); const unmatched = eligible.filter(source => !matched.includes(source)); return [...matched, ...unmatched]; }
 function selectComparableInterventionSources(problem, jurisdiction, workspace = 'municipal', excludedSourceIds = [], limit = 2) {
   if (!jurisdiction || !Number.isInteger(limit) || limit < 1) return [];
   const normalizedProblem = normalizeText(problem).toLowerCase();
@@ -1608,7 +1608,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // blocking a bounded transfer-discovery lane while preserving local-first provenance.
   let comparableFallback = null;
   const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
-  if (!Array.isArray(sources) && !locallyRelevantCandidate && jurisdiction && selected.length) {
+  if (!Array.isArray(sources) && !locallyRelevantCandidate && jurisdiction && (selected.length || candidates.length === 0)) {
     const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
     const attempts = [];
     for (const comparable of comparables) {
