@@ -84,7 +84,7 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
-  const summaries = await mapWithConcurrency(CASES, 2, async ([problem, jurisdiction]) => {
+  const summaries = await mapWithConcurrency(CASES, 1, async ([problem, jurisdiction]) => {
     return runWithTimeout(async () => {
       const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5, maxQueriesPerSource: 5, maxSources: 6 });
       const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
