@@ -81,7 +81,7 @@ test('VIDIK open-world discovery expansion: 40 additional unseen problems remain
     assert.ok(candidates.every(c => c.discovery?.leadOnly === true));
     assert.ok(candidates.every(c => c.discovery?.effectsImported === false));
     assert.equal(discovery.interventionUniverse.recommendationEligible, false);
-    results[index] = {
+      results[index] = {
       workspace, jurisdiction, problem,
       candidates: candidates.length,
       relevant: relevant.length,
@@ -90,7 +90,8 @@ test('VIDIK open-world discovery expansion: 40 additional unseen problems remain
       taxonomyHit: taxonomyTerms(problem, workspace).some(term =>
         candidates.some(c => String(c.name + ' ' + c.discoveryText).toLowerCase().includes(String(term).toLowerCase()))
       )
-    };
+      };
+    }
   };
   await Promise.all(Array.from({ length: 4 }, () => runWorker()));
   assert.equal(results.length, 40);
