@@ -1,5 +1,7 @@
 'use strict';
 
+// Diagnostic worker closure is intentionally explicit to preserve bounded concurrency.
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
