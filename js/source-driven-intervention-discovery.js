@@ -1616,7 +1616,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   let comparableFallback = null;
   let classCoverage = interventionClassCoverage(problem, workspace, candidates);
   const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
-  const classCoverageWeakBeforeComparable = classCoverage.expectedClasses.length > 0 && classCoverage.coverageRatio < 0.5;
+  const classCoverageWeakBeforeComparable = classCoverage.expectedClasses.length > 0 && classCoverage.coverageRatio < 0.75;
   if (!Array.isArray(sources) && (!locallyRelevantCandidate || classCoverageWeakBeforeComparable) && jurisdiction && (selected.length || candidates.length === 0)) {
     const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
     const attempts = [];
