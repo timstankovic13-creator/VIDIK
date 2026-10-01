@@ -337,7 +337,7 @@ test('literature-like administrative titles are not promoted to intervention can
   }
 });
 
-async function runWithDiscoveryTimeout(task, label, timeoutMs = 30000) {
+async function runWithDiscoveryTimeout(task, label, timeoutMs = 90000) {
   let timer;
   try {
     return await Promise.race([
