@@ -1,12 +1,5 @@
 name: VIDIK Focused Blocked-Case Diagnostic
 on:
-  push:
-    branches: [diagnostic/stage-instrumentation-2026-09-29]
-    paths:
-      - 'js/**'
-      - 'tests/focused-blocked-case-diagnostic.test.js'
-      - 'package.json'
-      - '.github/workflows/focused-blocked-case-diagnostic.yml'
   workflow_dispatch:
 permissions:
   contents: read
