@@ -70,7 +70,7 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.equal(search.candidatesReturned, 0);
   assert.equal(search.failedQueryCount, 0);
   assert.equal(search.queriesAttempted, 3);
-  assert.ok(search.failureRatio >= 0.5);
+  assert.ok(search.nonproductiveRatio >= 0.5);
   assert.equal(search.skippedQueries, 0);
   assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
   assert.equal(calls, 6);
