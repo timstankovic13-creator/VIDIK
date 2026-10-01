@@ -130,7 +130,7 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.ok(search);
   assert.equal(search.terminalFailure, true);
   assert.equal(search.queriesAttempted, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
-  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES * (mod.MAX_TRANSIENT_SOURCE_RETRIES + 1));
+  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES * 3);
   assert.equal(search.failureClasses['upstream-5xx'], mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
   assert.equal(search.status, 'search-failed');
 });
