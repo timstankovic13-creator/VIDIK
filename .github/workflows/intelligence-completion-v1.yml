@@ -27,6 +27,8 @@ jobs:
       - name: External open-world benchmark
         run: node --test tests/external-open-world-benchmark.test.js
       - name: Insight Quality Battery (60 real-world decision problems)
+        env:
+          VIDIK_DISCOVERY_CONCURRENCY: 4
         run: npm run test:insight-quality-battery
       - name: Evidence sufficiency hardening
         run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js tests/evidence-promotion-gate.test.js tests/evidence-acquisition-orchestrator.test.js
