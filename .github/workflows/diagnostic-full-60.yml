@@ -1,14 +1,5 @@
 name: VIDIK Diagnostic Full 60 Certification
 on:
-  push:
-    branches: [diagnostic/stage-instrumentation-2026-09-29]
-    paths:
-      - 'js/**'
-      - 'tests/insight-quality-battery.test.js'
-      - 'tests/open-world-discovery-expansion.test.js'
-      - 'tests/discovery-recall-repair.test.js'
-      - 'package.json'
-      - '.github/workflows/diagnostic-full-60.yml'
   workflow_dispatch:
 permissions:
   contents: read
