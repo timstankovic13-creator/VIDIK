@@ -89,7 +89,7 @@ test('VIDIK open-world discovery expansion: 40 additional unseen problems remain
         candidates.some(c => String(c.name + ' ' + c.discoveryText).toLowerCase().includes(String(term).toLowerCase()))
       )
     };
-  }
+  };
   await Promise.all(Array.from({ length: 4 }, () => runWorker()));
   assert.equal(results.length, 40);
   assert.ok(results.every(r => r.candidates >= 0));
