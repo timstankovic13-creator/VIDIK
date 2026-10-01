@@ -1,12 +1,5 @@
 name: VIDIK Discovery Stage Diagnostic
 on:
-  push:
-    branches: [diagnostic/stage-instrumentation-2026-09-29]
-    paths:
-      - 'js/**'
-      - 'tests/discovery-stage-diagnostic.test.js'
-      - 'package.json'
-      - '.github/workflows/discovery-stage-diagnostic.yml'
   workflow_dispatch:
 permissions:
   contents: read
