@@ -5,7 +5,7 @@ const net = require('net');
 const DATA_DOMAINS = Object.freeze(['problem-outcome','local-baseline','population-equity','intervention-universe','implementation','cost-resource','causal-evidence','constraints-feasibility','geospatial-context','comparator-innovation','outcome-learning']);
 const SOURCE_TIERS = Object.freeze({ official_machine_readable:1, official_structured:2, official_publication:3, independent_causal_research:4, comparator_implementation:5, secondary_discovery:6 });
 const EVIDENCE_STATUS = Object.freeze(['verified','supported','estimated','potential','blocked']);
-const MAX_DEFAULT_BYTES = 25*1024*1024, DEFAULT_MAX_REDIRECTS=5, DEFAULT_REQUEST_TIMEOUT_MS=15000;
+const MAX_DEFAULT_BYTES = 25*1024*1024, DEFAULT_MAX_REDIRECTS=5, DEFAULT_REQUEST_TIMEOUT_MS=8000;
 const RATE_LIMIT_CIRCUIT_THRESHOLD=2, RATE_LIMIT_CIRCUIT_COOLDOWN_MS=30000;
 const rateLimitCircuits=new Map();
 function sha256(value){const input=Buffer.isBuffer(value)?value:Buffer.from(JSON.stringify(value));return crypto.createHash('sha256').update(input).digest('hex');}
