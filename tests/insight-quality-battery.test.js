@@ -337,6 +337,16 @@ test('literature-like administrative titles are not promoted to intervention can
   }
 });
 
+async function runWithDiscoveryTimeout(task, label, timeoutMs = 30000) {
+  let timer;
+  try {
+    return await Promise.race([
+      task(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('discovery timeout after ' + timeoutMs + 'ms: ' + label)), timeoutMs); })
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);
   let next = 0;
@@ -353,7 +363,7 @@ async function mapWithConcurrency(items, limit, worker) {
 
 test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const DISCOVERY_CONCURRENCY = Number.parseInt(process.env.VIDIK_DISCOVERY_CONCURRENCY || '8', 10); const results = await mapWithConcurrency(ACTIVE_CASES, Number.isInteger(DISCOVERY_CONCURRENCY) && DISCOVERY_CONCURRENCY > 0 ? DISCOVERY_CONCURRENCY : 8, async ([workspace, jurisdiction, problem]) => {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
+    const discovery = await runWithDiscoveryTimeout(() => discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 }), workspace + ':' + jurisdiction + ':' + problem);
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
