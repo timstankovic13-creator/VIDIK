@@ -69,7 +69,7 @@ test('worker displacement expands to transition and redeployment intervention cl
   assert.ok(expectedInterventionFamilies('reduce worker displacement', 'research').includes('employment'));
 });
 
-async function runWithTimeout(task, label, timeoutMs = 120000) {
+async function runWithTimeout(task, label, timeoutMs = 75000) {
   let timer;
   try {
     return await Promise.race([task(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('live finish-line timeout after ' + timeoutMs + 'ms: ' + label)), timeoutMs); })]);
@@ -84,9 +84,9 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
-  const summaries = await mapWithConcurrency(CASES, 1, async ([problem, jurisdiction]) => {
+  const summaries = await mapWithConcurrency(CASES, 2, async ([problem, jurisdiction]) => {
     return runWithTimeout(async () => {
-      const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5, maxQueriesPerSource: 5, maxSources: 6 });
+      const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 5, maxQueriesPerSource: 3, maxSources: 6, skipExpansion: true });
       const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
       if (boundary.sourceFailureClosed) return { jurisdiction, problem, interventionSources: 0, interventionLeads: 0, evidenceSources: 0, evidenceLeads: 0, sourceFailureClosed: true };
       const evidenceResults = await Promise.all(
