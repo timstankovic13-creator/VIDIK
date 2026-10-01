@@ -1620,7 +1620,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
   const classCoverageWeakBeforeComparable = classCoverage.expectedClasses.length > 0 && classCoverage.coverageRatio < 0.75;
   if (!Array.isArray(sources) && (!locallyRelevantCandidate || classCoverageWeakBeforeComparable) && jurisdiction && (selected.length || candidates.length === 0)) {
-    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
+    const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), skipExpansion ? 1 : 2);
     const attempts = [];
     for (const comparable of comparables) {
       const comparableResult = await discoverSourceDrivenInterventions({
@@ -1631,7 +1631,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         fetchImpl,
         now,
         rows,
-        maxQueriesPerSource: 4,
+        maxQueriesPerSource: skipExpansion ? 2 : 4,
         skipExpansion: true
       });
       attempts.push({
