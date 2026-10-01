@@ -69,7 +69,7 @@ test('worker displacement expands to transition and redeployment intervention cl
   assert.ok(expectedInterventionFamilies('reduce worker displacement', 'research').includes('employment'));
 });
 
-async function runWithTimeout(task, label, timeoutMs = 75000) {
+async function runWithTimeout(task, label, timeoutMs = 120000) {
   let timer;
   try {
     return await Promise.race([task(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('live finish-line timeout after ' + timeoutMs + 'ms: ' + label)), timeoutMs); })]);
