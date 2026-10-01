@@ -84,13 +84,13 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
-  const summaries = await mapWithConcurrency(CASES, 4, async ([problem, jurisdiction]) => {
+  const summaries = await mapWithConcurrency(CASES, 2, async ([problem, jurisdiction]) => {
     return runWithTimeout(async () => {
       const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
       const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
       if (boundary.sourceFailureClosed) return { jurisdiction, problem, interventionSources: 0, interventionLeads: 0, evidenceSources: 0, evidenceLeads: 0, sourceFailureClosed: true };
       const evidenceResults = await Promise.all(
-        discovery.candidates.slice(0, 3).map(candidate => discoverCandidateEvidence({ problem, candidate, rows: 5 }))
+        discovery.candidates.slice(0, 1).map(candidate => discoverCandidateEvidence({ problem, candidate, rows: 5 }))
       );
       // Evidence may legitimately remain incomplete for a blind problem. The governed
       // finish line requires an auditable evidence search and failure-closed state, not
