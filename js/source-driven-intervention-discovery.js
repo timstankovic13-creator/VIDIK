@@ -1614,8 +1614,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   // authoritative problem-relevance gate. This prevents an irrelevant local lead from
   // blocking a bounded transfer-discovery lane while preserving local-first provenance.
   let comparableFallback = null;
+  let classCoverage = interventionClassCoverage(problem, workspace, candidates);
   const locallyRelevantCandidate = candidates.some(candidate => interventionMatchesProblem(problem, candidate, workspace));
-  if (!Array.isArray(sources) && !locallyRelevantCandidate && jurisdiction && (selected.length || candidates.length === 0)) {
+  const classCoverageWeakBeforeComparable = classCoverage.expectedClasses.length > 0 && classCoverage.coverageRatio < 0.5;
+  if (!Array.isArray(sources) && (!locallyRelevantCandidate || classCoverageWeakBeforeComparable) && jurisdiction && (selected.length || candidates.length === 0)) {
     const comparables = selectComparableInterventionSources(problem, jurisdiction, workspace, selected.map(source => source.sourceId), 2);
     const attempts = [];
     for (const comparable of comparables) {
@@ -1627,7 +1629,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         fetchImpl,
         now,
         rows,
-        maxQueriesPerSource: 6,
+        maxQueriesPerSource: 4,
         skipExpansion: true
       });
       attempts.push({
@@ -1651,7 +1653,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     }
     if (attempts.length) comparableFallback = { used: true, attempts };
   }
-  const classCoverage=interventionClassCoverage(problem,workspace,candidates);
+  classCoverage=interventionClassCoverage(problem,workspace,candidates);
   const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
   const diagnosticCounts={
     noCandidates:candidates.length===0,
