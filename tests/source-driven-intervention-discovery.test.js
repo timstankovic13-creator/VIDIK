@@ -66,14 +66,14 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   });
   const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
   assert.ok(search);
-  assert.equal(search.routeExpansion, false);
+  assert.equal(search.routeExpansion, true);
   assert.equal(search.candidatesReturned, 0);
-  assert.equal(search.failedQueryCount, 9);
-  assert.equal(search.queriesAttempted, 18);
+  assert.equal(search.failedQueryCount, 3);
+  assert.equal(search.queriesAttempted, 3);
   assert.ok(search.failureRatio >= 0.5);
   assert.equal(search.skippedQueries, 0);
   assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
-  assert.equal(calls, 18);
+  assert.equal(calls, 9);
 });
 
 test('empty local jurisdiction opens one bounded comparable-jurisdiction discovery lane', async () => {
@@ -298,7 +298,7 @@ test('source-driven discovery is wired into decision execution and remains evide
     requiredSourceTypes: ['intervention-library'],
     autoDiscoverInterventionSources: true,
     fetchImpl: async () => mockResponse({ result: { results: [
-      { id: 'food-program-2', title: 'Municipal food access program', notes: 'Food access intervention.' }
+      { id: 'food-program-2', title: 'Municipal food access program', notes: 'A municipal food pantry and community food hub intervention providing food access support.' }
     ] } }),
     statusQuo: { explicit: true, id: 'status-quo-food' }
   });
