@@ -1487,7 +1487,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       if (coverage.missingFamilies.length === 0) break;
     }
   }
-  const allowLiteratureFallback = !Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId));
+  const allowLiteratureFallback = !skipExpansion && (!Array.isArray(sources) || sources.some(source => ['openalex-works','crossref-works'].includes(source?.sourceId)));
   if (allowLiteratureFallback && (candidates.length < DISCOVERY_MIN_UNIQUE_CANDIDATES || sourceSearches.some(search => search.status === 'search-failed') || (coverage.expectedFamilies.length && coverage.coverageRatio < 0.5))) {
     // Literature indexes are jurisdiction-neutral discovery/evidence channels. The
     // jurisdiction boundary applies to intervention-program sources, not global
