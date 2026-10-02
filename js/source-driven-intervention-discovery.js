@@ -40,7 +40,7 @@ function classifyDiscoveryFailure(error) {
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
 function buildGovUkSearchUrl(source, query, { rows = 10 } = {}) { if (!source?.url || !GOVUK_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-govuk-intervention-source'); if (!String(query || '').trim()) throw new Error('source-driven-query-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(query).trim()); url.searchParams.set('count', String(rows)); url.searchParams.set('fields', 'title,description,link,format'); return url.toString(); }
-function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) { if (!source?.url || !CKAN_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-ckan-intervention-source'); if (!String(problem || '').trim()) throw new Error('source-driven-problem-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); if (source.sourceId === 'us-open-data-program-discovery') { url.searchParams.set('_q', String(problem).trim()); url.searchParams.set('_format', 'json'); url.searchParams.set('rows', String(Math.max(rows, DATAGOV_MIN_ROWS))); } else { url.searchParams.set('q', String(problem).trim()); url.searchParams.set('rows', String(rows)); } return url.toString(); }
+function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) { if (!source?.url || !CKAN_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-ckan-intervention-source'); if (!String(problem || '').trim()) throw new Error('source-driven-problem-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(problem).trim()); url.searchParams.set('rows', String(rows)); return url.toString(); }
 const NON_INTERVENTION_TERMS = ['dataset','data set','census','statistics','statistic','report','budget','indicator','information','dashboard','administrative records','records','open data','mapping data','survey','profile','monitoring data','raw data'];
 const INTERVENTION_TERMS = ['program','programme','service','initiative','intervention','pilot','project','grant','funding','subsidy','benefit','shelter','clinic','treatment','outreach','prevention','enforcement','patrol','training','support service','fund','funding','scheme','action plan','housing first','rapid rehousing','transit','bus lane','bike lane','protected lane','infrastructure','facility','voucher','inspection','licensing','permit','regulation','cash transfer','food bank','food pantry','grocery subsidy','nutrition assistance','meal program','produce prescription','cooling centre','cooling center','emergency response','staffing','capacity','broadband subsidy','internet subsidy','device lending','device grant','public wi-fi','public wifi','digital inclusion','digital literacy','community technology centre','community technology center','computer access','deterrence','policing','deployment','hot spot policing','focused deterrence','violence interruption','community violence intervention','hospital based violence intervention','hospital-based violence intervention','lighting','street lighting','vacant property remediation','blight remediation','youth employment','paid summer employment','cognitive behavioral','behavioral intervention','public space','environmental safety','risk reduction','secure storage','secure-storage','20 mph speed limit','20 mph speed limits','speed limit reduction','road safety scheme','road safety engineering','junction redesign','protected cycle lane','safe systems','retail vacancy activation','vacant storefront activation','temporary storefront use','storefront improvement','commercial facade improvement','small business facade grant','pop-up retail','commercial vacancy reduction','water efficiency','water conservation','water-use restriction','water use restriction','rental assistance','eviction prevention','tenant legal assistance','housing navigation','job placement','career pathway','flexible scheduling','apprenticeship','reskilling','redeployment','internal mobility','hiring process redesign','structured interview','skills-based hiring','weatherization assistance','energy bill assistance','utility bill assistance','energy efficiency retrofit'];
 const STRONG_INTERVENTION_TERMS = INTERVENTION_TERMS.filter(term => !['prevention','intervention'].includes(term));
@@ -855,20 +855,19 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
   // endpoint returns DCAT/Solr records under `results` rather than
   // `result.results`. Normalize only the US catalog shape here so the existing
   // classification, relevance, provenance, and evidence gates remain unchanged.
-  const results = source?.sourceId === 'us-open-data-program-discovery'
-    ? (Array.isArray(payload?.results) ? payload.results.map(row => ({
-        ...row,
-        // Current Data.gov Solr records expose title/description directly. Preserve
-        // those canonical fields because VIDIK's existing classifier intentionally
-        // evaluates the human-readable intervention title, not the catalog slug.
-        title: row?.title || row?.name || row?.slug || '',
-        name: row?.title || row?.name || row?.slug || '',
-        notes: row?.description || row?.notes || '',
-        description: row?.description || row?.notes || '',
-        tags: Array.isArray(row?.keyword) ? row.keyword.map(name => ({ name, display_name: name })) : (Array.isArray(row?.tags) ? row.tags : []),
-        id: row?.identifier || row?.id || row?.slug
-      })) : [])
-    : (Array.isArray(payload?.result?.results) ? payload.result.results : []);
+  const results = Array.isArray(payload?.result?.results)
+    ? payload.result.results
+    : (Array.isArray(payload?.results)
+      ? payload.results.map(row => ({
+          ...row,
+          title: row?.title || row?.name || row?.slug || '',
+          name: row?.title || row?.name || row?.slug || '',
+          notes: row?.description || row?.notes || '',
+          description: row?.description || row?.notes || '',
+          tags: Array.isArray(row?.keyword) ? row.keyword.map(name => ({ name, display_name: name })) : (Array.isArray(row?.tags) ? row.tags : []),
+          id: row?.identifier || row?.id || row?.slug
+        }))
+      : []);
   return results.flatMap((row, index) => {
     const title = normalizeText(row?.title || row?.name);
     if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
