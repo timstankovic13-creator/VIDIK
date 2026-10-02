@@ -25,7 +25,7 @@ const SOURCE_REGISTRY = Object.freeze([
   {
     sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-search-api',
-    url: 'https://catalog.data.gov/search'
+    url: 'https://catalog.data.gov/search',
     discoveryTags: ['municipal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
   {
