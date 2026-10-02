@@ -12,6 +12,12 @@ const GOVUK_SOURCE = {
   url: 'https://www.gov.uk/api/search.json'
 };
 
+const DATAGOV_SOURCE = {
+  sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
+  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-search-api',
+  url: 'https://catalog.data.gov/search'
+};
+
 const SOURCE = {
   sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
   domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
@@ -327,6 +333,36 @@ test('mobility problems retain infrastructure interventions during semantic rele
   assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
   assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true));
   assert.equal(result.recommendationEligible, false);
+});
+
+test('Data.gov current search contract uses JSON search, minimum result depth, and browser-compatible retrieval', async () => {
+  let seen = null;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce homelessness',
+    jurisdiction: 'US',
+    sources: [DATAGOV_SOURCE],
+    rows: 5,
+    maxQueriesPerSource: 1,
+    skipExpansion: true,
+    fetchImpl: async (url, options) => {
+      seen = { url, options };
+      return mockResponse({ results: [{
+        slug: 'housing-first-program',
+        identifier: 'housing-first-program',
+        title: 'Housing First Program',
+        description: 'A housing first program providing permanent supportive housing and housing navigation.',
+        keyword: ['housing']
+      }] });
+    }
+  });
+  assert.ok(seen);
+  const parsed = new URL(seen.url);
+  assert.equal(parsed.searchParams.get('_q'), 'reduce homelessness');
+  assert.equal(parsed.searchParams.get('_format'), 'json');
+  assert.equal(parsed.searchParams.get('rows'), '25');
+  assert.match(seen.options.headers['user-agent'], /Mozilla/);
+  assert.equal(result.candidates.length, 1);
+  assert.match(result.candidates[0].name, /Housing First Program/);
 });
 
 test('CKAN query construction remains HTTPS and bounded', () => {
