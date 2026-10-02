@@ -6,14 +6,6 @@ const test = require('node:test');
 const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
-'use strict';
-// Literature recall regression is intentionally kept in the fast discovery suite.
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
-const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
-const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
-
 const GOVUK_SOURCE = {
   sourceId: 'uk-gov-program-discovery', provider: 'GOV.UK Search API', jurisdiction: 'UK',
   domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'govuk-search-api',
