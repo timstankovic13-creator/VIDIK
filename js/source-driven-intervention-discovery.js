@@ -1,6 +1,7 @@
 'use strict';
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
+const TransferIntelligence = require('./discovery-transfer-intelligence');
 const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
 const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
 const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
@@ -52,7 +53,7 @@ const INTERVENTION_FAMILY_SEARCH_TERMS = Object.freeze({
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','shelter diversion','tenant legal assistance','community land trust','housing navigation'],
   'health-service':['community paramedicine','mobile crisis response','care navigation','community health worker','mobile clinic','overdose prevention','naloxone distribution','primary care access'],
   'food-access':['food voucher','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'],
-  'climate-resilience':['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling','cooling infrastructure','shade infrastructure','tree canopy','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','home weatherization','evacuation support'],
+  'climate-resilience':['wildfire smoke mitigation','smoke filtration','clean air shelter','wildfire evacuation support','cooling centre','home cooling','cooling infrastructure','shade infrastructure','tree canopy','flood mitigation','stormwater management','stormwater retention','drainage improvement','urban drainage','living shoreline','wetland restoration','floodplain buyout','floodproofing','elevated infrastructure','storm surge barrier','coastal flood barrier','managed retreat','home weatherization','evacuation support'],
   'mobility-safety':['bus priority','transit frequency','protected bike lane','pedestrian crossing','traffic calming','signal timing','road diet','safe routes'],
   employment:['job placement','career pathway','manager training','flexible scheduling','skills training','internal mobility','apprenticeship','reskilling','redeployment','worker transition','displacement support','wage subsidy'],
   'economic-support':['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service','procurement support','utility assistance','energy bill assistance','cash transfer'],
@@ -438,6 +439,8 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'municipal', match: /food insecurity|household food insecurity|food access gaps|hunger/i, terms: ['healthy food voucher','food voucher','community food distribution service','community food hub','mobile market','community kitchen','school meal program','grocery subsidy'] },
   { workspace: 'municipal', match: /vacant storefronts?|vacant retail space|commercial vacancy|empty storefronts?|retail vacancy/i, terms: ['vacant storefront activation','retail vacancy activation','temporary storefront use','pop-up retail','storefront improvement','commercial facade improvement','small business facade grant','commercial vacancy reduction'] },
   { workspace: 'municipal', match: /food price volatility|food price instability|volatile food prices/i, terms: ['food price stabilization','food price support','food market stabilization','food price subsidy','food supply support','food affordability program'] },
+  { workspace: 'municipal', match: /coastal flood damage|coastal flooding|storm surge|coastal inundation/i, terms: ['living shoreline','wetland restoration','floodplain buyout','floodproofing','elevated infrastructure','storm surge barrier','coastal flood barrier','managed retreat','drainage improvement','flood mitigation'] },
+  { workspace: 'municipal', match: /youth unemployment|young people unemployment|young adult unemployment/i, terms: ['youth employment program','youth job placement','paid summer employment','youth apprenticeship','youth skills training','career pathway','wage subsidy','employment services'] },
   { workspace: 'business', match: /small business survival|business survival|business continuity/i, terms: ['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service'] },
   { workspace: 'municipal', match: /small business survival|business survival|business continuity/i, terms: ['small business grant','small business loan','working capital support','business continuity support','business retention program','business advisory service'] },
   { workspace: 'business', match: /employee turnover|staff turnover|workforce attrition|employee attrition/i, terms: ['retention program','manager training','flexible scheduling','employee assistance','career pathway','internal mobility'] },
@@ -1226,9 +1229,100 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
     return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
   }).filter(Boolean));
 }
-async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25}={}){
+async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,comparableCities=[],comparableCitySearcher=null}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...canonicalSource(source),...source})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...canonicalSource(source),...source}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[],queryPlan=buildDiscoveryQueryPlan(problem,workspace),queries=queryPlan.map(item=>item.query);
+
+  // Comparable City Intelligence is an acquisition channel for the source-driven
+  // path as well as the higher-level decision executor. It contributes transfer
+  // leads only: no effects, estimates, or recommendation eligibility are imported.
+  let comparableCityRecords = Array.isArray(comparableCities)
+    ? comparableCities.map(TransferIntelligence.normalizeComparableCityRecord)
+    : [];
+  let comparableCitySearch = null;
+  if (typeof comparableCitySearcher === 'function') {
+    try {
+      const result = await comparableCitySearcher({
+        problem,
+        jurisdiction,
+        problemSignals: normalizeText(problem).split(/\\s+/).filter(Boolean),
+        sourceType: 'comparable-city'
+      });
+      comparableCitySearch = TransferIntelligence.normalizeComparableCitySearchResult(result);
+      comparableCityRecords = [...comparableCityRecords, ...comparableCitySearch.candidates];
+    } catch (error) {
+      comparableCitySearch = {
+        sourceId: 'comparable-city-intelligence',
+        sourceType: 'comparable-city',
+        jurisdiction,
+        query: problem,
+        status: 'search-failed',
+        candidatesReturned: 0,
+        candidates: [],
+        failureReason: error?.message || 'comparable-city-search-failed'
+      };
+    }
+  }
+  if (comparableCityRecords.length) {
+    const comparableLeads = TransferIntelligence.comparableCityDiscoveryLeads(problem, comparableCityRecords)
+      .map(lead => ({
+        id: lead.id,
+        name: lead.name,
+        canonicalName: normalizeInterventionName(lead.name),
+        interventionFamily: inferInterventionFamily(lead.name + ' ' + (lead.description || '')),
+        problemTags: lead.problemTags || [],
+        domains: lead.domains || [],
+        requiredEvidence: ['causal','implementation','cost','equity'],
+        discoveryText: [lead.name, lead.description].filter(Boolean).join(' '),
+        evidenceStatus: 'potential',
+        discovery: {
+          source: lead.sourceId || 'comparable-city-intelligence',
+          sourceType: 'comparable-city',
+          jurisdiction: lead.jurisdiction || jurisdiction,
+          leadOnly: true,
+          effectsImported: false,
+          discoveryOnly: true,
+          comparableCity: lead.comparableCity || null,
+          transferability: lead.transferability || null,
+          provenance: [{
+            sourceId: lead.sourceId || 'comparable-city-intelligence',
+            sourceType: 'comparable-city',
+            jurisdiction: lead.jurisdiction || jurisdiction,
+            evidenceStatus: 'potential',
+            externalId: lead.id || null
+          }]
+        }
+      }))
+      .filter(candidate => candidate.canonicalName && interventionMatchesProblem(problem, candidate, workspace));
+    rawCandidates.push(...comparableLeads);
+    const dedupedComparable = deduplicateInterventionLeads(comparableLeads);
+    sourceSearches.push({
+      sourceId: comparableCitySearch?.sourceId || 'comparable-city-intelligence',
+      sourceType: 'comparable-city',
+      jurisdiction: comparableCitySearch?.jurisdiction || jurisdiction,
+      originalProblem: problem,
+      queriesAttempted: comparableCitySearch ? 1 : 0,
+      queryBudget: 1,
+      failedQueryCount: comparableCitySearch?.status === 'search-failed' ? 1 : 0,
+      usableQueryCount: comparableCitySearch && comparableCitySearch.status !== 'search-failed' ? 1 : 0,
+      status: dedupedComparable.length ? 'candidates-found' : (comparableCitySearch?.status === 'search-failed' ? 'search-failed' : 'searched-empty'),
+      candidatesReturned: dedupedComparable.length,
+      candidates: dedupedComparable,
+      attempts: comparableCitySearch ? [{
+        query: comparableCitySearch.query || problem,
+        queryLayer: 'comparable-city',
+        status: dedupedComparable.length ? 'candidates-found' : comparableCitySearch.status,
+        candidatesReturned: dedupedComparable.length,
+        recordsConsidered: comparableCityRecords.length,
+        provenance: comparableCitySearch.provenance || null,
+        failureReason: comparableCitySearch.failureReason || null
+      }] : [],
+      expectedFamilies: discoveryCoverage(problem, workspace, dedupedComparable).expectedFamilies,
+      observedFamilies: discoveryCoverage(problem, workspace, dedupedComparable).observedFamilies,
+      missingFamilies: discoveryCoverage(problem, workspace, dedupedComparable).missingFamilies,
+      failureReason: comparableCitySearch?.failureReason || null
+    });
+  }
   for(const source of selected){
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
@@ -1461,6 +1555,6 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   universe.expectedInterventionFamilies=coverage.expectedFamilies;universe.observedInterventionFamilies=coverage.observedFamilies;universe.missingInterventionFamilies=coverage.missingFamilies;universe.coverageRatio=coverage.coverageRatio;universe.expectedInterventionClasses=classCoverage.expectedClasses;universe.observedInterventionClasses=classCoverage.representedClasses;universe.missingInterventionClasses=classCoverage.missingClasses;universe.classCoverageRatio=classCoverage.coverageRatio;universe.discoveryExpandedWhenWeak=sourceSearches.some(s=>s.queriesAttempted>1);
   universe.diagnosticCounts=diagnosticCounts;
   universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
-  return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
+  return {schemaVersion:'vidik.source-driven-intervention-discovery.v10',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,comparableCitySearch,comparableCityRecords: comparableCityRecords.map(record => ({ city: record.city, jurisdiction: record.jurisdiction, sourceId: record.sourceId })),discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
 module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
