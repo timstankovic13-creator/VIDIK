@@ -15,7 +15,7 @@ const GOVUK_SOURCE = {
 const DATAGOV_SOURCE = {
   sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
   domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-search-api',
-  url: 'https://catalog.data.gov/api/3/action/package_search?q='
+  url: 'https://catalog.data.gov/search'
 };
 
 const SOURCE = {
