@@ -9,10 +9,10 @@ const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
 const DATAGOV_MIN_ROWS = 25;
 const MAX_TRANSIENT_SOURCE_RETRIES = 2;
-const TRANSIENT_RETRY_DELAYS_MS = [0, 0];
+const TRANSIENT_RETRY_DELAYS_MS = [250, 1000];
 const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
-  'openalex-works': 1,
-  'crossref-works': 1
+  'openalex-works': 2,
+  'crossref-works': 2
 });
 const discoverySourceQueues = new Map();
 
