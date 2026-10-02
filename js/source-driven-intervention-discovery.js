@@ -1361,6 +1361,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const boundedSelected = Number.isInteger(maxSources) && maxSources > 0 ? selected.slice(0, maxSources) : selected;
   const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
   const queryPlan = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0 ? fullQueryPlan.slice(0, maxQueriesPerSource) : fullQueryPlan;
+  const retrievalOptions = skipExpansion ? { fetchImpl, now, requestTimeoutMs: 4000 } : { fetchImpl, now };
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
     const attempts=[],sourceCandidates=[];
@@ -1371,7 +1372,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},retrievalOptions),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionDiagnostics=Array.isArray(payload.value?.result?.results) ? payload.value.result.results.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
