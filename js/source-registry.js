@@ -14,13 +14,13 @@ const SOURCE_REGISTRY = Object.freeze([
     sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://open.canada.ca/data/en/api/3/action/package_search?q=',
-    license: 'Open Government Licence - Canada', updateFrequency: 'varies', discoveryTags: ['municipal','provincial','federal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
+    license: 'Open Government Licence - Canada', updateFrequency: 'varies', discoveryTags: ['municipal','provincial','federal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business','food','nutrition','grocery','meal','hunger','food-insecurity','food-access']
   },
   {
     sourceId: 'ca-ontario-program-discovery', provider: 'Ontario Data Catalogue', jurisdiction: 'CA',
     domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
     url: 'https://data.ontario.ca/api/3/action/package_search?q=',
-    discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business']
+    discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business','food','nutrition','grocery','meal','hunger','food-insecurity','food-access']
   },
   {
     sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
