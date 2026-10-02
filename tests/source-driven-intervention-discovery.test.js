@@ -6,6 +6,14 @@ const test = require('node:test');
 const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
 const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
 
+'use strict';
+// Literature recall regression is intentionally kept in the fast discovery suite.
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { taxonomyTerms, expandDiscoveryVocabulary, buildCkanSearchUrl, buildGovUkSearchUrl, extractCkanInterventionLeads, extractGovUkInterventionLeads, extractOpenAlexInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+const { executeDecisionDiscovery } = require('../js/decision-discovery-execution');
+
 const GOVUK_SOURCE = {
   sourceId: 'uk-gov-program-discovery', provider: 'GOV.UK Search API', jurisdiction: 'UK',
   domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'govuk-search-api',
@@ -335,7 +343,7 @@ test('mobility problems retain infrastructure interventions during semantic rele
   assert.equal(result.recommendationEligible, false);
 });
 
-test('Data.gov discovery uses the stable CKAN compatibility API without treating the catalog UI as an API', async () => {
+test('Data.gov discovery uses the current catalog search API without treating the catalog UI as an API', async () => {
   let seen = null;
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce homelessness',
@@ -357,7 +365,7 @@ test('Data.gov discovery uses the stable CKAN compatibility API without treating
   assert.ok(seen);
   const parsed = new URL(seen.url);
   assert.equal(parsed.hostname, 'catalog.data.gov');
-  assert.equal(parsed.pathname, '/api/3/action/package_search');
+  assert.equal(parsed.pathname, '/search');
   assert.equal(parsed.searchParams.get('q'), 'reduce homelessness');
   assert.equal(parsed.searchParams.get('rows'), '5');
   assert.match(seen.options.headers['user-agent'], /Mozilla/);
