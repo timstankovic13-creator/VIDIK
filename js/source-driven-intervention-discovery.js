@@ -10,6 +10,27 @@ const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
 const DATAGOV_MIN_ROWS = 25;
 const MAX_TRANSIENT_SOURCE_RETRIES = 2;
 const TRANSIENT_RETRY_DELAYS_MS = [0, 0];
+const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
+  'openalex-works': 1,
+  'crossref-works': 1
+});
+const discoverySourceQueues = new Map();
+
+async function withDiscoverySourceConcurrency(sourceId, work) {
+  const limit = DISCOVERY_SOURCE_CONCURRENCY_LIMITS[sourceId];
+  if (!limit || limit < 1) return work();
+  const previous = discoverySourceQueues.get(sourceId) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  discoverySourceQueues.set(sourceId, previous.then(() => current));
+  await previous;
+  try { return await work(); }
+  finally {
+    release();
+    if (discoverySourceQueues.get(sourceId) === current) discoverySourceQueues.delete(sourceId);
+  }
+}
+
 async function retrieveWithTransientRetry(source, options = {}) {
   let lastError;
   for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
@@ -1525,7 +1546,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             const url = source.sourceId === 'openalex-works'
               ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
               : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
-            const snapshot = await retrieveWithTransientRetry({...source, url},{fetchImpl,now});
+            const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url},{fetchImpl,now}));
             const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
             if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
             const leads = source.sourceId === 'openalex-works'
