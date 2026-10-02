@@ -857,10 +857,15 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
   const results = source?.sourceId === 'us-open-data-program-discovery'
     ? (Array.isArray(payload?.results) ? payload.results.map(row => ({
         ...row,
+        // Current Data.gov Solr records expose title/description directly. Preserve
+        // those canonical fields because VIDIK's existing classifier intentionally
+        // evaluates the human-readable intervention title, not the catalog slug.
+        title: row?.title || row?.name || row?.slug || '',
+        name: row?.title || row?.name || row?.slug || '',
         notes: row?.description || row?.notes || '',
+        description: row?.description || row?.notes || '',
         tags: Array.isArray(row?.keyword) ? row.keyword.map(name => ({ name, display_name: name })) : (Array.isArray(row?.tags) ? row.tags : []),
-        id: row?.identifier || row?.id || row?.slug,
-        name: row?.slug || row?.name
+        id: row?.identifier || row?.id || row?.slug
       })) : [])
     : (Array.isArray(payload?.result?.results) ? payload.result.results : []);
   return results.flatMap((row, index) => {
@@ -1387,9 +1392,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},retrievalOptions),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
-        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionDiagnostics=Array.isArray(payload.value?.result?.results) ? payload.value.result.results.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
+        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionRows = source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results : []) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results : []); const extractionDiagnostics=extractionRows ? extractionRows.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
-        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,relevanceRejectedCount,extractionDiagnostics,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results.length : 0) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0),extractedCandidates:extractedLeads.length,relevanceRejectedCount,extractionDiagnostics,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         // Empty successful retrievals are still non-productive for discovery. Count them toward
         // the source circuit breaker so a source returning repeated empty pages cannot consume
         // the entire expansion budget merely by alternating transient failures with empty success.
@@ -1591,7 +1596,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             query, queryLayer:'missing-class-expansion',
             status:leads.length?'candidates-found':'searched-empty',
             candidatesReturned:leads.length,
-            recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,
+            recordsConsidered:source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results.length : 0) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0),
             provenance:snapshot.retrieval, failureReason:null,
             cumulativeUniqueCandidates:candidates.length,
             expectedFamilies:coverage.expectedFamilies,
