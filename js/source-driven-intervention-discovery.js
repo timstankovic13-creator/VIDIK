@@ -15,6 +15,10 @@ const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
   'crossref-works': 2
 });
 const discoverySourceConcurrency = new Map();
+const discoverySourceNextAllowedAt = new Map();
+const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
+  'openalex-works': 750
+});
 
 async function withDiscoverySourceConcurrency(sourceId, work) {
   const limit = DISCOVERY_SOURCE_CONCURRENCY_LIMITS[sourceId];
@@ -32,12 +36,23 @@ async function withDiscoverySourceConcurrency(sourceId, work) {
   state.active += 1;
 
   try {
+    const minInterval = DISCOVERY_SOURCE_MIN_INTERVAL_MS[sourceId] || 0;
+    if (minInterval > 0) {
+      const nowMs = Date.now();
+      const nextAllowedAt = discoverySourceNextAllowedAt.get(sourceId) || 0;
+      const waitMs = Math.max(0, nextAllowedAt - nowMs);
+      if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
+      discoverySourceNextAllowedAt.set(sourceId, Date.now() + minInterval);
+    }
     return await work();
   } finally {
     state.active -= 1;
     const next = state.waiters.shift();
     if (next) next();
-    else if (state.active === 0) discoverySourceConcurrency.delete(sourceId);
+    else if (state.active === 0) {
+      discoverySourceConcurrency.delete(sourceId);
+      discoverySourceNextAllowedAt.delete(sourceId);
+    }
   }
 }
 
