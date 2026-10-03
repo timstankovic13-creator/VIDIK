@@ -781,7 +781,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // budget and starving the older missing-family/class mechanisms.
   const caps = {
     original: 1,
-    recall: 1,
+    recall: 2,
     'vocabulary-expansion': 1,
     'family-expansion': 2,
     'legacy-class-expansion': 1,
@@ -789,7 +789,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     'business-implementation': 2,
     'mechanism/admin': workspace === 'enterprise' ? 2 : 2
   };
-  const laneOrder = Object.keys(caps);
+  const laneOrder = ['original', 'recall', 'mechanism/admin', 'vocabulary-expansion', 'family-expansion', 'legacy-class-expansion', 'workspace-taxonomy', 'business-implementation'];
   const selected = [];
   const seen = new Set();
 
