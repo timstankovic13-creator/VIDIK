@@ -781,9 +781,9 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // budget and starving the older missing-family/class mechanisms.
   const caps = {
     original: 1,
-    recall: 2,
+    recall: 4,
     'vocabulary-expansion': 1,
-    'family-expansion': 2,
+    'family-expansion': 1,
     'legacy-class-expansion': 1,
     'workspace-taxonomy': 1,
     'business-implementation': 2,
