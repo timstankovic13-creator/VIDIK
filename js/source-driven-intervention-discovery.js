@@ -3,7 +3,7 @@ const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
 const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
-const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
+const DISCOVERY_MAX_QUERIES_PER_SOURCE = 12;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
@@ -781,13 +781,13 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // budget and starving the older missing-family/class mechanisms.
   const caps = {
     original: 1,
-    recall: 4,
-    'vocabulary-expansion': 2,
+    recall: 2,
+    'vocabulary-expansion': 1,
     'family-expansion': 2,
-    'legacy-class-expansion': 3,
+    'legacy-class-expansion': 2,
     'workspace-taxonomy': 1,
-    'business-implementation': 3,
-    'mechanism/admin': workspace === 'enterprise' ? 5 : 2
+    'business-implementation': 2,
+    'mechanism/admin': workspace === 'enterprise' ? 2 : 2
   };
   const laneOrder = Object.keys(caps);
   const selected = [];
@@ -1568,7 +1568,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       .map(sourceId => SOURCE_REGISTRY.find(source => source.sourceId === sourceId))
       .filter(Boolean);
     if (literatureSources.length) {
-      const literatureQueries = buildLiteratureFallbackQueries(problem, workspace).slice(0, Number.isInteger(maxLiteratureQueries) && maxLiteratureQueries > 0 ? maxLiteratureQueries : undefined);
+      const literatureQueryLimit = Number.isInteger(maxLiteratureQueries) && maxLiteratureQueries > 0 ? maxLiteratureQueries : 6;
+      const literatureQueries = buildLiteratureFallbackQueries(problem, workspace).slice(0, literatureQueryLimit);
       for (const source of literatureSources) {
         const attempts = [];
         const sourceCandidateStart = rawCandidates.length;
