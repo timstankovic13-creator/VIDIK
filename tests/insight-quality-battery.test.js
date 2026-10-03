@@ -144,7 +144,7 @@ function candidateRelevant(problem, candidate, workspace) {
 test('unified discovery planner preserves historical recall, family, class, taxonomy, and mechanism lanes within one source budget', () => {
   const discoveryModule = require('../js/source-driven-intervention-discovery');
   const plan = discoveryModule.buildDiscoveryQueryPlan('reduce violent crime', 'municipal');
-  assert.equal(plan.length, 18);
+  assert.equal(plan.length, 12);
   assert.ok(plan.some(item => item.query === 'reduce violent crime' && item.queryLayer === 'original'));
   assert.ok(plan.some(item => /focused deterrence|community violence intervention|violence interruption/i.test(item.query) && item.queryLayer === 'recall'));
   assert.ok(plan.some(item => item.queryLayer === 'family-expansion'));
@@ -550,7 +550,7 @@ test('literature fallback inherits bounded class and mechanism coverage layers',
 
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
-  assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
+  assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 12);
   assert.equal(mod.DISCOVERY_MIN_UNIQUE_CANDIDATES, 5);
   assert.equal(mod.DISCOVERY_TARGET_FAMILY_COVERAGE, 0.75);
   const queries = mod.buildDiscoveryQueries('reduce violent crime','municipal');
