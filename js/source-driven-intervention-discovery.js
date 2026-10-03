@@ -51,7 +51,9 @@ async function withDiscoverySourceConcurrency(sourceId, work) {
     if (next) next();
     else if (state.active === 0) {
       discoverySourceConcurrency.delete(sourceId);
-      discoverySourceNextAllowedAt.delete(sourceId);
+      // Keep the pacing timestamp after the queue drains. Deleting it here
+      // allowed the next case to restart immediately and defeat the intended
+      // inter-request rate limit between sequential discovery calls.
     }
   }
 }
