@@ -742,7 +742,10 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     ['legacy-class-expansion', missingInterventionClassSearchQueries(problem, workspace, [])],
     ['workspace-taxonomy', []],
     ['business-implementation', workspace === 'business' ? ['process redesign', 'workflow automation', 'operational improvement'].map(term => normalizeText(original + ' ' + term)) : []],
-    ['mechanism/admin', buildMechanismSearchQueries(original, workspace)]
+    ['mechanism/admin', buildMechanismSearchQueries(original, workspace).sort((a, b) => {
+      const priority = query => /procurement|contract|implementation program|operating model|service delivery model|process improvement|operational controls|change management/i.test(query) ? 0 : 1;
+      return priority(a) - priority(b);
+    })]
   ]);
 
   // Historical recall packs are a first-class acquisition lane, but only a bounded,
