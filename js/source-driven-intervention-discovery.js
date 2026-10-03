@@ -1437,15 +1437,25 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     : { fetchImpl, now };
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
+    // Data.gov is the slowest live discovery surface in the battery. Keep the
+    // global 12-query planner budget intact, but cap this source to the first
+    // 8 queries (original + recall/mechanism lanes) and use a shorter transport
+    // timeout so one slow catalog cannot consume the case-level 90s ceiling.
+    const sourceQueryPlan = source.sourceId === 'us-open-data-program-discovery'
+      ? queryPlan.slice(0, 8)
+      : queryPlan;
+    const sourceRetrievalOptions = source.sourceId === 'us-open-data-program-discovery'
+      ? { ...retrievalOptions, requestTimeoutMs: 5000 }
+      : retrievalOptions;
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
     let terminalFailure = false;
     let skippedQueries = 0;
-    for(const plannedQuery of queryPlan){
+    for(const plannedQuery of sourceQueryPlan){
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},retrievalOptions),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},sourceRetrievalOptions),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionRows = source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results : []) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results : []); const extractionDiagnostics=extractionRows ? extractionRows.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
@@ -1478,7 +1488,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const nonproductiveAttempts = attempts.filter(a => a.status === 'search-failed' || a.candidatesReturned === 0).length;
     const nonproductiveRatio = attempts.length ? nonproductiveAttempts / attempts.length : 0;
     const routeExpansion = !(terminalFailure || (failedAttempts >= 3 && failureRatio >= 0.5));
-    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:DISCOVERY_MAX_QUERIES_PER_SOURCE,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,nonproductiveAttempts,nonproductiveRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
+    sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-library',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:sourceQueryPlan.length,failedQueryCount:failedAttempts,usableQueryCount:usableAttempts,skippedQueries,terminalFailure,failureRatio,nonproductiveAttempts,nonproductiveRatio,routeExpansion,failureClasses,failureStages:Object.fromEntries([...new Set(attempts.filter(a=>a.status==='search-failed').map(a=>a.failureStage||'retrieval'))].map(stage=>[stage,attempts.filter(a=>a.status==='search-failed'&&a.failureStage===stage).length])),status:finalCandidates.length?(coverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),attempts,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies,failureReason:finalCandidates.length?null:(failedAttempts===attempts.length?attempts[attempts.length-1]?.failureReason||null:null)});
   }
   let candidates=deduplicateInterventionLeads(rawCandidates),coverage=discoveryCoverage(problem,workspace,candidates);
   // If the first bounded search finds candidates but misses intervention families, run a
@@ -1491,7 +1501,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
-      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
+      const remainingQueryBudget = Math.max(0, sourceSearch.queryBudget - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
       for (const query of sourceTargetQueries) {
         existingQueries.add(query);
         try {
@@ -1629,7 +1639,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
-      const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted);
+      const remainingQueryBudget = Math.max(0, sourceSearch.queryBudget - sourceSearch.queriesAttempted);
       const sourceClassQueries = classTargetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 3));
       for (const query of sourceClassQueries) {
         if (sourceSearch.terminalFailure) break;
