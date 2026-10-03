@@ -12,6 +12,12 @@ const GOVUK_SOURCE = {
   url: 'https://www.gov.uk/api/search.json'
 };
 
+const DATAGOV_SOURCE = {
+  sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
+  domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'catalog-search-api',
+  url: 'https://catalog.data.gov/search'
+};
+
 const SOURCE = {
   sourceId: 'ca-program-discovery', provider: 'Government of Canada Open Government Portal', jurisdiction: 'CA',
   domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
@@ -68,12 +74,50 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.ok(search);
   assert.equal(search.routeExpansion, false);
   assert.equal(search.candidatesReturned, 0);
-  assert.equal(search.failedQueryCount, 9);
-  assert.equal(search.queriesAttempted, 18);
-  assert.ok(search.failureRatio >= 0.5);
-  assert.equal(search.skippedQueries, 0);
+  assert.equal(search.failedQueryCount, 0);
+  assert.equal(search.queriesAttempted, 3);
+  assert.ok(search.nonproductiveRatio >= 0.5);
+  assert.ok(search.skippedQueries > 0);
   assert.ok(search.attempts.every(attempt => attempt.queryPhase !== 'expansion'));
-  assert.equal(calls, 18);
+  assert.equal(calls, 6);
+});
+
+test('empty local jurisdiction opens one bounded comparable-jurisdiction discovery lane', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const parsed = new URL(url);
+      if (parsed.hostname === 'open.canada.ca' || parsed.hostname === 'data.ontario.ca') {
+        return { ok: false, status: 404, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+      }
+      return mockResponse({ result: { results: [
+        { id: 'comparable-violence', title: 'Community Violence Intervention Program', notes: 'Community violence intervention program for serious violence.' }
+      ] } });
+    }
+  });
+  assert.ok(result.candidates.some(candidate => /community violence intervention/i.test(candidate.name)));
+  assert.equal(result.sourceApplicability.comparableFallback.used, true);
+  assert.ok(result.sourceApplicability.comparableFallback.attempts.length >= 1);
+  assert.notEqual(result.sourceApplicability.comparableFallback.attempts[0].sourceJurisdiction, 'CA');
+  assert.ok(result.sourceSearches.some(search => search.sourceType === 'intervention-library-comparable'));
+});
+
+test('rate-limited discovery source stops the query plan after bounded retrieval retries', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => ({ ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.equal(search.terminalFailure, true);
+  assert.equal(search.queriesAttempted, 1);
+  assert.ok(search.skippedQueries > 0);
+  assert.equal(search.failureClasses['rate-limited'], 1);
+  assert.equal(search.attempts[0].failureClass, 'rate-limited');
+  assert.equal(search.status, 'search-failed');
 });
 
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
@@ -92,7 +136,7 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.ok(search);
   assert.equal(search.terminalFailure, true);
   assert.equal(search.queriesAttempted, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
-  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
+  assert.equal(calls, mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES * 3);
   assert.equal(search.failureClasses['upstream-5xx'], mod.MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES);
   assert.equal(search.status, 'search-failed');
 });
@@ -260,7 +304,7 @@ test('source-driven discovery is wired into decision execution and remains evide
     requiredSourceTypes: ['intervention-library'],
     autoDiscoverInterventionSources: true,
     fetchImpl: async () => mockResponse({ result: { results: [
-      { id: 'food-program-2', title: 'Municipal food access program', notes: 'Food access intervention.' }
+      { id: 'food-program-2', title: 'Municipal food access program', notes: 'A municipal food pantry and community food hub intervention providing food access support.' }
     ] } }),
     statusQuo: { explicit: true, id: 'status-quo-food' }
   });
@@ -289,6 +333,36 @@ test('mobility problems retain infrastructure interventions during semantic rele
   assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
   assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true));
   assert.equal(result.recommendationEligible, false);
+});
+
+test('Data.gov discovery uses the current catalog search API without treating the catalog UI as an API', async () => {
+  let seen = null;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce homelessness',
+    jurisdiction: 'US',
+    sources: [DATAGOV_SOURCE],
+    rows: 5,
+    maxQueriesPerSource: 1,
+    skipExpansion: true,
+    fetchImpl: async (url, options) => {
+      seen = { url, options };
+      return mockResponse({ result: { results: [{
+        id: 'housing-first-program',
+        title: 'Housing First Program',
+        notes: 'A housing first program providing permanent supportive housing and housing navigation.',
+        tags: [{ name: 'housing' }]
+      }] } });
+    }
+  });
+  assert.ok(seen);
+  const parsed = new URL(seen.url);
+  assert.equal(parsed.hostname, 'catalog.data.gov');
+  assert.equal(parsed.pathname, '/search');
+  assert.equal(parsed.searchParams.get('q'), 'reduce homelessness');
+  assert.equal(parsed.searchParams.get('rows'), '5');
+  assert.match(seen.options.headers['user-agent'], /Mozilla/);
+  assert.equal(result.candidates.length, 1);
+  assert.match(result.candidates[0].name, /Housing First Program/);
 });
 
 test('CKAN query construction remains HTTPS and bounded', () => {

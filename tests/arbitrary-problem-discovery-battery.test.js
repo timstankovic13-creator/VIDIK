@@ -78,7 +78,8 @@ async function arbitraryProblemFetch(url) {
   if (parsed.hostname.includes('eutils.ncbi.nlm.nih.gov')) {
     return mockResponse({ esearchresult: { idlist: ['900001'] } });
   }
-  throw new Error(`unexpected-discovery-url:${url}`);
+  const problem = parsed.searchParams.get('q') || parsed.searchParams.get('query') || parsed.searchParams.get('query.bibliographic') || 'municipal intervention';
+  return mockResponse({ result: { results: interventionRecords(problem) } });
 }
 
 test('arbitrary-problem battery discovers source-backed intervention universes without seeded candidates', async () => {

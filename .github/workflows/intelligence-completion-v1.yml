@@ -27,6 +27,8 @@ jobs:
       - name: External open-world benchmark
         run: node --test tests/external-open-world-benchmark.test.js
       - name: Insight Quality Battery (60 real-world decision problems)
+        env:
+          VIDIK_DISCOVERY_CONCURRENCY: 6
         run: npm run test:insight-quality-battery
       - name: Evidence sufficiency hardening
         run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js tests/evidence-promotion-gate.test.js tests/evidence-acquisition-orchestrator.test.js
@@ -51,7 +53,7 @@ jobs:
       - name: Full scope regression
         run: node --test tests/vidik-full-scope-functional.test.js
       - name: Live arbitrary-problem finish-line validation
-        run: npm run test:production-finish-line
+        run: timeout --foreground --kill-after=10s 300s npm run test:production-finish-line
       - name: Decision artifact integrity and persistence
         run: npm run test:decision-artifact-store
       - name: Outcome learning and drift persistence

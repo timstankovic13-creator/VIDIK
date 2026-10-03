@@ -113,6 +113,11 @@ const CASES = [
   ['enterprise','AU','improve records retention compliance'],
 ];
 
+const CASE_LIMIT = Number.parseInt(process.env.VIDIK_CASE_LIMIT || '', 10);
+const ACTIVE_CASES = Number.isInteger(CASE_LIMIT) && CASE_LIMIT > 0
+  ? CASES.slice(0, Math.min(CASE_LIMIT, CASES.length))
+  : CASES;
+
 const DOMAIN_TERMS = {
   safety: ['crime','violence','injur','overdose','safety','firearm','emergency'],
   housing: ['homeless','housing','eviction','shelter','rough sleeping'],
@@ -139,7 +144,7 @@ function candidateRelevant(problem, candidate, workspace) {
 test('unified discovery planner preserves historical recall, family, class, taxonomy, and mechanism lanes within one source budget', () => {
   const discoveryModule = require('../js/source-driven-intervention-discovery');
   const plan = discoveryModule.buildDiscoveryQueryPlan('reduce violent crime', 'municipal');
-  assert.equal(plan.length, 18);
+  assert.equal(plan.length, 12);
   assert.ok(plan.some(item => item.query === 'reduce violent crime' && item.queryLayer === 'original'));
   assert.ok(plan.some(item => /focused deterrence|community violence intervention|violence interruption/i.test(item.query) && item.queryLayer === 'recall'));
   assert.ok(plan.some(item => item.queryLayer === 'family-expansion'));
@@ -332,6 +337,16 @@ test('literature-like administrative titles are not promoted to intervention can
   }
 });
 
+async function runWithDiscoveryTimeout(task, label, timeoutMs = 90000) {
+  let timer;
+  try {
+    return await Promise.race([
+      task(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('discovery timeout after ' + timeoutMs + 'ms: ' + label)), timeoutMs); })
+    ]);
+  } finally { clearTimeout(timer); }
+}
+
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);
   let next = 0;
@@ -347,8 +362,8 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
-  const results = await mapWithConcurrency(CASES, 8, async ([workspace, jurisdiction, problem]) => {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
+  const DISCOVERY_CONCURRENCY = Number.parseInt(process.env.VIDIK_DISCOVERY_CONCURRENCY || '8', 10); const results = await mapWithConcurrency(ACTIVE_CASES, Number.isInteger(DISCOVERY_CONCURRENCY) && DISCOVERY_CONCURRENCY > 0 ? DISCOVERY_CONCURRENCY : 8, async ([workspace, jurisdiction, problem]) => {
+    const discovery = await runWithDiscoveryTimeout(() => discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 }), workspace + ':' + jurisdiction + ':' + problem);
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
@@ -422,12 +437,13 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
 
-  assert.equal(results.length, CASES.length);
+  assert.equal(results.length, ACTIVE_CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
   // Quality grades are findings, not pass/fail assertions. A zero-STRONG result is intentionally reportable evidence that the insight layer needs work.
   console.log(JSON.stringify({
     battery: 'VIDIK Insight Quality Battery v2 — 100-problem generalization',
     cases: results.length,
+    caseLimit: CASE_LIMIT || null,
     gradeCounts: counts,
     averageCandidatesPerProblem: Number(avgCandidates.toFixed(2)),
     averageActionableRatio: Number((results.reduce((n,r) => n + (r.candidateCount ? r.actionableCount/r.candidateCount : 0),0)/results.length).toFixed(2)),
@@ -534,7 +550,7 @@ test('literature fallback inherits bounded class and mechanism coverage layers',
 
 test('adaptive intervention discovery is per-source, bounded, and exposes why it stopped', () => {
   const mod = require('../js/source-driven-intervention-discovery');
-  assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 18);
+  assert.equal(mod.DISCOVERY_MAX_QUERIES_PER_SOURCE, 12);
   assert.equal(mod.DISCOVERY_MIN_UNIQUE_CANDIDATES, 5);
   assert.equal(mod.DISCOVERY_TARGET_FAMILY_COVERAGE, 0.75);
   const queries = mod.buildDiscoveryQueries('reduce violent crime','municipal');

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "vidik.discovery-certification-baseline.v1",
+  "status": "validated-milestone",
+  "metric": "strict_expected_intervention_class_hits",
+  "milestone": "30/60",
+  "minimumRequired": 30,
+  "purpose": "Immutable checkpoint for discovery certification; family coverage does not substitute for strict class hits.",
+  "nextMilestones": ["40/60", "60/60", "100-case-certification"],
+  "productionBoundary": "Diagnostic branch only until certification and integration gates pass.",
+  "recorded": "2026-10-01",
+  "notes": "Previously achieved 30/60 milestone. This checkpoint must not be overwritten by later runs."
+}
