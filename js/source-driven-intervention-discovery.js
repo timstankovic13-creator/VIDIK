@@ -42,13 +42,16 @@ async function withDiscoverySourceConcurrency(sourceId, work) {
 }
 
 async function retrieveWithTransientRetry(source, options = {}) {
+  const maxRetries = Number.isInteger(options.maxTransientRetries) && options.maxTransientRetries >= 0
+    ? options.maxTransientRetries
+    : MAX_TRANSIENT_SOURCE_RETRIES;
   let lastError;
-  for (let attempt = 0; attempt <= MAX_TRANSIENT_SOURCE_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try { return await retrieve(source, options); }
     catch (error) {
       lastError = error;
       const failure = classifyDiscoveryFailure(error);
-      if (failure.terminal || !['transport-retryable', 'rate-limited', 'upstream-5xx'].includes(failure.class) || attempt >= MAX_TRANSIENT_SOURCE_RETRIES) throw error;
+      if (failure.terminal || !['transport-retryable', 'rate-limited', 'upstream-5xx'].includes(failure.class) || attempt >= maxRetries) throw error;
       const delay = TRANSIENT_RETRY_DELAYS_MS[attempt] || TRANSIENT_RETRY_DELAYS_MS[TRANSIENT_RETRY_DELAYS_MS.length - 1];
       if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -1409,7 +1412,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const boundedSelected = Number.isInteger(maxSources) && maxSources > 0 ? selected.slice(0, maxSources) : selected;
   const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
   const queryPlan = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0 ? fullQueryPlan.slice(0, maxQueriesPerSource) : fullQueryPlan;
-  const retrievalOptions = skipExpansion ? { fetchImpl, now, requestTimeoutMs: 4000 } : { fetchImpl, now };
+  const retrievalOptions = skipExpansion
+    ? { fetchImpl, now, requestTimeoutMs: 4000, maxTransientRetries: 0 }
+    : { fetchImpl, now };
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
     const attempts=[],sourceCandidates=[];
