@@ -1543,7 +1543,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     for (const source of selected) {
       const sourceSearch = sourceSearches.find(search => search.sourceId === source.sourceId);
       if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
-      const remainingQueryBudget = Math.max(0, sourceSearch.queryBudget - sourceSearch.queriesAttempted); const expansionReserveForClassLane = boundedCatalogSource ? Math.min(3, Math.max(0, remainingQueryBudget)) : 0;
+      const remainingQueryBudget = Math.max(0, sourceSearch.queryBudget - sourceSearch.queriesAttempted); const catalogExpansionSource = new Set(['us-open-data-program-discovery','au-open-data-program-discovery','ca-program-discovery','ca-ontario-program-discovery']).has(source.sourceId);
+      const expansionReserveForClassLane = catalogExpansionSource ? Math.min(3, Math.max(0, remainingQueryBudget)) : 0;
       const familyExpansionBudget = Math.max(0, remainingQueryBudget - expansionReserveForClassLane);
       const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(familyExpansionBudget, 5));
       for (const query of sourceTargetQueries) {
