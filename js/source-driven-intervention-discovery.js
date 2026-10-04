@@ -20,7 +20,7 @@ const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
   'openalex-works': 750
 });
 
-async function withDiscoverySourceConcurrency(sourceId, work) {
+async function withDiscoverySourceConcurrency(sourceId, work, signal = null) {
   const limit = DISCOVERY_SOURCE_CONCURRENCY_LIMITS[sourceId];
   if (!limit || limit < 1) return work();
 
@@ -31,7 +31,18 @@ async function withDiscoverySourceConcurrency(sourceId, work) {
   }
 
   if (state.active >= limit) {
-    await new Promise(resolve => state.waiters.push(resolve));
+    if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
+    await new Promise((resolve, reject) => {
+      const waiter = { resolve, reject, signal };
+      const abort = () => {
+        const index = state.waiters.indexOf(waiter);
+        if (index >= 0) state.waiters.splice(index, 1);
+        reject(signal.reason || new Error('discovery-aborted'));
+      };
+      waiter.abort = abort;
+      signal?.addEventListener('abort', abort, { once: true });
+      state.waiters.push(waiter);
+    });
   }
   state.active += 1;
 
@@ -41,14 +52,26 @@ async function withDiscoverySourceConcurrency(sourceId, work) {
       const nowMs = Date.now();
       const nextAllowedAt = discoverySourceNextAllowedAt.get(sourceId) || 0;
       const waitMs = Math.max(0, nextAllowedAt - nowMs);
-      if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
+      if (waitMs > 0) {
+        if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(done, waitMs);
+          function done(){ cleanup(); resolve(); }
+          function abort(){ cleanup(); reject(signal.reason || new Error('discovery-aborted')); }
+          function cleanup(){ clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+          signal?.addEventListener('abort', abort, { once: true });
+        });
+      }
       discoverySourceNextAllowedAt.set(sourceId, Date.now() + minInterval);
     }
     return await work();
   } finally {
     state.active -= 1;
     const next = state.waiters.shift();
-    if (next) next();
+    if (next) {
+      next.signal?.removeEventListener('abort', next.abort);
+      next.resolve();
+    }
     else if (state.active === 0) {
       discoverySourceConcurrency.delete(sourceId);
       // Keep the pacing timestamp after the queue drains. Deleting it here
@@ -70,7 +93,16 @@ async function retrieveWithTransientRetry(source, options = {}) {
       const failure = classifyDiscoveryFailure(error);
       if (failure.terminal || !['transport-retryable', 'rate-limited', 'upstream-5xx'].includes(failure.class) || attempt >= maxRetries) throw error;
       const delay = TRANSIENT_RETRY_DELAYS_MS[attempt] || TRANSIENT_RETRY_DELAYS_MS[TRANSIENT_RETRY_DELAYS_MS.length - 1];
-      if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+      if (delay > 0) {
+        if (options.signal?.aborted) throw (options.signal.reason || new Error('discovery-aborted'));
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(done, delay);
+          function done(){ cleanup(); resolve(); }
+          function abort(){ cleanup(); reject(options.signal.reason || new Error('discovery-aborted')); }
+          function cleanup(){ clearTimeout(timer); options.signal?.removeEventListener('abort', abort); }
+          options.signal?.addEventListener('abort', abort, { once: true });
+        });
+      }
     }
   }
   throw lastError;
@@ -1592,7 +1624,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             const url = source.sourceId === 'openalex-works'
               ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
               : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
-            const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url},{fetchImpl,now,signal}));
+            const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url},{fetchImpl,now,signal}), signal);
             const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
             if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
             const leads = source.sourceId === 'openalex-works'
