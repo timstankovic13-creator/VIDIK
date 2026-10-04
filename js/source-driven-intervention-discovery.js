@@ -1800,3 +1800,30 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         coverage = discoveryCoverage(problem, workspace, candidates);
         if (candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
       }
+    }
+    if (attempts.length) comparableFallback = { used: true, attempts };
+  }
+  classCoverage=interventionClassCoverage(problem,workspace,candidates);
+  const queryLaneCounts=Object.fromEntries([...new Set(queryPlan.map(item=>item.queryLayer))].map(layer=>[layer,queryPlan.filter(item=>item.queryLayer===layer).length]));
+  const diagnosticCounts={
+    noCandidates:candidates.length===0,
+    candidateUniverseWeak:candidates.length>0&&(coverage.expectedFamilies.length>0&&coverage.coverageRatio<DISCOVERY_TARGET_FAMILY_COVERAGE),
+    classCoverageWeak:candidates.length>0&&classCoverage.expectedClasses.length>0&&classCoverage.coverageRatio<0.5,
+    missingFamilies:coverage.missingFamilies,
+    missingClasses:classCoverage.missingClasses,
+    sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),
+    queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original')),
+    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion')),
+    missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion').length,0),
+    queryLaneCounts
+  };
+  const universe=buildInterventionUniverseAssessment({problem,jurisdiction,sourceSearches,candidates:rawCandidates,requestedSourceCount:selected.length + sourceSearches.filter(search=>search.sourceId==='openalex-works').length});
+  universe.expectedInterventionFamilies=coverage.expectedFamilies;universe.observedInterventionFamilies=coverage.observedFamilies;universe.missingInterventionFamilies=coverage.missingFamilies;universe.coverageRatio=coverage.coverageRatio;universe.expectedInterventionClasses=classCoverage.expectedClasses;universe.observedInterventionClasses=classCoverage.representedClasses;universe.missingInterventionClasses=classCoverage.missingClasses;universe.classCoverageRatio=classCoverage.coverageRatio;universe.discoveryExpandedWhenWeak=sourceSearches.some(s=>s.queriesAttempted>1);
+  universe.diagnosticCounts=diagnosticCounts;
+  universe.stoppingReason=sourceSearches.length===0?'no-source-searches':sourceSearches.every(s=>s.status==='search-failed')?'all-sources-failed':candidates.length===0?'no-intervention-candidates':coverage.missingFamilies.length?'candidate-universe-incomplete':'candidate-universe-discovered';
+  if (comparableFallback) {
+    applicability.comparableFallback = comparableFallback;
+  }
+  return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
+}
+module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, DATAGOV_MIN_ROWS, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, selectComparableInterventionSource, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
