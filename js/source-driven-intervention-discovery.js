@@ -1476,11 +1476,15 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     const sourceQueryPlan = source.sourceId === 'us-open-data-program-discovery'
       ? queryPlan.slice(0, 8)
       : queryPlan;
-    const sourceRetrievalOptions = source.sourceId === 'us-open-data-program-discovery'
+    const boundedCatalogSource = new Set([
+      'us-open-data-program-discovery',
+      'au-open-data-program-discovery',
+      'ca-program-discovery',
+      'ca-ontario-program-discovery'
+    ]).has(source.sourceId);
+    const sourceRetrievalOptions = boundedCatalogSource
       ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
-      : source.sourceId === 'au-open-data-program-discovery'
-        ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
-        : retrievalOptions;
+      : retrievalOptions;
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
     let terminalFailure = false;
@@ -1542,8 +1546,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const expansionRetrievalOptions = source.sourceId === 'au-open-data-program-discovery'
-            ? { fetchImpl, now, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+          const boundedCatalogSource = new Set([
+            'us-open-data-program-discovery',
+            'au-open-data-program-discovery',
+            'ca-program-discovery',
+            'ca-ontario-program-discovery'
+          ]).has(source.sourceId);
+          const expansionRetrievalOptions = boundedCatalogSource
+            ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
             : retrievalOptions;
           const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
