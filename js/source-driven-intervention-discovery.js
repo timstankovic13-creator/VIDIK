@@ -1814,7 +1814,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     missingClasses:classCoverage.missingClasses,
     sourceFailures:sourceSearches.filter(s=>s.status==='search-failed').map(s=>s.sourceId),
     queryExpansionUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer&&a.queryLayer!=='original')),
-    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion')),
+    missingOptionSearchUsed:sourceSearches.some(s=>s.attempts?.some(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='missing-class-expansion'||a.queryLayer==='legacy-class-expansion')),
     missingOptionSearches:sourceSearches.reduce((n,s)=>n+(s.attempts||[]).filter(a=>a.queryLayer==='missing-family-expansion'||a.queryLayer==='legacy-class-expansion').length,0),
     queryLaneCounts
   };
