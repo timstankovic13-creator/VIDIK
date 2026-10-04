@@ -459,7 +459,7 @@ test('class-level missing-option expansion is bounded and source-backed', async 
     }
   });
   assert.ok(result.candidates.some(candidate => /road safety infrastructure/i.test(candidate.name)));
-  assert.ok(result.interventionUniverse.diagnosticCounts.missingOptionSearchUsed);
+  assert.ok(result.interventionUniverse.diagnosticCounts.missingOptionSearchUsed, JSON.stringify({seen, diagnosticCounts: result.interventionUniverse.diagnosticCounts, attempts: result.sourceSearches[0]?.attempts?.map(attempt => ({query: attempt.query, queryLayer: attempt.queryLayer, status: attempt.status}))}));
   assert.ok(result.sourceSearches[0].queriesAttempted <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
   assert.ok(seen.length <= DISCOVERY_MAX_QUERIES_PER_SOURCE);
 });
