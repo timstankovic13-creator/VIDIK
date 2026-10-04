@@ -1477,8 +1477,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       ? queryPlan.slice(0, 8)
       : queryPlan;
     const sourceRetrievalOptions = source.sourceId === 'us-open-data-program-discovery'
-      ? { ...retrievalOptions, requestTimeoutMs: 5000 }
-      : retrievalOptions;
+      ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+      : source.sourceId === 'au-open-data-program-discovery'
+        ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+        : retrievalOptions;
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
     let terminalFailure = false;
@@ -1540,7 +1542,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now, signal});
+          const expansionRetrievalOptions = source.sourceId === 'au-open-data-program-discovery'
+            ? { fetchImpl, now, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+            : retrievalOptions;
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
@@ -1680,7 +1685,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now, signal});
+          const expansionRetrievalOptions = source.sourceId === 'au-open-data-program-discovery'
+            ? { fetchImpl, now, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+            : retrievalOptions;
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
