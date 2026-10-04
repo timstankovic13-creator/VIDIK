@@ -1695,8 +1695,14 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const expansionRetrievalOptions = source.sourceId === 'au-open-data-program-discovery'
-            ? { fetchImpl, now, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+          const boundedCatalogSource = new Set([
+            'us-open-data-program-discovery',
+            'au-open-data-program-discovery',
+            'ca-program-discovery',
+            'ca-ontario-program-discovery'
+          ]).has(source.sourceId);
+          const expansionRetrievalOptions = boundedCatalogSource
+            ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
             : retrievalOptions;
           const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
