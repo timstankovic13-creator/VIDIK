@@ -1473,9 +1473,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     // global 12-query planner budget intact, but cap this source to the first
     // 8 queries (original + recall/mechanism lanes) and use a shorter transport
     // timeout so one slow catalog cannot consume the case-level 90s ceiling.
-    const sourceQueryPlan = source.sourceId === 'us-open-data-program-discovery'
-      ? queryPlan.slice(0, 8)
-      : queryPlan;
+    const boundedCatalogQueryCount = source.sourceId === 'us-open-data-program-discovery' ||
+      source.sourceId === 'au-open-data-program-discovery' ||
+      source.sourceId === 'ca-program-discovery' ||
+      source.sourceId === 'ca-ontario-program-discovery'
+      ? 6
+      : queryPlan.length;
+    const sourceQueryPlan = queryPlan.slice(0, Math.min(queryPlan.length, boundedCatalogQueryCount));
     const boundedCatalogSource = new Set([
       'us-open-data-program-discovery',
       'au-open-data-program-discovery',
