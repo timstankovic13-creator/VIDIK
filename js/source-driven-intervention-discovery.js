@@ -19,6 +19,7 @@ const discoverySourceNextAllowedAt = new Map();
 const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
   'openalex-works': 750
 });
+const DISCOVERY_SOURCE_QUEUE_MAX_WAIT_MS = 15000;
 
 async function withDiscoverySourceConcurrency(sourceId, work, signal = null) {
   const limit = DISCOVERY_SOURCE_CONCURRENCY_LIMITS[sourceId];
@@ -34,13 +35,26 @@ async function withDiscoverySourceConcurrency(sourceId, work, signal = null) {
     if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
     await new Promise((resolve, reject) => {
       const waiter = { resolve, reject, signal };
+      let queueTimer;
+      const cleanup = () => {
+        if (queueTimer) clearTimeout(queueTimer);
+        signal?.removeEventListener('abort', abort);
+      };
       const abort = () => {
         const index = state.waiters.indexOf(waiter);
         if (index >= 0) state.waiters.splice(index, 1);
+        cleanup();
         reject(signal.reason || new Error('discovery-aborted'));
+      };
+      const expire = () => {
+        const index = state.waiters.indexOf(waiter);
+        if (index >= 0) state.waiters.splice(index, 1);
+        cleanup();
+        reject(new Error('discovery-source-concurrency-saturated'));
       };
       waiter.abort = abort;
       signal?.addEventListener('abort', abort, { once: true });
+      queueTimer = setTimeout(expire, DISCOVERY_SOURCE_QUEUE_MAX_WAIT_MS);
       state.waiters.push(waiter);
     });
   }
@@ -1666,6 +1680,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           } catch (error) {
             const failure = classifyDiscoveryFailure(error);
             attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            if (/^discovery-source-concurrency-saturated$/.test(String(error?.message || ''))) {
+              stopReason = 'provider-concurrency-saturated';
+              break;
+            }
             if (failure.class === 'rate-limited' || /upstream-rate-limit-circuit-open/.test(String(error?.message || ''))) {
               // Literature providers are already bounded by retrieve() retries + circuit breaker.
               // Stop this provider's query loop after a verified 429 rather than amplifying load.
