@@ -1426,7 +1426,7 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
     return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
   }).filter(Boolean));
 }
-async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null,skipExpansion=false,maxSources=null,maxLiteratureQueries=null}={}){
+async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null,skipExpansion=false,maxSources=null,maxLiteratureQueries=null,signal=null}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...source,...canonicalSource(source)})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...source,...canonicalSource(source)}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[];
   const boundedSelected = Number.isInteger(maxSources) && maxSources > 0 ? selected.slice(0, maxSources) : selected;
@@ -1455,7 +1455,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},sourceRetrievalOptions),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},{...sourceRetrievalOptions,signal}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionRows = source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results : []) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results : []); const extractionDiagnostics=extractionRows ? extractionRows.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
@@ -1508,7 +1508,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now});
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
@@ -1592,7 +1592,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             const url = source.sourceId === 'openalex-works'
               ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
               : (() => { const u = new URL(source.url); u.searchParams.set('query.bibliographic', query); u.searchParams.set('rows', String(rows)); return u.toString(); })();
-            const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url},{fetchImpl,now}));
+            const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url},{fetchImpl,now,signal}));
             const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
             if (payload.format !== 'json') throw new Error('intervention-literature-response-not-json');
             const leads = source.sourceId === 'openalex-works'
@@ -1648,7 +1648,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
             ? buildGovUkSearchUrl(source, query, { rows })
             : buildCkanSearchUrl(source, query, { rows });
-          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now});
+          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {fetchImpl, now, signal});
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
@@ -1717,7 +1717,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         now,
         rows,
         maxQueriesPerSource: skipExpansion ? 2 : 4,
-        skipExpansion: true
+        skipExpansion: true,
+        signal
       });
       attempts.push({
         sourceId: comparable.sourceId,
