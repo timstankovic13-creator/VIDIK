@@ -114,9 +114,9 @@ const CASES = [
 ];
 
 const CASE_LIMIT = Number.parseInt(process.env.VIDIK_CASE_LIMIT || '', 10);
-const ACTIVE_CASES = CASES.filter(([workspace, jurisdiction, problem]) =>
-  workspace === 'community' && jurisdiction === 'CA' && problem === 'improve food access'
-);
+const ACTIVE_CASES = Number.isInteger(CASE_LIMIT) && CASE_LIMIT > 0
+  ? CASES.slice(0, Math.min(CASE_LIMIT, CASES.length))
+  : CASES;
 
 const DOMAIN_TERMS = {
   safety: ['crime','violence','injur','overdose','safety','firearm','emergency'],
@@ -387,8 +387,9 @@ async function mapWithConcurrency(items, limit, worker) {
 test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce inspectable, governed decision intelligence', async () => {
   const DISCOVERY_CONCURRENCY = Number.parseInt(process.env.VIDIK_DISCOVERY_CONCURRENCY || '8', 10);
   const batteryController = new AbortController();
+  let results;
   try {
-    const results = await mapWithConcurrency(ACTIVE_CASES, Number.isInteger(DISCOVERY_CONCURRENCY) && DISCOVERY_CONCURRENCY > 0 ? DISCOVERY_CONCURRENCY : 8, async ([workspace, jurisdiction, problem]) => {
+    results = await mapWithConcurrency(ACTIVE_CASES, Number.isInteger(DISCOVERY_CONCURRENCY) && DISCOVERY_CONCURRENCY > 0 ? DISCOVERY_CONCURRENCY : 8, async ([workspace, jurisdiction, problem]) => {
       const discovery = await runWithDiscoveryTimeout(
         (signal) => discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, signal }),
         workspace + ':' + jurisdiction + ':' + problem,
