@@ -362,9 +362,7 @@ async function runWithDiscoveryTimeout(task, label, timeoutMs = 90000, parentSig
       })
     ]);
   } catch (error) {
-    if (timedOut) {
-      try { await taskPromise; } catch (_) {}
-    }
+    if (timedOut) taskPromise?.catch(() => {});
     throw error;
   } finally {
     clearTimeout(timer);
