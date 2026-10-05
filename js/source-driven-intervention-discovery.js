@@ -1699,10 +1699,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const sourceCoverage = discoveryCoverage(problem, workspace, sourceCandidates);
         sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-literature',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:literatureQueries.length,stopReason,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:sourceCandidates.length?(sourceCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),recordsConsidered:attempts.reduce((sum,a)=>sum+a.recordsConsidered,0),attempts,expectedFamilies:sourceCoverage.expectedFamilies,observedFamilies:sourceCoverage.observedFamilies,missingFamilies:sourceCoverage.missingFamilies,failureReason:sourceCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
       }
-      if (literatureConcurrencySaturated) {
-        // A shared bibliographic-provider saturation is a case-level resource boundary.
-        // Do not immediately hand the same starved case to another literature provider.
-      }
+      if (literatureConcurrencySaturated) break;
       candidates=deduplicateInterventionLeads(rawCandidates);
       coverage=discoveryCoverage(problem,workspace,candidates);
     }
