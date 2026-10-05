@@ -44,21 +44,21 @@ function interventionRecords(problem) {
   }
   return [
     {
-      id: \`${family}-program-a\`,
-      title: \`${problem} prevention program\`,
-      notes: \`Municipal service or intervention addressing ${problem}.\`,
+      id: `${family}-program-a`,
+      title: `${problem} prevention program`,
+      notes: `Municipal service or intervention addressing ${problem}.`,
       tags: [{ name: family }, { name: 'program' }]
     },
     {
-      id: \`${family}-service-b\`,
-      title: \`${problem} support service\`,
-      notes: \`Community implementation option for ${problem}.\`,
+      id: `${family}-service-b`,
+      title: `${problem} support service`,
+      notes: `Community implementation option for ${problem}.`,
       tags: [{ name: family }, { name: 'service' }]
     },
     {
-      id: \`${family}-project-c\`,
-      title: \`${problem} infrastructure project\`,
-      notes: \`Potential municipal project relevant to ${problem}.\`,
+      id: `${family}-project-c`,
+      title: `${problem} infrastructure project`,
+      notes: `Potential municipal project relevant to ${problem}.`,
       tags: [{ name: family }, { name: 'infrastructure' }]
     }
   ];
