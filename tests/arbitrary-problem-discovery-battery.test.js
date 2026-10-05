@@ -35,23 +35,30 @@ function mockResponse(value) {
 
 function interventionRecords(problem) {
   const family = problem.toLowerCase();
+  if (/emergency department pressure/i.test(problem)) {
+    return [
+      { id: 'emergency-department-care-navigation', title: 'Emergency department care navigation program', notes: 'Health access intervention connecting emergency patients to appropriate care pathways and follow-up services.', tags: [{ name: 'emergency department' }, { name: 'care navigation' }] },
+      { id: 'community-paramedicine', title: 'Community paramedicine service', notes: 'Community-based paramedicine intervention that can divert appropriate emergency demand through assessment and care in community settings.', tags: [{ name: 'emergency department' }, { name: 'community paramedicine' }] },
+      { id: 'urgent-care-access', title: 'Urgent care access expansion program', notes: 'Health-service intervention expanding urgent-care access as an alternative pathway for appropriate emergency-department demand.', tags: [{ name: 'emergency department' }, { name: 'urgent care' }] }
+    ];
+  }
   return [
     {
-      id: `${family}-program-a`,
-      title: `${problem} prevention program`,
-      notes: `Municipal service or intervention addressing ${problem}.`,
+      id: \`${family}-program-a\`,
+      title: \`${problem} prevention program\`,
+      notes: \`Municipal service or intervention addressing ${problem}.\`,
       tags: [{ name: family }, { name: 'program' }]
     },
     {
-      id: `${family}-service-b`,
-      title: `${problem} support service`,
-      notes: `Community implementation option for ${problem}.`,
+      id: \`${family}-service-b\`,
+      title: \`${problem} support service\`,
+      notes: \`Community implementation option for ${problem}.\`,
       tags: [{ name: family }, { name: 'service' }]
     },
     {
-      id: `${family}-project-c`,
-      title: `${problem} infrastructure project`,
-      notes: `Potential municipal project relevant to ${problem}.`,
+      id: \`${family}-project-c\`,
+      title: \`${problem} infrastructure project\`,
+      notes: \`Potential municipal project relevant to ${problem}.\`,
       tags: [{ name: family }, { name: 'infrastructure' }]
     }
   ];
