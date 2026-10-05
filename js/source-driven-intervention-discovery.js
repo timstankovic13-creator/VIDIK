@@ -1483,14 +1483,19 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     : { fetchImpl, now };
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
-    // Data.gov is the slowest live discovery surface in the battery. Keep the
-    // global 12-query planner budget intact, but cap this source to the first
-    // 8 queries (original + recall/mechanism lanes) and use a shorter transport
-    // timeout so one slow catalog cannot consume the case-level 90s ceiling.
-    const boundedCatalogQueryCount = source.sourceId === 'us-open-data-program-discovery' ||
-      source.sourceId === 'au-open-data-program-discovery' ||
-      source.sourceId === 'ca-program-discovery' ||
-      source.sourceId === 'ca-ontario-program-discovery'
+    // Live government catalogues are bounded discovery surfaces, not evidence
+    // providers. Keep the global 12-query planner budget intact, but cap the
+    // slowest catalogues to the first 6 queries and use a shorter transport
+    // timeout with no transient retries so one slow jurisdictional catalogue
+    // cannot consume the case-level discovery budget before literature fallback.
+    const boundedCatalogQueryCount = new Set([
+      'us-open-data-program-discovery',
+      'au-open-data-program-discovery',
+      'ca-program-discovery',
+      'ca-ontario-program-discovery',
+      'uk-gov-program-discovery',
+      'uk-open-data-program-discovery'
+    ]).has(source.sourceId)
       ? 6
       : queryPlan.length;
     const sourceQueryPlan = queryPlan.slice(0, Math.min(queryPlan.length, boundedCatalogQueryCount));
@@ -1498,7 +1503,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       'us-open-data-program-discovery',
       'au-open-data-program-discovery',
       'ca-program-discovery',
-      'ca-ontario-program-discovery'
+      'ca-ontario-program-discovery',
+      'uk-gov-program-discovery',
+      'uk-open-data-program-discovery'
     ]).has(source.sourceId);
     const sourceRetrievalOptions = boundedCatalogSource
       ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
