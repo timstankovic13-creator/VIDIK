@@ -1578,7 +1578,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             'us-open-data-program-discovery',
             'au-open-data-program-discovery',
             'ca-program-discovery',
-            'ca-ontario-program-discovery'
+            'ca-ontario-program-discovery',
+            'uk-gov-program-discovery',
+            'uk-open-data-program-discovery'
           ]).has(source.sourceId);
           const expansionRetrievalOptions = boundedCatalogSource
             ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
@@ -1734,7 +1736,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             'us-open-data-program-discovery',
             'au-open-data-program-discovery',
             'ca-program-discovery',
-            'ca-ontario-program-discovery'
+            'ca-ontario-program-discovery',
+            'uk-gov-program-discovery',
+            'uk-open-data-program-discovery'
           ]).has(source.sourceId);
           const expansionRetrievalOptions = boundedCatalogSource
             ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
