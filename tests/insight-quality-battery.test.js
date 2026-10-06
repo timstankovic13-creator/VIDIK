@@ -424,7 +424,12 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
 
     let evidence = null;
     if (candidates[0]) {
-      evidence = await discoverCandidateUniverseEvidence({ problem, candidates, rows: 3, maxCandidates: 2 });
+      evidence = await runWithDiscoveryTimeout(
+        (signal) => discoverCandidateUniverseEvidence({ problem, candidates, rows: 3, maxCandidates: 2, signal }),
+        workspace + ':' + jurisdiction + ':' + problem + ':evidence',
+        90000,
+        batteryController.signal
+      );
       assert.equal(evidence.recommendationEligible, false);
       assert.equal(evidence.effectsImported, false);
       assert.ok(evidence.candidateEvidence.every(result => result.sourceSearches.length >= 2));
