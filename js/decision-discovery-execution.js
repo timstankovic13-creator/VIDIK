@@ -116,28 +116,48 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
   };
   const initial = build({}, {});
   const evidenceIndex = {}, evidenceSearches = [], evidenceDiscovery = [];
-  for (const candidate of initial.candidates) {
-    let searchFn = evidenceSearcher;
-    let discoveryOnly = false;
-    if (typeof searchFn !== 'function' && autoDiscoverEvidence) {
-      searchFn = async ({ problem: requestedProblem, candidate: requestedCandidate }) => EvidenceDriven.discoverCandidateEvidence({ problem: requestedProblem, candidate: requestedCandidate, fetchImpl });
-      discoveryOnly = true;
+  const evidenceResults = new Array(initial.candidates.length);
+  let nextEvidenceIndex = 0;
+  async function runEvidenceWorker() {
+    while (true) {
+      const index = nextEvidenceIndex++;
+      if (index >= initial.candidates.length) return;
+      const candidate = initial.candidates[index];
+      let searchFn = evidenceSearcher;
+      let discoveryOnly = false;
+      if (typeof searchFn !== 'function' && autoDiscoverEvidence) {
+        searchFn = async ({ problem: requestedProblem, candidate: requestedCandidate }) => EvidenceDriven.discoverCandidateEvidence({ problem: requestedProblem, candidate: requestedCandidate, fetchImpl });
+        discoveryOnly = true;
+      }
+      if (typeof searchFn !== 'function') {
+        evidenceResults[index] = { candidate, status: 'not-searched', sourceIds: [], failureReason: null, evidence: {}, discoveryOnly };
+        continue;
+      }
+      try {
+        const result = await searchFn({ problem, problemSignals: initial.problemSignals, candidate });
+        const status = canonicalFailureStatus(result?.status || (result?.evidenceComplete === false ? 'evidence-leads-found' : 'searched'));
+        evidenceResults[index] = { candidate, status, result, discoveryOnly };
+      } catch (error) {
+        evidenceResults[index] = { candidate, status: 'search-failed', result: null, discoveryOnly, error };
+      }
     }
-    if (typeof searchFn !== 'function') {
-      evidenceSearches.push({ candidateId: candidate.id, status: 'not-searched', sourceIds: [], failureReason: null });
+  }
+  await Promise.all(Array.from({ length: Math.min(4, initial.candidates.length) }, () => runEvidenceWorker()));
+  for (const entry of evidenceResults) {
+    const { candidate, status, result, discoveryOnly, error } = entry;
+    if (status === 'not-searched') {
+      evidenceSearches.push({ candidateId: candidate.id, status, sourceIds: [], failureReason: null });
       continue;
     }
-    try {
-      const result = await searchFn({ problem, problemSignals: initial.problemSignals, candidate });
-      const status = canonicalFailureStatus(result?.status || (result?.evidenceComplete === false ? 'evidence-leads-found' : 'searched'));
-      if (FAILED.has(result?.status)) evidenceIndex[candidate.id] = failureEvidence(candidate);
-      else evidenceIndex[candidate.id] = result?.evidence || (discoveryOnly ? {} : result) || {};
-      evidenceSearches.push({ candidateId: candidate.id, status, sourceIds: result?.sourceIds || result?.sourceSearches?.map(item => item.sourceId).filter(Boolean) || [], failureReason: result?.failureReason || (status === 'search-failed' ? 'evidence-search-failed' : null) });
-      if (discoveryOnly) evidenceDiscovery.push({ candidateId: candidate.id, ...result });
-    } catch (error) {
+    if (error) {
       evidenceIndex[candidate.id] = failureEvidence(candidate);
-      evidenceSearches.push({ candidateId: candidate.id, status: 'search-failed', sourceIds: [], failureReason: error?.message || 'evidence-search-failed' });
+      evidenceSearches.push({ candidateId: candidate.id, status, sourceIds: [], failureReason: error?.message || 'evidence-search-failed' });
+      continue;
     }
+    if (FAILED.has(result?.status)) evidenceIndex[candidate.id] = failureEvidence(candidate);
+    else evidenceIndex[candidate.id] = result?.evidence || (discoveryOnly ? {} : result) || {};
+    evidenceSearches.push({ candidateId: candidate.id, status, sourceIds: result?.sourceIds || result?.sourceSearches?.map(item => item.sourceId).filter(Boolean) || [], failureReason: result?.failureReason || (status === 'search-failed' ? 'evidence-search-failed' : null) });
+    if (discoveryOnly) evidenceDiscovery.push({ candidateId: candidate.id, ...result });
   }
   const run = build(evidenceIndex, analysisInputs);
   // Rebuild the returned acquisition ledger from the exact source results that
