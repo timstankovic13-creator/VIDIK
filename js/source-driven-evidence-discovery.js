@@ -9,7 +9,7 @@ const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
   'crossref-works': 'bibliographic-metadata-index'
 });
 const EVIDENCE_CAUSAL_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
-const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
+const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 3;
 
 const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
@@ -185,18 +185,27 @@ function extractEvidenceLeads(payload, source, candidate, problem) {
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
 function deduplicateEvidenceLeads(leads = []) { const seen = new Map(); for (const lead of leads) { const safe = sanitizeEvidenceLead(lead); const key = String(safe.id || '').toLowerCase(); if (!key) continue; const existing = seen.get(key); if (!existing) seen.set(key, { ...safe, sourceIds: [safe.sourceId] }); else existing.sourceIds = [...new Set([...existing.sourceIds, safe.sourceId])]; } return [...seen.values()]; }
 function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], requiredEvidence = ['causal','implementation','cost','equity'] } = {}) {
-  const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
+  const sourceIds = [...new Set(sourceSearches.map(search => search.sourceId))];
+  const usableSourceIds = sourceIds.filter(sourceId => sourceSearches.some(search => search.sourceId === sourceId && search.status !== 'search-failed'));
+  const failedSourceIds = sourceIds.filter(sourceId => !usableSourceIds.includes(sourceId));
+  const usable = usableSourceIds;
+  const failed = failedSourceIds;
+  const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
   const relevantLeads = uniqueLeads.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSourceCount = new Set(relevantLeads.map(lead => lead.sourceId)).size;
   const independentSourceFamilyCount = new Set(relevantLeads.map(lead => lead.sourceFamily || EVIDENCE_SOURCE_FAMILIES[lead.sourceId] || lead.sourceId)).size;
   const causalSourceCount = new Set(relevantLeads.filter(lead => EVIDENCE_CAUSAL_SOURCE_IDS.has(lead.sourceId)).map(lead => lead.sourceId)).size;
+  // A transient failed query is not the same as a failed provider. A source remains
+  // usable when any bounded query succeeded; a provider is failure-closed only when
+  // every query attempted for that provider failed. This preserves source failures
+  // while preventing one flaky request from invalidating otherwise independent evidence.
   // Crossref can improve provider diversity and recall, but it is a bibliographic
   // metadata index, not causal identification. Completion therefore requires at
   // least one causal provider plus two independent provider families.
   const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && independentSourceFamilyCount >= 2 && causalSourceCount >= 1 && relevantLeads.length > 0;
-  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
+  return { sourceCount: sourceIds.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
-async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
+async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10, signal = null } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
   const supplied = Array.isArray(sources) ? sources : null;
   const selected = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
@@ -244,48 +253,65 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     query
   ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE);
   const searches = [], rawLeads = [];
-  for (const source of selected) {
-    for (const searchQuery of diversifiedQueries) {
-      try {
-        const url = buildEvidenceSearchUrl(source, searchQuery);
-        const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
-        const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
-        if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
-        let evidencePayload = payload.value;
-        if (source.sourceId === 'pubmed-eutils') {
-          const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
-          if (ids.length) {
-            const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now });
-            const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
-            if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
-            const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now });
-            const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
-            evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
+  // Evidence providers are independent, but query order within each provider remains
+  // sequential to preserve bounded retrieval and avoid turning rate limits into false
+  // evidence gaps. Run at most two providers concurrently.
+  const sourceResults = new Array(selected.length);
+  let nextSourceIndex = 0;
+  async function runSourceWorker() {
+    while (true) {
+      const sourceIndex = nextSourceIndex++;
+      if (sourceIndex >= selected.length) return;
+      const source = selected[sourceIndex];
+      const sourceSearches = [], sourceLeads = [];
+      for (const searchQuery of diversifiedQueries) {
+        try {
+          const url = buildEvidenceSearchUrl(source, searchQuery);
+          const snapshot = await retrieve({ ...source, url }, { fetchImpl, now, signal });
+          const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
+          if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
+          let evidencePayload = payload.value;
+          if (source.sourceId === 'pubmed-eutils') {
+            const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
+            if (ids.length) {
+              const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now, signal });
+              const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
+              if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
+              const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now, signal });
+              const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
+              evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
+            }
           }
+          const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
+          sourceLeads.push(...found);
+          sourceSearches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
+          const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
+          if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
+        } catch (error) {
+          sourceSearches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
         }
-        const found = extractEvidenceLeads(evidencePayload, source, candidate, problem);
-        rawLeads.push(...found);
-        searches.push({ sourceId: source.sourceId, status: found.length ? 'evidence-leads-found' : 'searched-empty', query: searchQuery, candidatesReturned: found.length, provenance: snapshot.retrieval, failureReason: null });
-        // Stop once this source has produced relevant leads. Independence still requires
-        // a second source; extra queries after success only add external load.
-        const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
-        if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
-      } catch (error) {
-        searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
+      sourceResults[sourceIndex] = { searches: sourceSearches, leads: sourceLeads };
     }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, selected.length) }, () => runSourceWorker()));
+  for (const result of sourceResults) {
+    searches.push(...result.searches);
+    rawLeads.push(...result.leads);
   }
   const evidenceLeads = deduplicateEvidenceLeads(rawLeads);
   const sufficiency = assessEvidenceSufficiency({ sourceSearches: searches, evidenceLeads, requiredEvidence: candidate.requiredEvidence || ['causal','implementation','cost','equity'] });
   const sourceDiagnostics = Object.fromEntries(selected.map(source => [source.sourceId, { sourceFamily:EVIDENCE_SOURCE_FAMILIES[source.sourceId] || source.sourceId, sourceRole:EVIDENCE_CAUSAL_SOURCE_IDS.has(source.sourceId)?'causal-research-index':'supporting-literature-index', attempted: searches.filter(s => s.sourceId === source.sourceId).length, failed: searches.filter(s => s.sourceId === source.sourceId && s.status === 'search-failed').length, leads: evidenceLeads.filter(l => l.sourceId === source.sourceId).length, candidateMatches: evidenceLeads.filter(l => l.sourceId === source.sourceId && ['candidate-match','verified'].includes(l.relevanceStatus)).length }]));
   return { schemaVersion: 'vidik.source-driven-evidence-discovery.v5', problem, candidateId: candidate.id, query, diversifiedQueries, sourceDiagnostics, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
-async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
+async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3, signal = null } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
-  const results = [];
-  for (const candidate of selectedCandidates) {
-    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }));
-  }
+  // Candidate evidence is independent: preserve result ordering while allowing the
+  // bounded candidate set to acquire evidence concurrently. This removes an avoidable
+  // serial network bottleneck without changing candidate limits, providers, or gates.
+  const results = await Promise.all(
+    selectedCandidates.map(candidate => discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows, signal }))
+  );
   const relevantLeads = results.flatMap(result => result.evidenceLeads || []).filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSources = [...new Set(relevantLeads.map(lead => lead.sourceId))];
   return {
