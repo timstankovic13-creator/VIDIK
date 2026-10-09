@@ -91,7 +91,7 @@ test('arbitrary-problem battery discovers source-backed intervention universes w
       fetchImpl: arbitraryProblemFetch
     });
 
-    assert.equal(run.discoveryAudit.discoverySearchComplete, true, `${problem}: intervention source search must complete`);
+    assert.equal(run.discoveryAudit.discoverySearchComplete, true, `${problem}: intervention source search must complete; audit=${JSON.stringify(run.discoveryAudit)}; sourceSearches=${JSON.stringify(run.sourceSearches)}`);
     assert.ok(run.candidates.length >= 2, `${problem}: must discover multiple candidates`);
     assert.ok(run.governance.candidateUniverseIntelligence.candidatesConsidered >= 2, `${problem}: universe intelligence must see discovered candidates`);
     assert.equal(run.governance.recommendationAllowed, false, `${problem}: discovery-only evidence cannot silently recommend`);
