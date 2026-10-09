@@ -1234,7 +1234,11 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     let consecutiveFailures = 0;
     let terminalFailure = false;
     let skippedQueries = 0;
-    for(const plannedQuery of queryPlan){
+    // Reserve three queries per source for the later missing-intervention-class pass.
+    // Without this reserve, the initial 18-query plan can exhaust the budget before
+    // class expansion runs, silently starving missing-option discovery.
+    const initialQueryPlan = queryPlan.slice(0, Math.max(1, DISCOVERY_MAX_QUERIES_PER_SOURCE - 3));
+    for(const plannedQuery of initialQueryPlan){
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
