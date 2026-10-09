@@ -76,6 +76,24 @@ test('source-aware routing skips expansion for a source with sustained non-produ
   assert.equal(calls, 18);
 });
 
+test('relevant leads switch discovery from broad queries to targeted family expansion', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'violence-interruption', title: 'Violence interruption program', notes: 'Municipal program to reduce violent crime.', tags: [{ name: 'program' }] },
+      { id: 'focused-deterrence', title: 'Focused deterrence program', notes: 'Public safety service to reduce violent crime.', tags: [{ name: 'program' }] },
+      { id: 'hospital-violence-intervention', title: 'Hospital-based violence intervention program', notes: 'Service to reduce violent crime.', tags: [{ name: 'program' }] }
+    ] } })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  assert.ok(result.candidates.length > 0, 'the fixture must produce source-backed candidates');
+  assert.equal(search.attempts.filter(attempt => attempt.queryPhase === 'initial-plan').length, 6);
+  assert.ok(search.queriesAttempted <= 18, 'targeted expansion must remain inside the source query budget');
+});
+
 test('repeated retryable source failures are bounded without hiding the failure', async () => {
   const mod = require('../js/source-driven-intervention-discovery');
   let calls = 0;
