@@ -4,6 +4,7 @@ const { SOURCE_REGISTRY } = require('./source-registry');
 const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
 const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
 const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
+const DISCOVERY_INITIAL_QUERY_LIMIT = 6;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
@@ -1522,6 +1523,12 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         consecutiveFailures = 0;
         if (consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
+        // Once a source has yielded at least one relevant lead, stop spending the
+        // initial broad-query lane indefinitely on low family coverage. The
+        // source-backed missing-family and missing-class passes below use the
+        // remaining budget more precisely. Empty searches still receive the full
+        // 18-query budget so recall and outage classification remain intact.
+        if (attempts.length >= DISCOVERY_INITIAL_QUERY_LIMIT && interim.length > 0) break;
       }catch(error){
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
@@ -1850,4 +1857,4 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   }
   return {schemaVersion:'vidik.source-driven-intervention-discovery.v9',problem,workspace,sourcesSelected:selected.map(s=>s.sourceId),discoveryQueries:queries,sourceApplicability:applicability,sourceSearches,rawCandidateCount:rawCandidates.length,candidates,interventionUniverse:universe,discoveryHash:sha256({problem,workspace,sourceApplicability:applicability,discoveryQueries:queries,sourceSearches,candidates:candidates.map(candidate=>({id:candidate.id,name:candidate.name,canonicalName:candidate.canonicalName,interventionFamily:candidate.interventionFamily,discovery:candidate.discovery}))}),recommendationEligible:false};
 }
-module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, DATAGOV_MIN_ROWS, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, selectComparableInterventionSource, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
+module.exports = { classifyDiscoveryFailure, MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES, buildMechanismSearchQueries, buildDiscoveryQueryPlan, LEGACY_INTERVENTION_CLASSES, NON_INTERVENTION_ARTIFACT_PATTERNS, legacyClassTerms, interventionClassCoverage, missingInterventionClassSearchQueries, DISCOVERY_MAX_QUERIES_PER_SOURCE, DISCOVERY_INITIAL_QUERY_LIMIT, DISCOVERY_MIN_UNIQUE_CANDIDATES, DISCOVERY_TARGET_FAMILY_COVERAGE, DATAGOV_MIN_ROWS, CKAN_SOURCE_IDS, DISCOVERY_SYNONYM_GROUPS, DISCOVERY_RECALL_PACKS, discoveryRecallTerms, expandDiscoveryVocabulary, GOVUK_SOURCE_IDS, WORKSPACE_TAXONOMIES, inferWorkspaceDomains, taxonomyTerms, isActionableInterventionTitle, expectedInterventionFamilies, discoveryCoverage, interventionMatchesProblem, INTERVENTION_FAMILIES, buildCkanSearchUrl, buildGovUkSearchUrl, buildDiscoveryQueries, buildLiteratureFallbackQueries, normalizeInterventionName, inferInterventionFamily, classifyCkanRecord, extractCkanInterventionLeads, extractGovUkInterventionLeads, canonicalSource, sourceMatchesJurisdiction, selectInterventionSources, buildApplicabilityAudit, selectComparableInterventionSource, deduplicateInterventionLeads, buildInterventionUniverseAssessment, extractOpenAlexInterventionLeads, extractCrossrefInterventionLeads, discoverSourceDrivenInterventions };
