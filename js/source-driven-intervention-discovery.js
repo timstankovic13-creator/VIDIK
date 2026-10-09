@@ -3,7 +3,7 @@ const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const CKAN_SOURCE_IDS = new Set(['ca-program-discovery','ca-ontario-program-discovery','us-open-data-program-discovery','uk-open-data-program-discovery','au-open-data-program-discovery','nz-open-data-program-discovery','ie-open-data-program-discovery']);
 const GOVUK_SOURCE_IDS = new Set(['uk-gov-program-discovery']);
-const DISCOVERY_MAX_QUERIES_PER_SOURCE = 12;
+const DISCOVERY_MAX_QUERIES_PER_SOURCE = 18;
 const DISCOVERY_MIN_UNIQUE_CANDIDATES = 5;
 const DISCOVERY_TARGET_FAMILY_COVERAGE = 0.75;
 const MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES = 3;
@@ -1488,17 +1488,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
     // slowest catalogues to the first 6 queries and use a shorter transport
     // timeout with no transient retries so one slow jurisdictional catalogue
     // cannot consume the case-level discovery budget before literature fallback.
-    const boundedCatalogQueryCount = new Set([
-      'us-open-data-program-discovery',
-      'au-open-data-program-discovery',
-      'ca-program-discovery',
-      'ca-ontario-program-discovery',
-      'uk-gov-program-discovery',
-      'uk-open-data-program-discovery'
-    ]).has(source.sourceId)
-      ? 6
-      : queryPlan.length;
-    const sourceQueryPlan = queryPlan.slice(0, Math.min(queryPlan.length, boundedCatalogQueryCount));
+    // Keep the full, globally bounded query plan. A six-query per-catalogue cap
+    // suppressed source-backed recall before the 18-query regression budget was used.
+    const sourceQueryPlan = queryPlan;
     const boundedCatalogSource = new Set([
       'us-open-data-program-discovery',
       'au-open-data-program-discovery',
@@ -1524,11 +1516,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionRows = source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results : []) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results : []); const extractionDiagnostics=extractionRows ? extractionRows.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
         attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results.length : 0) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0),extractedCandidates:extractedLeads.length,relevanceRejectedCount,extractionDiagnostics,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
-        // Empty successful retrievals are still non-productive for discovery. Count them toward
-        // the source circuit breaker so a source returning repeated empty pages cannot consume
-        // the entire expansion budget merely by alternating transient failures with empty success.
-        if (leads.length === 0) consecutiveFailures += 1;
-        else consecutiveFailures = 0;
+        // Successful retrievals, including valid empty results, reset the consecutive
+        // transport-failure streak. Repeated failures are still bounded by the failure-ratio
+        // routing gate below, without treating a successful response as an outage.
+        consecutiveFailures = 0;
         if (consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
       }catch(error){
