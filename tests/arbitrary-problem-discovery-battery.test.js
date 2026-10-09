@@ -59,9 +59,13 @@ function interventionRecords(problem) {
 
 async function arbitraryProblemFetch(url) {
   const parsed = new URL(url);
-  if (parsed.hostname.includes('open.canada.ca') || parsed.hostname.includes('data.ontario.ca')) {
-    const problem = parsed.searchParams.get('q') || 'unknown municipal problem';
-    return mockResponse({ result: { results: interventionRecords(problem) } });
+  if (['open.canada.ca', 'data.ontario.ca', 'catalog.data.gov', 'data.gov.au', 'ckan.publishing.service.gov.uk', 'catalogue.data.govt.nz', 'data.gov.ie', 'www.gov.uk'].includes(parsed.hostname)) {
+    const query = parsed.searchParams.get('q') || 'unknown municipal problem';
+    const records = interventionRecords(query);
+    // Comparable-jurisdiction fallback is a real discovery lane. Give each
+    // registered catalogue a valid response shape so this fixture tests
+    // discovery completeness rather than failing on an unmocked host.
+    return mockResponse({ result: { results: records }, results: records });
   }
   if (parsed.hostname === 'api.crossref.org') {
     const query = parsed.searchParams.get('query.bibliographic') || 'municipal intervention';
@@ -91,7 +95,7 @@ test('arbitrary-problem battery discovers source-backed intervention universes w
       fetchImpl: arbitraryProblemFetch
     });
 
-    assert.equal(run.discoveryAudit.discoverySearchComplete, true, `${problem}: intervention source search must complete`);
+    assert.equal(run.discoveryAudit.discoverySearchComplete, true, `${problem}: intervention source search must complete; audit=${JSON.stringify(run.discoveryAudit)}; sourceSearches=${JSON.stringify(run.sourceSearches)}`);
     assert.ok(run.candidates.length >= 2, `${problem}: must discover multiple candidates`);
     assert.ok(run.governance.candidateUniverseIntelligence.candidatesConsidered >= 2, `${problem}: universe intelligence must see discovered candidates`);
     assert.equal(run.governance.recommendationAllowed, false, `${problem}: discovery-only evidence cannot silently recommend`);
