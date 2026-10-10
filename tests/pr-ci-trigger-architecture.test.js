@@ -37,3 +37,24 @@ test('Insight Quality gates run before expensive downstream certification', () =
   assert.ok(fast >= 0 && universe >= 0 && relevance >= 0 && battery >= 0 && evidence >= 0);
   assert.ok(fast < universe && universe < relevance && relevance < battery && battery < evidence);
 });
+
+
+test('pull requests use a fast targeted gate; full certification is reserved for non-PR runs', () => {
+  const workflow = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
+  const fastGate = workflow.indexOf('      - name: Data acquisition timeout regression');
+  const expensiveGate = workflow.indexOf('      - name: Intervention universe hardening');
+  const fullBattery = workflow.indexOf('      - name: Insight Quality Battery (60 real-world decision problems)');
+  assert.ok(fastGate >= 0 && fastGate < expensiveGate);
+  for (const name of [
+    'Intervention universe hardening',
+    'Insight Quality Battery (60 real-world decision problems)',
+    'Product usage gamut',
+    'Nonmunicipal workspace integration',
+    'Final integrated 60-problem discovery baseline'
+  ]) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = workflow.match(new RegExp('      - name: ' + escaped + '\\n        if: github\\.event_name != \'pull_request\''));
+    assert.ok(match, name + ' must not run as part of the pull-request feedback gate');
+  }
+  assert.ok(fullBattery > expensiveGate);
+});
