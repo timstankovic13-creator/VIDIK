@@ -119,11 +119,14 @@ const server = http.createServer(async (req, res) => {
         if (typeof input.problem !== 'string' || !input.problem.trim()) throw new Error('decision-problem-required');
         const audience = input.audience || 'business';
         const workspace = buildWorkspaceContext(audience, input.workspace || {});
+        const testNetworkDisabled = process.env.VIDIK_TEST_NO_NETWORK === '1';
+        const testFetchImpl = async () => ({ ok: false, status: 404, headers: { get: () => 'application/json' }, text: async () => '{"error":"network-disabled-in-test"}' });
         const result = await executeFullCapacityDecision({
           problem: input.problem.trim(),
           discoveryJurisdiction: input.jurisdiction || 'international',
           statusQuo: { explicit: true, id: 'status-quo', description: input.statusQuo || 'Continue current practice' },
-          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace }
+          decisionContext: { jurisdiction: input.jurisdiction || 'international', audience, workspace },
+          ...(testNetworkDisabled ? { fetchImpl: testFetchImpl } : {})
         });
         res.writeHead(200, {'content-type':'application/json'});
         return res.end(JSON.stringify({

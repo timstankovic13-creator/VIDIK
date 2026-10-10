@@ -1,0 +1,22 @@
+name: VIDIK Fast Feedback
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+concurrency:
+  group: vidik-fast-feedback-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  targeted-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: CI architecture guard
+        run: timeout --foreground --kill-after=5s 20s node --test tests/pr-ci-trigger-architecture.test.js
+      - name: Acquisition timeout regression
+        run: timeout --foreground --kill-after=5s 60s node --test tests/data-acquisition.test.js
+      - name: Nonmunicipal workspace endpoint contract
+        run: timeout --foreground --kill-after=5s 90s node --test tests/nonmunicipal-workspace-contract.test.js

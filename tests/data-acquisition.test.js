@@ -44,5 +44,23 @@ const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => k
   assert.strictEqual(result.coverage.complete, false);
   assert.ok(result.coverage.missingDomains.includes('cost-resource'));
   assert.ok(result.acquisitionHash);
+
+  await assert.rejects(
+    Acquisition.retrieve(source, { fetchImpl: () => new Promise(() => {}), requestTimeoutMs: 10 }),
+    /upstream-request-timeout/
+  );
+
+  const stalledBodyFetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: key => key === 'content-type' ? 'application/json' : null },
+    arrayBuffer: () => new Promise(() => {}),
+    body: { cancel: async () => {} }
+  });
+  await assert.rejects(
+    Acquisition.retrieve(source, { fetchImpl: stalledBodyFetch, requestTimeoutMs: 10 }),
+    /upstream-response-body-timeout/
+  );
+
   console.log('data acquisition tests passed');
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
