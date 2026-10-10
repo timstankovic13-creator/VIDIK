@@ -41,9 +41,10 @@ test('Insight Quality gates run before expensive downstream certification', () =
 
 test('pull requests use a fast targeted gate; full certification is reserved for non-PR runs', () => {
   const workflow = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
-  const fastGate = workflow.indexOf('      - name: Data acquisition timeout regression');
-  const expensiveGate = workflow.indexOf('      - name: Intervention universe hardening');
-  const fullBattery = workflow.indexOf('      - name: Insight Quality Battery (60 real-world decision problems)');
+  const lines = workflow.split('\\n');
+  const fastGate = lines.indexOf('      - name: Data acquisition timeout regression');
+  const expensiveGate = lines.indexOf('      - name: Intervention universe hardening');
+  const fullBattery = lines.indexOf('      - name: Insight Quality Battery (60 real-world decision problems)');
   assert.ok(fastGate >= 0 && fastGate < expensiveGate);
   for (const name of [
     'Intervention universe hardening',
@@ -52,9 +53,9 @@ test('pull requests use a fast targeted gate; full certification is reserved for
     'Nonmunicipal workspace integration',
     'Final integrated 60-problem discovery baseline'
   ]) {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = workflow.match(new RegExp('      - name: ' + escaped + '\\n        if: github\\.event_name != \'pull_request\''));
-    assert.ok(match, name + ' must not run as part of the pull-request feedback gate');
+    const index = lines.indexOf('      - name: ' + name);
+    assert.ok(index >= 0, name + ' step must exist');
+    assert.equal(lines[index + 1], "        if: github.event_name != 'pull_request'", name + ' must not run as part of the pull-request feedback gate');
   }
   assert.ok(fullBattery > expensiveGate);
 });
