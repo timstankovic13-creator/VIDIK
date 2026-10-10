@@ -41,7 +41,7 @@ test('Insight Quality gates run before expensive downstream certification', () =
 
 test('pull requests use a fast targeted gate; full certification is reserved for non-PR runs', () => {
   const workflow = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
-  const lines = workflow.split('\\n');
+  const lines = workflow.split('\n');
   const fastGate = lines.indexOf('      - name: Data acquisition timeout regression');
   const expensiveGate = lines.indexOf('      - name: Intervention universe hardening');
   const fullBattery = lines.indexOf('      - name: Insight Quality Battery (60 real-world decision problems)');
