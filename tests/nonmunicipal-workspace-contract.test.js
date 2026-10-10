@@ -22,7 +22,7 @@ async function waitForReady(url) {
 test.before(async () => {
   const port = 18765;
   base = `http://127.0.0.1:${port}`;
-  child = spawn(process.execPath, ['staging/server.js'], { env: { ...process.env, PORT: String(port), VIDIK_DATABASE_URL: '' }, stdio: 'pipe' });
+  child = spawn(process.execPath, ['staging/server.js'], { env: { ...process.env, PORT: String(port), VIDIK_DATABASE_URL: '', VIDIK_TEST_NO_NETWORK: '1' }, stdio: 'pipe' });
   child.stdout?.on('data', chunk => { startupOutput += chunk.toString(); });
   child.stderr?.on('data', chunk => { startupOutput += chunk.toString(); });
   await waitForReady(`${base}/health`);
@@ -30,7 +30,7 @@ test.before(async () => {
 
 test.after(() => child?.kill('SIGTERM'));
 
-test('business workspace can actually submit a decision to the production discovery endpoint', async () => {
+test('business workspace submits through the real endpoint and fails closed when external discovery is disabled', async () => {
   const response = await fetch(`${base}/api/decision/discover`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
