@@ -20,63 +20,94 @@ jobs:
         run: node --test tests/pr-ci-trigger-architecture.test.js
       - name: Insight Quality fast preflight
         run: node --test tests/insight-quality-fast-gate.test.js
+      - name: Data acquisition timeout regression
+        run: npm run test:data-acquisition
       - name: Intervention universe hardening
+        if: github.event_name != 'pull_request'
         run: node --test tests/intelligence-completion-intervention-universe.test.js tests/intelligence-completion-arbitrary-problem.integration.test.js tests/intelligence-generalization-blind-tournament.test.js tests/outsider-adversarial-hardening-v2.test.js tests/source-driven-intervention-discovery.test.js
       - name: Intervention relevance scenario battery
+        if: github.event_name != 'pull_request'
         run: node --test tests/intervention-relevance-scenarios.test.js
       - name: External open-world benchmark
+        if: github.event_name != 'pull_request'
         run: node --test tests/external-open-world-benchmark.test.js
       - name: Insight Quality Battery (60 real-world decision problems)
+        if: github.event_name != 'pull_request'
         run: npm run test:insight-quality-battery
       - name: Evidence sufficiency hardening
+        if: github.event_name != 'pull_request'
         run: node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/source-driven-evidence-discovery.test.js tests/evidence-promotion-gate.test.js tests/evidence-acquisition-orchestrator.test.js
       - name: Quantitative evidence-to-decision bridge
+        if: github.event_name != 'pull_request'
         run: node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js
       - name: Production intelligence 1-7 certification
+        if: github.event_name != 'pull_request'
         run: node --test tests/production-intelligence-certification.test.js
       - name: Canonical production integration
+        if: github.event_name != 'pull_request'
         run: node --test tests/canonical-production-intelligence-integration.test.js
       - name: Open-world production closed loop
+        if: github.event_name != 'pull_request'
         run: node tests/open-world-production-closed-loop.test.js
       - name: Blind open-world tournament
+        if: github.event_name != 'pull_request'
         run: node tests/blind-open-world-tournament.test.js
       - name: Production boundary hardening
+        if: github.event_name != 'pull_request'
         run: node tests/production-boundary-hardening.test.js
       - name: Core discovery regression
+        if: github.event_name != 'pull_request'
         run: node tests/decision-discovery-execution.test.js && node tests/decision-discovery-orchestrator.test.js
       - name: Broad arbitrary-problem battery
+        if: github.event_name != 'pull_request'
         run: node --test tests/open-world-problem-battery.test.js tests/arbitrary-problem-discovery-battery.test.js tests/unseen-problem-discovery-certification.test.js
       - name: Flagship open-world decision validation
+        if: github.event_name != 'pull_request'
         run: node --test tests/flagship-open-world-decision.test.js
       - name: Full scope regression
+        if: github.event_name != 'pull_request'
         run: node --test tests/vidik-full-scope-functional.test.js
       - name: Live arbitrary-problem finish-line validation
+        if: github.event_name != 'pull_request'
         run: npm run test:production-finish-line
       - name: Decision artifact integrity and persistence
+        if: github.event_name != 'pull_request'
         run: npm run test:decision-artifact-store
       - name: Outcome learning and drift persistence
+        if: github.event_name != 'pull_request'
         run: npm run test:outcome-learning
       - name: Decision-to-outcome lifecycle closure
+        if: github.event_name != 'pull_request'
         run: npm run test:decision-lifecycle-closure
       - name: Operational review and governance lifecycle
+        if: github.event_name != 'pull_request'
         run: npm run test:operational-governance
       - name: Operational learning loop certification
+        if: github.event_name != 'pull_request'
         run: node --test tests/operational-learning-loop.test.js
       - name: Audit replay and export integrity
+        if: github.event_name != 'pull_request'
         run: node --test tests/audit-replay-export.test.js
       - name: Production readiness certification
+        if: github.event_name != 'pull_request'
         run: node --test tests/production-readiness.test.js
       - name: Production deployment evidence contract
+        if: github.event_name != 'pull_request'
         run: node --test tests/production-deployment-evidence.test.js
       - name: Managed persistence and tenant authorization
+        if: github.event_name != 'pull_request'
         run: npm run test:managed-persistence
       - name: Production deployment verifier
+        if: github.event_name != 'pull_request'
         run: node --test tests/production-deployment-verifier.test.js
       - name: Product usage gamut
+        if: github.event_name != 'pull_request'
         run: npm run test:product-usage-gamut
       - name: Nonmunicipal workspace integration
+        if: github.event_name != 'pull_request'
         run: npm run test:nonmunicipal-workspace
       - name: Final integrated 60-problem discovery baseline
+        if: github.event_name != 'pull_request'
         run: node --test tests/discovery-quality-60-baseline.test.js
 
   production-postgres-acceptance:
