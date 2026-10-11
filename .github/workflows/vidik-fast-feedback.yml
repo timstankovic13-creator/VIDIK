@@ -2,6 +2,8 @@ name: VIDIK Fast Feedback
 on:
   push:
     branches: ["**"]
+  pull_request:
+    branches: ["**"]
   workflow_dispatch:
 concurrency:
   group: vidik-fast-feedback-${{ github.ref }}
