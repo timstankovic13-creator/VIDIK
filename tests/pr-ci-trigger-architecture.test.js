@@ -63,7 +63,7 @@ test('pull requests use a fast targeted gate; full certification is reserved for
 test('full certification is not a pull-request trigger; fast feedback is', () => {
   const full = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
   const fast = fs.readFileSync(path.join(workflowDir, 'vidik-fast-feedback.yml'), 'utf8');
-  assert.doesNotMatch(full, /(^|\\n)\\s*pull_request\\s*:/m);
-  assert.match(fast, /(^|\\n)\\s*pull_request\\s*:/m);
+  assert.doesNotMatch(full, /(^|\n)\s*pull_request\s*:/m);
+  assert.match(fast, /(^|\n)\s*pull_request\s*:/m);
 });
 
