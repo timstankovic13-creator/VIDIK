@@ -5,8 +5,8 @@ const assert = require('node:assert/strict');
 
 const workflowDir = path.join(process.cwd(), '.github', 'workflows');
 const canonicalPrWorkflows = new Set([
-  'intelligence-completion-v1.yml',
-  'pr-ci-orchestrator.yml'
+  'pr-ci-orchestrator.yml',
+  'vidik-fast-feedback.yml'
 ]);
 
 test('PR CI trigger architecture has one canonical test gate plus orchestrator', () => {
@@ -59,3 +59,11 @@ test('pull requests use a fast targeted gate; full certification is reserved for
   }
   assert.ok(fullBattery > expensiveGate);
 });
+
+test('full certification is not a pull-request trigger; fast feedback is', () => {
+  const full = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
+  const fast = fs.readFileSync(path.join(workflowDir, 'vidik-fast-feedback.yml'), 'utf8');
+  assert.doesNotMatch(full, /(^|\\n)\\s*pull_request\\s*:/m);
+  assert.match(fast, /(^|\\n)\\s*pull_request\\s*:/m);
+});
+
