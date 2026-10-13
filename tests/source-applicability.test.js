@@ -5,7 +5,7 @@ const test = require('node:test');
 const { assessInterventionSourceApplicability } = require('../js/intervention-source-applicability');
 
 test('arbitrary unseen problem never becomes an unsearched source universe', () => {
-  const result = assessInterventionSourceApplicability({ problem: 'reduce violent crime' });
+  const result = assessInterventionSourceApplicability({ problem: 'reduce quasar instability' });
   assert.equal(result.noApplicableSource, false);
   assert.equal(result.fallbackApplied, true);
   assert.ok(result.sourcesSelected.length > 0);
@@ -15,7 +15,8 @@ test('arbitrary unseen problem never becomes an unsearched source universe', () 
 
 test('jurisdiction filtering remains explicit and auditable', () => {
   const result = assessInterventionSourceApplicability({ problem: 'unexpected emerging municipal problem', jurisdiction: 'Canada' });
-  assert.equal(result.fallbackApplied, true);
+  assert.equal(result.fallbackApplied, false);
+  assert.ok(result.sourcesSelected.includes('ca-program-discovery'));
   assert.ok(result.decisions.some(item => item.reason === 'jurisdiction-mismatch'));
   assert.ok(result.sourcesSelected.every(id => result.decisions.find(item => item.sourceId === id)?.selected));
 });
