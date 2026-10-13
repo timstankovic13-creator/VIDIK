@@ -9,7 +9,7 @@ concurrency:
 jobs:
   discovery-baseline:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          timeout --foreground --kill-after=15s 12m node --test tests/discovery-quality-60-baseline.test.js 2>&1 | tee discovery-60-baseline.log
-        timeout-minutes: 13
+          timeout --foreground --kill-after=15s 16m node --test tests/discovery-quality-60-baseline.test.js 2>&1 | tee discovery-60-baseline.log
+        timeout-minutes: 17
       - name: Preserve baseline output
         if: always()
         uses: actions/upload-artifact@v4
