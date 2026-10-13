@@ -85,15 +85,17 @@ async function mapWithConcurrency(items, limit, worker) {
       const label = Array.isArray(item) ? item.join(' | ') : String(index);
       const startedAt = Date.now();
       let timeoutHandle;
+      const controller = new AbortController();
       console.log(JSON.stringify({ event: 'baseline-case-start', case: index + 1, total: items.length, label }));
       try {
         results[index] = await Promise.race([
-          worker(item, index),
+          worker(item, index, controller.signal),
           new Promise((_, reject) => {
-            timeoutHandle = setTimeout(
-              () => reject(new Error('baseline-case-timeout-after-120s: ' + label)),
-              120000
-            );
+            timeoutHandle = setTimeout(() => {
+              const error = new Error('baseline-case-timeout-after-120s: ' + label);
+              controller.abort(error);
+              reject(error);
+            }, 120000);
           })
         ]);
         console.log(JSON.stringify({
@@ -102,6 +104,24 @@ async function mapWithConcurrency(items, limit, worker) {
           total: items.length,
           label,
           durationMs: Date.now() - startedAt
+        }));
+      } catch (error) {
+        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-120s:')) throw error;
+        const [workspace, jurisdiction, ...problemParts] = item;
+        results[index] = {
+          workspace, jurisdiction, problem: problemParts.join(' | '),
+          candidateCount: null, actionableCount: null, relevantCount: null, relevanceRatio: null,
+          expectedClassHits: null, expectedFamilyHits: null, expectedFamilyCoverage: null,
+          interventionFamilies: [], evidenceLeads: null, independentEvidenceSources: null,
+          evidenceComplete: null, productionRelevanceRatio: null, candidateQualityDefects: null,
+          topCandidates: [], grade: 'BLOCKED', measurementStatus: 'timed-out',
+          baselineError: error.message, sourceFailureCount: null, sourceEmptyCount: null,
+          sourceSearchCount: null, queryLayers: [], attemptedQueries: null,
+          missingFamilies: [], missingClasses: []
+        };
+        console.log(JSON.stringify({
+          event: 'baseline-case-timeout', case: index + 1, total: items.length,
+          label, durationMs: Date.now() - startedAt, error: error.message
         }));
       } finally {
         if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -113,8 +133,8 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 8, async ([workspace, jurisdiction, problem]) => {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
+  const results = await mapWithConcurrency(BASELINE_60, 8, async ([workspace, jurisdiction, problem], index, signal) => {
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, signal });
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
@@ -140,7 +160,8 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
         problem,
         candidates,
         rows: 3,
-        maxCandidates: 2
+        maxCandidates: 2,
+        signal
       });
       assert.equal(evidence.recommendationEligible, false);
       assert.equal(evidence.effectsImported, false);
@@ -181,6 +202,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       workspace,
       jurisdiction,
       problem,
+      measurementStatus: 'completed',
       candidateCount: candidates.length,
       actionableCount: actionable.length,
       relevantCount: relevant.length,
@@ -221,7 +243,8 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       results.filter(result => result.grade === grade).length
     ])
   );
-  const totalCandidates = results.reduce((sum, result) => sum + result.candidateCount, 0);
+  const measuredResults = results.filter(result => result.measurementStatus === 'completed');
+  const totalCandidates = measuredResults.reduce((sum, result) => sum + result.candidateCount, 0);
   const evidenceBackedCases = results.filter(
     result => result.independentEvidenceSources >= 2 && result.evidenceLeads > 0
   ).length;
@@ -232,36 +255,39 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
     cases: results.length,
     gradeCounts,
-    averageCandidatesPerProblem: Number((totalCandidates / results.length).toFixed(2)),
+    completedDiscoveryCases: measuredResults.length,
+    timedOutCases: results.filter(result => result.measurementStatus === 'timed-out').map(result => ({ workspace: result.workspace, jurisdiction: result.jurisdiction, problem: result.problem, error: result.baselineError })),
+    averageCandidatesPerProblem: measuredResults.length ? Number((totalCandidates / measuredResults.length).toFixed(2)) : null,
     averageActionableRatio: Number((
       results.reduce(
         (sum, result) => sum + (result.candidateCount ? result.actionableCount / result.candidateCount : 0),
         0
-      ) / results.length
+      ) / (measuredResults.length || 1)
     ).toFixed(2)),
-    casesWithExpectedInterventionClassHit: results.filter(result => result.expectedClassHits > 0).length,
-    casesWithExpectedFamilyCoverage: results.filter(result => result.expectedFamilyHits > 0).length,
+    casesWithExpectedInterventionClassHit: measuredResults.filter(result => result.expectedClassHits > 0).length,
+    casesWithExpectedFamilyCoverage: measuredResults.filter(result => result.expectedFamilyHits > 0).length,
     averageExpectedFamilyCoverage: Number((
-      results.reduce((sum, result) => sum + result.expectedFamilyCoverage, 0) / results.length
+      measuredResults.reduce((sum, result) => sum + result.expectedFamilyCoverage, 0) / (measuredResults.length || 1)
     ).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
-    casesWithNoCandidates: gradeCounts.BLOCKED,
-    casesWithPerfectProductionRelevance: results.filter(
+    casesWithNoCandidates: measuredResults.filter(result => result.candidateCount === 0).length,
+    casesWithPerfectProductionRelevance: measuredResults.filter(
       result => result.candidateCount > 0 && result.productionRelevanceRatio === 1
     ).length,
-    casesWithProductionRelevanceGaps: results.filter(
+    casesWithProductionRelevanceGaps: measuredResults.filter(
       result => result.productionRelevanceRatio < 1
     ).length,
     totalCandidateQualityDefects: results.reduce(
       (sum, result) => sum + result.candidateQualityDefects, 0
     ),
     diagnostic: {
-      casesWithSourceFailures: results.filter(result => result.sourceFailureCount > 0).length,
-      totalSourceFailures: results.reduce((sum, result) => sum + result.sourceFailureCount, 0),
-      casesWithSourceEmpties: results.filter(result => result.sourceEmptyCount > 0).length,
-      totalSourceEmpties: results.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
-      averageQueriesAttemptedPerCase: Number((results.reduce((sum, result) => sum + result.attemptedQueries, 0) / results.length).toFixed(2)),
-      queryLayerUsage: Object.fromEntries([...new Set(results.flatMap(result => result.queryLayers))].map(layer => [layer, results.filter(result => result.queryLayers.includes(layer)).length])),
+      sourceDiagnosticsCases: measuredResults.length,
+      casesWithSourceFailures: measuredResults.filter(result => result.sourceFailureCount > 0).length,
+      totalSourceFailures: measuredResults.reduce((sum, result) => sum + result.sourceFailureCount, 0),
+      casesWithSourceEmpties: measuredResults.filter(result => result.sourceEmptyCount > 0).length,
+      totalSourceEmpties: measuredResults.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
+      averageQueriesAttemptedPerCase: measuredResults.length ? Number((measuredResults.reduce((sum, result) => sum + result.attemptedQueries, 0) / measuredResults.length).toFixed(2)) : null,
+      queryLayerUsage: Object.fromEntries([...new Set(measuredResults.flatMap(result => result.queryLayers))].map(layer => [layer, measuredResults.filter(result => result.queryLayers.includes(layer)).length])),
       noCandidateCasesWithSourceFailure: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount > 0).map(result => result.problem),
       noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem)
     },
