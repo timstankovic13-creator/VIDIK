@@ -22,11 +22,21 @@ test('jurisdiction filtering remains explicit and auditable', () => {
 });
 
 test('country names and country codes select the matching national catalogue', () => {
-  for (const jurisdiction of ['Canada', 'canada', 'CA']) {
-    const result = assessInterventionSourceApplicability({ problem: 'reduce invoice processing time', jurisdiction });
-    assert.ok(result.sourcesSelected.includes('ca-program-discovery'), jurisdiction + ': Canada catalogue missing');
-    assert.ok(result.sourcesSelected.includes('ca-ontario-program-discovery'), jurisdiction + ': Ontario catalogue missing');
-    assert.ok(!result.sourcesSelected.includes('uk-gov-program-discovery'), jurisdiction + ': unrelated national catalogue selected');
+  const cases = [
+    { aliases: ['Canada', 'canada', 'CA'], expected: 'ca-program-discovery', excluded: 'uk-gov-program-discovery' },
+    { aliases: ['United States', 'United States of America', 'USA', 'US'], expected: 'us-open-data-program-discovery', excluded: 'uk-gov-program-discovery' },
+    { aliases: ['United Kingdom', 'Great Britain', 'Britain', 'UK'], expected: 'uk-open-data-program-discovery', excluded: 'ca-program-discovery' },
+    { aliases: ['Australia', 'AU'], expected: 'au-open-data-program-discovery', excluded: 'uk-gov-program-discovery' },
+    { aliases: ['New Zealand', 'NZ'], expected: 'nz-open-data-program-discovery', excluded: 'uk-gov-program-discovery' },
+    { aliases: ['Ireland', 'IE'], expected: 'ie-open-data-program-discovery', excluded: 'uk-gov-program-discovery' }
+  ];
+
+  for (const { aliases, expected, excluded } of cases) {
+    for (const jurisdiction of aliases) {
+      const result = assessInterventionSourceApplicability({ problem: 'reduce invoice processing time', jurisdiction });
+      assert.ok(result.sourcesSelected.includes(expected), jurisdiction + ': expected national catalogue missing');
+      assert.ok(!result.sourcesSelected.includes(excluded), jurisdiction + ': unrelated national catalogue selected');
+    }
   }
 });
 
