@@ -29,6 +29,24 @@ assert.ok(plan.schemaVersion.endsWith('.v1'));
 const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => new TextEncoder().encode('{"value":12}').buffer });
 (async () => {
   const source = { url: 'https://city.example/data.json', provider: 'city', jurisdiction: 'CA-ON', domain: 'local-baseline', tier: 'official_machine_readable', datasetId: 'x' };
+  assert.throws(() => Acquisition.validateRedirect(source, 'http://city.example/data'), /redirect-must-use-https/);
+  assert.throws(() => Acquisition.validateRedirect(source, 'https://attacker.example/data'), /cross-host-redirect-forbidden/);
+  assert.throws(() => Acquisition.validateRedirect(source, 'https://127.0.0.1/data'), /private-network/);
+  assert.equal(Acquisition.validateRedirect(source, 'https://cdn.city.example/data', { allowCrossHostRedirect: true }), 'https://cdn.city.example/data');
+
+  let oversizedBodyRead = false;
+  const oversizedResponseFetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: key => key === 'content-length' ? '100' : key === 'content-type' ? 'application/json' : null },
+    arrayBuffer: async () => { oversizedBodyRead = true; return new ArrayBuffer(100); }
+  });
+  await assert.rejects(
+    Acquisition.retrieve(source, { fetchImpl: oversizedResponseFetch, maxBytes: 10 }),
+    /upstream-content-too-large/
+  );
+  assert.equal(oversizedBodyRead, false, 'declared oversized payload must be rejected before body allocation');
+
   const { retrieval, bytes } = await Acquisition.retrieve(source, { fetchImpl: fakeFetch, now: new Date('2026-09-12T00:00:00Z') });
   assert.strictEqual(bytes.length, 12);
   assert.strictEqual(retrieval.schemaVersion, 'vidik.source-retrieval.v2');
@@ -61,6 +79,25 @@ const fakeFetch = async () => ({ ok: true, status: 200, headers: { get: key => k
     Acquisition.retrieve(source, { fetchImpl: stalledBodyFetch, requestTimeoutMs: 10 }),
     /upstream-response-body-timeout/
   );
+
+  const callerAbort = new AbortController();
+  let responseBodyCancelled = false;
+  const abortableBodyFetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: key => key === 'content-type' ? 'application/json' : null },
+    arrayBuffer: () => new Promise(() => {}),
+    body: { cancel: async () => { responseBodyCancelled = true; } }
+  });
+  const pendingBodyRead = Acquisition.retrieve(source, {
+    fetchImpl: abortableBodyFetch,
+    requestTimeoutMs: 1000,
+    signal: callerAbort.signal
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  callerAbort.abort(new Error('caller-cancelled-discovery'));
+  await assert.rejects(pendingBodyRead, /caller-cancelled-discovery/);
+  assert.equal(responseBodyCancelled, true, 'caller cancellation must cancel the stalled response body');
 
   console.log('data acquisition tests passed');
 })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
