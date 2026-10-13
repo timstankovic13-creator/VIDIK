@@ -23,3 +23,23 @@ test('arbitrary unmatched problems use broad intervention catalogue fallback and
   assert.ok(audit.consideredCount > 0);
   assert.ok(SourceDriven.selectInterventionSources({ problem: 'reduce asteroid impact risk', jurisdiction: 'CA' }).length > 0);
 });
+
+test('evidence discovery propagates caller abort instead of continuing source queries', async () => {
+  const candidate = { id: 'candidate:abort', name: 'community violence interruption', discoveryText: 'violence prevention' };
+  const controller = new AbortController();
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const pending = EvidenceDriven.discoverCandidateEvidence({
+    problem: 'reduce violent crime',
+    candidate,
+    signal: controller.signal,
+    fetchImpl: (_url, options) => new Promise((resolve, reject) => {
+      markStarted();
+      options.signal.addEventListener('abort', () => reject(options.signal.reason || new Error('aborted')), { once: true });
+    })
+  });
+  await started;
+  const reason = new Error('baseline-test-cancelled');
+  controller.abort(reason);
+  await assert.rejects(pending, error => error === reason || error.message === reason.message);
+});
