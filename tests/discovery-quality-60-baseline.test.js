@@ -81,7 +81,31 @@ async function mapWithConcurrency(items, limit, worker) {
     while (true) {
       const index = next++;
       if (index >= items.length) return;
-      results[index] = await worker(items[index], index);
+      const item = items[index];
+      const label = Array.isArray(item) ? item.join(' | ') : String(index);
+      const startedAt = Date.now();
+      let timeoutHandle;
+      console.log(JSON.stringify({ event: 'baseline-case-start', case: index + 1, total: items.length, label }));
+      try {
+        results[index] = await Promise.race([
+          worker(item, index),
+          new Promise((_, reject) => {
+            timeoutHandle = setTimeout(
+              () => reject(new Error('baseline-case-timeout-after-120s: ' + label)),
+              120000
+            );
+          })
+        ]);
+        console.log(JSON.stringify({
+          event: 'baseline-case-complete',
+          case: index + 1,
+          total: items.length,
+          label,
+          durationMs: Date.now() - startedAt
+        }));
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
