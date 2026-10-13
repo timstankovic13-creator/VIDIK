@@ -11,6 +11,7 @@ concurrency:
 jobs:
   targeted-regression:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -38,7 +39,14 @@ jobs:
         run: timeout --foreground --kill-after=5s 90s node --test tests/intelligence-generalization-blind-tournament.test.js
       - name: Adversarial non-intervention rejection
         run: timeout --foreground --kill-after=5s 90s node --test tests/outsider-adversarial-hardening-v2.test.js
+      - name: Evidence sufficiency and promotion gates
+        run: timeout --foreground --kill-after=5s 60s node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/evidence-promotion-gate.test.js
+      - name: Evidence acquisition orchestration
+        run: timeout --foreground --kill-after=5s 120s node tests/evidence-acquisition-orchestrator.test.js
+      - name: Quantification, resource optimization, and parameter verification
+        run: timeout --foreground --kill-after=5s 90s bash -euc 'node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js'
       - name: Nonmunicipal workspace endpoint contract
         run: timeout --foreground --kill-after=5s 90s node --test tests/nonmunicipal-workspace-contract.test.js
+
 
 
