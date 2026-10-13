@@ -484,3 +484,25 @@ test('semantic relevance does not promote generic source records whose descripti
     true
   );
 });
+
+test('intervention discovery stops source-query retries when caller aborts', async () => {
+  const controller = new AbortController();
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const pending = discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    workspace: 'municipal',
+    sources: [SOURCE],
+    maxQueriesPerSource: 1,
+    signal: controller.signal,
+    fetchImpl: (_url, options) => new Promise((resolve, reject) => {
+      markStarted();
+      options.signal.addEventListener('abort', () => reject(options.signal.reason || new Error('aborted')), { once: true });
+    })
+  });
+  await started;
+  const reason = new Error('baseline-test-cancelled');
+  controller.abort(reason);
+  await assert.rejects(pending, error => error === reason || error.message === reason.message);
+});
