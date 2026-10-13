@@ -21,6 +21,8 @@ jobs:
         run: timeout --foreground --kill-after=5s 20s node --test tests/pr-ci-trigger-architecture.test.js
       - name: Acquisition timeout regression
         run: timeout --foreground --kill-after=5s 60s node --test tests/data-acquisition.test.js
+      - name: Insight quality battery syntax guard
+        run: timeout --foreground --kill-after=5s 15s node --check tests/insight-quality-battery.test.js
       - name: Insight quality evidence preflight
         run: timeout --foreground --kill-after=5s 45s node --test tests/insight-quality-fast-gate.test.js
       - name: Source-driven intervention discovery regressions
