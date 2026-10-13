@@ -20,6 +20,15 @@ test('jurisdiction filtering remains explicit and auditable', () => {
   assert.ok(result.sourcesSelected.every(id => result.decisions.find(item => item.sourceId === id)?.selected));
 });
 
+test('country names and country codes select the matching national catalogue', () => {
+  for (const jurisdiction of ['Canada', 'canada', 'CA']) {
+    const result = assessInterventionSourceApplicability({ problem: 'reduce invoice processing time', jurisdiction });
+    assert.ok(result.sourcesSelected.includes('ca-program-discovery'), jurisdiction + ': Canada catalogue missing');
+    assert.ok(result.sourcesSelected.includes('ca-ontario-program-discovery'), jurisdiction + ': Ontario catalogue missing');
+    assert.ok(!result.sourcesSelected.includes('uk-gov-program-discovery'), jurisdiction + ': unrelated national catalogue selected');
+  }
+});
+
 test('empty problem is rejected rather than silently searching broadly', () => {
   assert.throws(() => assessInterventionSourceApplicability({ problem: '   ' }), /source-applicability-problem-required/);
 });
