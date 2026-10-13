@@ -20,5 +20,16 @@ jobs:
         run: timeout --foreground --kill-after=5s 20s node --test tests/pr-ci-trigger-architecture.test.js
       - name: Acquisition timeout regression
         run: timeout --foreground --kill-after=5s 60s node --test tests/data-acquisition.test.js
+      - name: Insight quality evidence preflight
+        run: timeout --foreground --kill-after=5s 45s node --test tests/insight-quality-fast-gate.test.js
+      - name: Source-driven intervention discovery regressions
+        run: timeout --foreground --kill-after=5s 120s node --test tests/source-driven-intervention-discovery.test.js
+      - name: Source-driven evidence discovery regressions
+        run: timeout --foreground --kill-after=5s 60s node --test tests/source-driven-evidence-discovery.test.js
+      - name: Decision discovery orchestration and execution
+        run: timeout --foreground --kill-after=5s 90s node --test tests/decision-discovery-orchestrator.test.js tests/decision-discovery-execution.test.js
+      - name: External intervention-recall benchmark
+        run: timeout --foreground --kill-after=5s 60s node --test tests/external-open-world-benchmark.test.js
       - name: Nonmunicipal workspace endpoint contract
         run: timeout --foreground --kill-after=5s 90s node --test tests/nonmunicipal-workspace-contract.test.js
+
