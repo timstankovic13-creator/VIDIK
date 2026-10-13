@@ -30,6 +30,15 @@ jobs:
         run: timeout --foreground --kill-after=5s 90s node --test tests/decision-discovery-orchestrator.test.js tests/decision-discovery-execution.test.js
       - name: External intervention-recall benchmark
         run: timeout --foreground --kill-after=5s 60s node --test tests/external-open-world-benchmark.test.js
+      - name: Intervention universe classification and coverage
+        run: timeout --foreground --kill-after=5s 60s node --test tests/intelligence-completion-intervention-universe.test.js
+      - name: Arbitrary-problem discovery and evidence integration
+        run: timeout --foreground --kill-after=5s 90s node --test tests/intelligence-completion-arbitrary-problem.integration.test.js
+      - name: Blind cross-domain generalization tournament
+        run: timeout --foreground --kill-after=5s 90s node --test tests/intelligence-generalization-blind-tournament.test.js
+      - name: Adversarial non-intervention rejection
+        run: timeout --foreground --kill-after=5s 90s node --test tests/outsider-adversarial-hardening-v2.test.js
       - name: Nonmunicipal workspace endpoint contract
         run: timeout --foreground --kill-after=5s 90s node --test tests/nonmunicipal-workspace-contract.test.js
+
 
