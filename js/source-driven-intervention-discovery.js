@@ -1530,6 +1530,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         // 18-query budget so recall and outage classification remain intact.
         if (attempts.length >= DISCOVERY_INITIAL_QUERY_LIMIT && interim.length > 0) break;
       }catch(error){
+        if (signal?.aborted) throw (signal.reason || error);
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
         attempts.push({query,queryPhase:'initial-plan',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
@@ -1619,6 +1620,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.expectedFamilies = coverage.expectedFamilies;
           if (coverage.missingFamilies.length === 0 && candidates.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES) break;
         } catch (error) {
+          if (signal?.aborted) throw (signal.reason || error);
           const failure = classifyDiscoveryFailure(error);
           sourceSearch.attempts.push({
             query,
@@ -1687,6 +1689,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
               break;
             }
           } catch (error) {
+            if (signal?.aborted) throw (signal.reason || error);
             const failure = classifyDiscoveryFailure(error);
             attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
             if (/^discovery-source-concurrency-saturated$/.test(String(error?.message || ''))) {
@@ -1768,6 +1771,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           sourceSearch.usableQueryCount += 1;
           sourceSearch.candidatesReturned += leads.length;
         } catch(error) {
+          if (signal?.aborted) throw (signal.reason || error);
           const failure = classifyDiscoveryFailure(error);
           sourceSearch.attempts.push({query,queryLayer:'legacy-class-expansion',queryPhase:'expansion',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,terminal:failure.terminal,cumulativeUniqueCandidates:candidates.length});
           sourceSearch.queriesAttempted += 1;
