@@ -259,7 +259,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     timedOutCases: results.filter(result => result.measurementStatus === 'timed-out').map(result => ({ workspace: result.workspace, jurisdiction: result.jurisdiction, problem: result.problem, error: result.baselineError })),
     averageCandidatesPerProblem: measuredResults.length ? Number((totalCandidates / measuredResults.length).toFixed(2)) : null,
     averageActionableRatio: Number((
-      results.reduce(
+      measuredResults.reduce(
         (sum, result) => sum + (result.candidateCount ? result.actionableCount / result.candidateCount : 0),
         0
       ) / (measuredResults.length || 1)
@@ -277,7 +277,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     casesWithProductionRelevanceGaps: measuredResults.filter(
       result => result.productionRelevanceRatio < 1
     ).length,
-    totalCandidateQualityDefects: results.reduce(
+    totalCandidateQualityDefects: measuredResults.reduce(
       (sum, result) => sum + result.candidateQualityDefects, 0
     ),
     diagnostic: {
