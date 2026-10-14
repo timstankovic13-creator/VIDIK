@@ -19,6 +19,7 @@ function fakeFetch(url) {
     ] } }));
   }
   if (parsed.hostname === 'api.openalex.org') return Promise.resolve(response({ results: [{ id: 'https://openalex.org/W1', display_name: 'Evaluation of worker retraining and employment support after technological displacement' }] }));
+  if (parsed.hostname === 'api.crossref.org') return Promise.resolve(response({ message: { items: [] } }));
   if (parsed.hostname === 'eutils.ncbi.nlm.nih.gov') return Promise.resolve(response({ esearchresult: { idlist: ['12345678'] } }));
   return Promise.reject(new Error(`unexpected-upstream:${parsed.hostname}`));
 }
