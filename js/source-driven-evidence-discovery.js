@@ -12,7 +12,7 @@ const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
 const EVIDENCE_CAUSAL_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
 
-const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
+const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 1;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
