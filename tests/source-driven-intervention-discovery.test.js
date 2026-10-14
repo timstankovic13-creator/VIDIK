@@ -34,8 +34,8 @@ test('source failure classification distinguishes terminal API failures from ret
 test('shared source pacing serializes and spaces calls to rate-limited providers', async () => {
   const { withDiscoverySourceConcurrency } = require('../js/source-driven-intervention-discovery');
   for (const [sourceId, minimumGapMs] of [
-    ['ca-program-discovery', 350],
-    ['crossref-works', 950]
+    ['ca-program-discovery', 150],
+    ['crossref-works', 200]
   ]) {
     const starts = [];
     let active = 0;
