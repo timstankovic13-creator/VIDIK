@@ -1,6 +1,7 @@
 'use strict';
 
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
+const { withDiscoverySourceConcurrency } = require('./source-driven-intervention-discovery');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils', 'crossref-works']);
 const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
@@ -260,17 +261,17 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         if (Number.isInteger(requestTimeoutMs) && requestTimeoutMs > 0) retrievalOptions.requestTimeoutMs = requestTimeoutMs;
         if (Number.isInteger(maxRedirects) && maxRedirects >= 0) retrievalOptions.maxRedirects = maxRedirects;
         if (Number.isInteger(maxRateLimitRetries) && maxRateLimitRetries >= 0) retrievalOptions.maxRateLimitRetries = maxRateLimitRetries;
-        const snapshot = await retrieve({ ...source, url }, retrievalOptions);
+        const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url }, retrievalOptions), signal);
         const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
         if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
         let evidencePayload = payload.value;
         if (source.sourceId === 'pubmed-eutils') {
           const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
           if (ids.length) {
-            const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, retrievalOptions);
+            const summarySnapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, retrievalOptions), signal);
             const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
             if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
-            const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, retrievalOptions);
+            const abstractSnapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, retrievalOptions), signal);
             const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
             evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
           }
