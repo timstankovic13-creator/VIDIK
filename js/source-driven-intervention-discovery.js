@@ -786,40 +786,67 @@ function extractConcreteInterventionFromDescription(problem, workspace, descript
   return [...new Set(extracted)].slice(0, 4);
 }
 function classifyCkanRecord(row) { const title = normalizeText(row?.title || row?.name); if (NON_INTERVENTION_ARTIFACT_PATTERNS.some(pattern => pattern.test(title))) return { accepted: false, reason: 'non-intervention-artifact-pattern', positiveSignals: [], negativeSignals: [], families: [] }; const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' ')); const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : []; const text = `${title} ${notes} ${tags.join(' ')}`.toLowerCase(); const negative = NON_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const positive = INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); const strongPositive = STRONG_INTERVENTION_TERMS.filter(term => title.toLowerCase().includes(term)); if (!title) return { accepted: false, reason: 'missing-title', positiveSignals: [], negativeSignals: [], families: [] }; if (negative.length > 0 && strongPositive.length === 0) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: [], negativeSignals: negative, families: [] }; if (negative.length > 0 && /\b(report|dataset|census|budget|statistics|indicator|dashboard|survey|profile|information|records?)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; if (/\b(data|statistics|report|dashboard|information|records?)\b/i.test(title) && !/\b(program|programme|service|initiative|intervention|project|pilot)\b/i.test(title)) return { accepted: false, reason: 'non-intervention-resource', positiveSignals: positive, negativeSignals: negative, families: [] }; const actionablePositive = strongPositive.filter(term => !GENERIC_ACTION_TERMS.has(term)); if (positive.length === 0 || actionablePositive.length === 0 || !isActionableInterventionTitle(title)) return { accepted: false, reason: 'insufficient-intervention-signal', positiveSignals: [], negativeSignals: negative, families: [] }; return { accepted: true, reason: 'intervention-signal', positiveSignals: positive, negativeSignals: negative, families: inferInterventionFamily(text) }; }
-function extractGovUkInterventionLeads(payload, source, problem, workspace = 'municipal') {
+function createExtractionDiagnostics() {
+  return { recordsSeen: 0, recordsWithCandidates: 0, candidatesExtracted: 0, rejectionReasons: {} };
+}
+function recordExtractionDiagnostics(diagnostics, extracted, reason) {
+  if (!diagnostics) return;
+  diagnostics.recordsSeen += 1;
+  diagnostics.candidatesExtracted += extracted.length;
+  if (extracted.length) diagnostics.recordsWithCandidates += 1;
+  else {
+    const key = reason || 'no-actionable-intervention-extracted';
+    diagnostics.rejectionReasons[key] = (diagnostics.rejectionReasons[key] || 0) + 1;
+  }
+}
+function extractGovUkInterventionLeads(payload, source, problem, workspace = 'municipal', diagnostics = null) {
   const results = Array.isArray(payload?.results) ? payload.results : [];
   return results.flatMap((row, index) => {
     const title = normalizeText(row?.title), description = normalizeText(row?.description);
-    if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
-    if (!title) return [];
+    if (workspace !== 'research' && /\\bresearch (grant|grants|funding|project|study)\\b/i.test(title)) {
+      recordExtractionDiagnostics(diagnostics, [], 'research-grant-excluded');
+      return [];
+    }
+    if (!title) {
+      recordExtractionDiagnostics(diagnostics, [], 'missing-title');
+      return [];
+    }
     const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
-    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
-    return names.map((name, extractedIndex) => {
-      const candidate = { name, discoveryText: description };
+    const recordLike = /\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title);
+    const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
+    const extracted = names.map((name, extractedIndex) => {
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) return null;
       return { id: `source:${source.sourceId}:${row?.link || index + 1}:${extractedIndex}`, name, canonicalName, interventionFamily: inferInterventionFamily(name + ' ' + description), problemTags: [String(problem).toLowerCase()], domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${description}`.trim(), evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, externalId: row?.link || null, classification: { basis: titleActionable ? 'official-government-search-result' : 'description-extracted-intervention', format: row?.format || null }, provenance: [{ sourceId: source.sourceId, sourceType: 'government-program-search', jurisdiction: source.jurisdiction, evidenceStatus: 'potential', externalId: row?.link || null }] } };
     }).filter(Boolean);
+    recordExtractionDiagnostics(diagnostics, extracted, recordLike ? 'record-like-title-without-executable-intervention' : 'no-actionable-title-or-description-signal');
+    return extracted;
   });
 }
-function extractCkanInterventionLeads(payload, source, problem, workspace = 'municipal') {
+function extractCkanInterventionLeads(payload, source, problem, workspace = 'municipal', diagnostics = null) {
   const results = Array.isArray(payload?.result?.results) ? payload.result.results : [];
   return results.flatMap((row, index) => {
     const title = normalizeText(row?.title || row?.name);
-    if (workspace !== 'research' && /\bresearch (grant|grants|funding|project|study)\b/i.test(title)) return [];
+    if (workspace !== 'research' && /\\bresearch (grant|grants|funding|project|study)\\b/i.test(title)) {
+      recordExtractionDiagnostics(diagnostics, [], 'research-grant-excluded');
+      return [];
+    }
     const notes = normalizeText([row?.notes, row?.description].filter(Boolean).join(' '));
     const tags = Array.isArray(row?.tags) ? row.tags.map(tag => normalizeText(tag?.display_name || tag?.name)).filter(Boolean).slice(0, 12) : [];
     const classification = classifyCkanRecord(row);
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
-    const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title); const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
+    const recordLike = /\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title);
+    const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
     const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (!recordLike && descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
-    return names.map((item, extractedIndex) => {
-      const candidate = { name: item.name, discoveryText: `${title} ${notes} ${tags.join(' ')}` };
+    const extracted = names.map((item, extractedIndex) => {
       const canonicalName = normalizeInterventionName(item.name);
       if (!canonicalName) return null;
       const id = row.id || row.name || `${source.sourceId}-${index + 1}`;
-      return { id: `source:${source.sourceId}:${id}:${extractedIndex}`, name: item.name, canonicalName, interventionFamily: item.family, problemTags: [String(problem).toLowerCase(), ...tags].filter(Boolean).slice(0, 13), domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: candidate.discoveryText, evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, datasetId: row.id || row.name || null, classification: { basis: item.basis, positiveSignals: classification.positiveSignals, negativeSignals: classification.negativeSignals, families: item.family }, provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, evidenceStatus: 'potential' }] } };
+      return { id: `source:${source.sourceId}:${id}:${extractedIndex}`, name: item.name, canonicalName, interventionFamily: item.family, problemTags: [String(problem).toLowerCase(), ...tags].filter(Boolean).slice(0, 13), domains: [source.domain], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `${title} ${notes} ${tags.join(' ')}`.trim(), evidenceStatus: 'potential', discovery: { source: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, leadOnly: true, effectsImported: false, discoveryOnly: true, datasetId: row.id || row.name || null, classification: { basis: item.basis, positiveSignals: classification.positiveSignals, negativeSignals: classification.negativeSignals, families: item.family }, provenance: [{ sourceId: source.sourceId, sourceType: 'intervention-library', jurisdiction: source.jurisdiction, evidenceStatus: 'potential' }] } };
     }).filter(Boolean);
+    const reason = !title ? 'missing-title' : (!classification.accepted ? classification.reason : (recordLike ? 'record-like-title-without-executable-intervention' : 'no-actionable-title-or-description-signal'));
+    recordExtractionDiagnostics(diagnostics, extracted, reason);
+    return extracted;
   });
 }
 function buildOpenAlexInterventionSearchUrl(source, query, { rows = 10 } = {}) {
@@ -1241,9 +1268,9 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
-        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const rejectedByRelevance=extractedLeads.length-leads.length; rawCandidates.push(...leads); sourceCandidates.push(...leads);
+        const extractionDiagnostics=createExtractionDiagnostics(); const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace,extractionDiagnostics) : extractCkanInterventionLeads(payload.value,source,problem,workspace,extractionDiagnostics); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const rejectedByRelevance=extractedLeads.length-leads.length; rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
-        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,rejectedByRelevance,candidatesReturned:leads.length,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,rejectedByRelevance,extractionDiagnostics,candidatesReturned:leads.length,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         consecutiveFailures = 0;
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
       }catch(error){
@@ -1281,9 +1308,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const extractionDiagnostics = createExtractionDiagnostics();
           const extractedLeads = GOVUK_SOURCE_IDS.has(source.sourceId)
-            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
-            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+            ? extractGovUkInterventionLeads(payload.value, source, problem, workspace, extractionDiagnostics)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace, extractionDiagnostics);
           const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
           const rejectedByRelevance = extractedLeads.length - leads.length;
           rawCandidates.push(...leads);
@@ -1297,6 +1325,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             candidatesReturned: leads.length,
             extractedCandidates: extractedLeads.length,
             rejectedByRelevance,
+            extractionDiagnostics,
             recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
             provenance: snapshot.retrieval,
             failureReason: null,
