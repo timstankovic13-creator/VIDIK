@@ -58,6 +58,27 @@ test('execution searches evidence for every discovered candidate and fails close
   assert.equal(run.governance.recommendationAllowed, false);
 });
 
+test('automatic evidence discovery accepts explicit query budgets while keeping effects unimported', async () => {
+  const run = await executeDecisionDiscovery({
+    problem: 'reduce violent crime',
+    requiredSourceTypes: ['local-program'],
+    searchers: {
+      'local-program': async () => ({
+        sourceId: 'local',
+        candidates: [{ id: 'candidate:bounded-evidence', name: 'violence interruption', problemTags: ['violent-crime'], requiredEvidence: ['causal'] }]
+      })
+    },
+    autoDiscoverEvidence: true,
+    evidenceDiscoveryOptions: { maxSources: 1, maxQueriesPerSource: 1 },
+    fetchImpl: async () => response({ results: [{ id: 'W-bounded', display_name: 'Evaluation of violence interruption' }] })
+  });
+  assert.equal(run.evidenceDiscovery.length, 1);
+  assert.equal(run.evidenceDiscovery[0].sourceSearches.length, 1);
+  assert.equal(run.evidenceDiscovery[0].diversifiedQueries.length, 1);
+  assert.equal(run.governance.learningEffectsImported, false);
+  assert.equal(run.governance.recommendationAllowed, false);
+});
+
 test('execution preserves comparable-city ideas as leads only', async () => {
   const run = await executeDecisionDiscovery({
     problem: 'reduce emergency department overcrowding',
