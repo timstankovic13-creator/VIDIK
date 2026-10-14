@@ -485,3 +485,23 @@ test('discovery attempts account for candidates removed by semantic relevance fi
   assert.equal(first.candidatesReturned, 0);
   assert.equal(first.extractedCandidates, first.rejectedByRelevance + first.candidatesReturned);
 });
+
+test('CKAN description extraction recovers explicit interventions from report-like records', () => {
+  const leads = extractCkanInterventionLeads({ result: { results: [
+    { id: 'crime-dashboard', title: 'Violent crime statistics dashboard', notes: 'The city operates a focused deterrence program and community violence intervention for high-risk groups.' }
+  ] } }, SOURCE, 'reduce violent crime', 'municipal');
+  assert.ok(leads.some(lead => /focused deterrence/i.test(lead.name)));
+  assert.ok(leads.some(lead => /community violence intervention/i.test(lead.name)));
+  assert.ok(leads.every(lead => !/statistics dashboard/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('GOV.UK description extraction recovers explicit interventions from report-like records', () => {
+  const leads = extractGovUkInterventionLeads({ results: [
+    { title: 'Violent crime statistics dashboard', description: 'The city operates a focused deterrence program and community violence intervention for high-risk groups.', link: '/crime-statistics-dashboard' }
+  ] }, GOVUK_SOURCE, 'reduce violent crime', 'municipal');
+  assert.ok(leads.some(lead => /focused deterrence/i.test(lead.name)));
+  assert.ok(leads.some(lead => /community violence intervention/i.test(lead.name)));
+  assert.ok(leads.every(lead => !/statistics dashboard/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
