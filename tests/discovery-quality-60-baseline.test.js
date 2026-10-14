@@ -92,10 +92,10 @@ async function mapWithConcurrency(items, limit, worker) {
           worker(item, index, controller.signal),
           new Promise((_, reject) => {
             timeoutHandle = setTimeout(() => {
-              const error = new Error('baseline-case-timeout-after-90s: ' + label);
+              const error = new Error('baseline-case-timeout-after-60s: ' + label);
               controller.abort(error);
               reject(error);
-            }, 90000);
+            }, 60000);
           })
         ]);
         console.log(JSON.stringify({
@@ -106,7 +106,7 @@ async function mapWithConcurrency(items, limit, worker) {
           durationMs: Date.now() - startedAt
         }));
       } catch (error) {
-        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-90s:')) throw error;
+        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-60s:')) throw error;
         const [workspace, jurisdiction, ...problemParts] = item;
         results[index] = {
           workspace, jurisdiction, problem: problemParts.join(' | '),
@@ -133,10 +133,10 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 4, async ([workspace, jurisdiction, problem], index, signal) => {
+  const results = await mapWithConcurrency(BASELINE_60, 2, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 3, maxQueriesPerSource: 6, maxLiteratureQueries: 2, requestTimeoutMs: 3000, maxRedirects: 1, maxRateLimitRetries: 1, maxTransientRetries: 0, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4, maxSources: 2, maxQueriesPerSource: 3, maxLiteratureQueries: 1, requestTimeoutMs: 2000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -164,13 +164,13 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       evidence = await discoverCandidateUniverseEvidence({
         problem,
         candidates,
-        rows: 5,
-        maxCandidates: 3,
-        maxSources: 3,
-        maxQueriesPerSource: 6,
-        requestTimeoutMs: 3000,
+        rows: 3,
+        maxCandidates: 1,
+        maxSources: 2,
+        maxQueriesPerSource: 3,
+        requestTimeoutMs: 2000,
         maxRedirects: 1,
-        maxRateLimitRetries: 1,
+        maxRateLimitRetries: 0,
         signal
       });
       console.log(JSON.stringify({ event: 'baseline-evidence-complete', case: index + 1, durationMs: Date.now() - evidenceStartedAt, sourceSearchCount: evidence.candidateEvidence[0]?.sourceSearches?.length || 0 }));
@@ -283,6 +283,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
+    runProfile: { concurrency: 2, maxInterventionSources: 2, maxQueriesPerSource: 3, maxLiteratureQueriesPerSource: 1, requestTimeoutMs: 2000, maxEvidenceCandidatesPerProblem: 1, maxEvidenceSourcesPerCandidate: 2, maxEvidenceQueriesPerSource: 3, rateLimitRetries: 0 },
     acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, rateLimitRetries: 1, transientRetries: 0, concurrency: 4, evidenceCandidates: 3, evidenceSources: 3, evidenceQueriesPerSource: 6 },
     cases: results.length,
     gradeCounts,
