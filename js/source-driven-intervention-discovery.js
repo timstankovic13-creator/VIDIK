@@ -12,7 +12,6 @@ const DATAGOV_MIN_ROWS = 25;
 const MAX_TRANSIENT_SOURCE_RETRIES = 2;
 const TRANSIENT_RETRY_DELAYS_MS = [250, 1000];
 const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
-  'ca-program-discovery': 1,
   'openalex-works': 2,
   'crossref-works': 2,
   'pubmed-eutils': 1
@@ -20,7 +19,6 @@ const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
 const discoverySourceConcurrency = new Map();
 const discoverySourceNextAllowedAt = new Map();
 const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
-  'ca-program-discovery': 150,
   'openalex-works': 750,
   'crossref-works': 750,
   'pubmed-eutils': 150

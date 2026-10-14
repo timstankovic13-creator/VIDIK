@@ -30,8 +30,8 @@ test('bounded evidence source selection pairs general and biomedical problems wi
   assert.deepEqual(general.sourceSearches.map(source => source.sourceId), ['openalex-works', 'crossref-works']);
 
   const biomedical = await EvidenceDriven.discoverCandidateEvidence({
-    problem: 'reduce hospital waiting times',
-    candidate: { id: 'candidate:health', name: 'care navigation', interventionFamily: ['health-service'], discoveryText: 'hospital service access' },
+    problem: 'reduce opioid overdose deaths',
+    candidate: { id: 'candidate:health', name: 'harm reduction outreach', interventionFamily: ['public-safety'], discoveryText: 'community safety response' },
     maxSources: 2, maxQueriesPerSource: 1, fetchImpl
   });
   assert.deepEqual(biomedical.sourceSearches.map(source => source.sourceId), ['openalex-works', 'pubmed-eutils']);

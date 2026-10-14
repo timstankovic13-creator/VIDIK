@@ -200,7 +200,7 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10, maxSources = null, maxQueriesPerSource = null, requestTimeoutMs = null, maxRedirects = null, maxRateLimitRetries = null, signal = null } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
   const supplied = Array.isArray(sources) ? sources : null;
-  const biomedicalContext = /\\b(health|hospital|medical|clinical|patient|opioid|overdose|disease|mental health|public health|care navigation|community paramedicine)\\b/i
+  const biomedicalContext = /\b(health|hospital|medical|clinical|patient|opioid|overdose|disease|mental health|public health|care navigation|community paramedicine)\b/i
     .test([problem, candidate.name, candidate.discoveryText, ...(candidate.interventionFamily || [])].filter(Boolean).join(' ')) ||
     (Array.isArray(candidate.interventionFamily) && candidate.interventionFamily.includes('health-service'));
   const availableSources = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
