@@ -200,8 +200,21 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10, maxSources = null, maxQueriesPerSource = null, requestTimeoutMs = null, maxRedirects = null, maxRateLimitRetries = null, signal = null } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
   const supplied = Array.isArray(sources) ? sources : null;
+  const biomedicalContext = /\\b(health|hospital|medical|clinical|patient|opioid|overdose|disease|mental health|public health|care navigation|community paramedicine)\\b/i
+    .test([problem, candidate.name, candidate.discoveryText, ...(candidate.interventionFamily || [])].filter(Boolean).join(' ')) ||
+    (Array.isArray(candidate.interventionFamily) && candidate.interventionFamily.includes('health-service'));
   const availableSources = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
-    .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source));
+    .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source))
+    // Keep OpenAlex as the default causal-research anchor. Pair it with Crossref
+    // for broad cross-domain evidence; reserve PubMed for biomedical problems,
+    // where its specialized index adds more value than a second general catalogue.
+    .sort((a, b) => {
+      const priority = source => source.sourceId === 'openalex-works' ? 0
+        : source.sourceId === 'pubmed-eutils' ? (biomedicalContext ? 1 : 2)
+        : source.sourceId === 'crossref-works' ? (biomedicalContext ? 2 : 1)
+        : 3;
+      return priority(a) - priority(b);
+    });
   const selected = Number.isInteger(maxSources) && maxSources > 0
     ? availableSources.slice(0, maxSources)
     : availableSources;
