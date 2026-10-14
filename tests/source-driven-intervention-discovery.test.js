@@ -473,7 +473,7 @@ test('discovery attempts account for candidates removed by semantic relevance fi
     jurisdiction: 'CA',
     sources: [SOURCE],
     fetchImpl: async () => mockResponse({ result: { results: [
-      { id: 'trees-1', title: 'Tree planting program', notes: 'A city program that plants and maintains trees.' }
+      { id: 'trees-1', title: 'Home energy assistance program', notes: 'Provides utility bill assistance for households.' }
     ] } })
   });
   const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
