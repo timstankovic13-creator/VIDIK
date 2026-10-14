@@ -106,7 +106,7 @@ async function mapWithConcurrency(items, limit, worker) {
           durationMs: Date.now() - startedAt
         }));
       } catch (error) {
-        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-120s:')) throw error;
+        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-90s:')) throw error;
         const [workspace, jurisdiction, ...problemParts] = item;
         results[index] = {
           workspace, jurisdiction, problem: problemParts.join(' | '),
@@ -136,7 +136,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
   const results = await mapWithConcurrency(BASELINE_60, 4, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 3, maxQueriesPerSource: 6, maxLiteratureQueries: 2, requestTimeoutMs: 3000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 3, maxQueriesPerSource: 6, maxLiteratureQueries: 2, requestTimeoutMs: 3000, maxRedirects: 1, maxRateLimitRetries: 1, maxTransientRetries: 0, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -170,7 +170,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
         maxQueriesPerSource: 6,
         requestTimeoutMs: 3000,
         maxRedirects: 1,
-        maxRateLimitRetries: 0,
+        maxRateLimitRetries: 1,
         signal
       });
       console.log(JSON.stringify({ event: 'baseline-evidence-complete', case: index + 1, durationMs: Date.now() - evidenceStartedAt, sourceSearchCount: evidence.candidateEvidence[0]?.sourceSearches?.length || 0 }));
@@ -283,7 +283,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
-    acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, transientRetries: 0, concurrency: 4, evidenceCandidates: 3, evidenceSources: 3, evidenceQueriesPerSource: 6 },
+    acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, rateLimitRetries: 1, transientRetries: 0, concurrency: 4, evidenceCandidates: 3, evidenceSources: 3, evidenceQueriesPerSource: 6 },
     cases: results.length,
     gradeCounts,
     completedDiscoveryCases: measuredResults.length,
