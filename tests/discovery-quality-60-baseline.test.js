@@ -168,6 +168,9 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
         maxCandidates: 1,
         maxSources: 2,
         maxQueriesPerSource: 2,
+        requestTimeoutMs: 4000,
+        maxRedirects: 1,
+        maxRateLimitRetries: 0,
         signal
       });
       console.log(JSON.stringify({ event: 'baseline-evidence-complete', case: index + 1, durationMs: Date.now() - evidenceStartedAt, sourceSearchCount: evidence.candidateEvidence[0]?.sourceSearches?.length || 0 }));
