@@ -1276,7 +1276,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       }catch(error){
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
-        attempts.push({query,queryPhase:'initial-plan',status:'search-failed',recordsConsidered:0,extractedCandidates:0,rejectedByRelevance:0,candidatesReturned:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        attempts.push({query,queryPhase:'initial-plan',status:'search-failed',recordsConsidered:0,extractedCandidates:0,rejectedByRelevance:0,extractionDiagnostics:createExtractionDiagnostics(),candidatesReturned:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
         if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
       }
     }
@@ -1350,6 +1350,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             candidatesReturned: 0,
             extractedCandidates: 0,
             rejectedByRelevance: 0,
+            extractionDiagnostics: createExtractionDiagnostics(),
             recordsConsidered: 0,
             provenance: null,
             failureReason: error?.message || 'source-driven-search-failed',
