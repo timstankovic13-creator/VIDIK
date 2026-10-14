@@ -136,7 +136,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
   const results = await mapWithConcurrency(BASELINE_60, 4, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 2, maxQueriesPerSource: 4, maxLiteratureQueries: 1, skipExpansion: true, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 3, maxQueriesPerSource: 6, maxLiteratureQueries: 2, requestTimeoutMs: 3000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -164,11 +164,11 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       evidence = await discoverCandidateUniverseEvidence({
         problem,
         candidates,
-        rows: 2,
-        maxCandidates: 1,
+        rows: 3,
+        maxCandidates: 2,
         maxSources: 2,
-        maxQueriesPerSource: 2,
-        requestTimeoutMs: 4000,
+        maxQueriesPerSource: 3,
+        requestTimeoutMs: 3000,
         maxRedirects: 1,
         maxRateLimitRetries: 0,
         signal
@@ -283,6 +283,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
+    acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, transientRetries: 0, concurrency: 4 },
     cases: results.length,
     gradeCounts,
     completedDiscoveryCases: measuredResults.length,
