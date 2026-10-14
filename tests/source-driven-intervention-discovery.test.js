@@ -537,3 +537,21 @@ test('bounded discovery budget applies request timeouts and retry limits to lite
     search.attempts.every(attempt => attempt.status === 'search-failed' && /upstream-request-timeout/.test(attempt.failureReason || ''))
   ), 'literature fallback did not record bounded upstream timeouts');
 });
+
+
+test('blocked 60-case workspace problems have targeted source-backed recall anchors', () => {
+  const { buildDiscoveryQueries, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  const cases = [
+    { workspace: 'business', problem: 'reduce energy costs', terms: ['business energy audit', 'commercial energy efficiency grant'] },
+    { workspace: 'business', problem: 'reduce delivery delays', terms: ['last-mile delivery', 'transport management system'] },
+    { workspace: 'community', problem: 'improve food access', terms: ['food relief program', 'community food pantry'] },
+    { workspace: 'community', problem: 'reduce wildfire evacuation barriers', terms: ['evacuation transport support', 'accessible evacuation planning'] }
+  ];
+  for (const item of cases) {
+    const queries = buildDiscoveryQueries(item.problem, item.workspace).map(query => query.toLowerCase());
+    assert.ok(item.terms.some(term => queries.some(query => query.includes(term))), item.workspace + ': missing targeted recall query for ' + item.problem);
+  }
+  for (const title of ['business energy audit', 'last-mile delivery', 'food relief program', 'evacuation transport support']) {
+    assert.equal(isActionableInterventionTitle(title), true, 'controlled recall anchor was rejected: ' + title);
+  }
+});
