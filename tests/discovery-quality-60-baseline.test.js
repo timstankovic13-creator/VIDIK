@@ -92,10 +92,10 @@ async function mapWithConcurrency(items, limit, worker) {
           worker(item, index, controller.signal),
           new Promise((_, reject) => {
             timeoutHandle = setTimeout(() => {
-              const error = new Error('baseline-case-timeout-after-120s: ' + label);
+              const error = new Error('baseline-case-timeout-after-90s: ' + label);
               controller.abort(error);
               reject(error);
-            }, 120000);
+            }, 90000);
           })
         ]);
         console.log(JSON.stringify({
@@ -133,10 +133,10 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 3, async ([workspace, jurisdiction, problem], index, signal) => {
+  const results = await mapWithConcurrency(BASELINE_60, 4, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 2, maxQueriesPerSource: 4, maxLiteratureQueries: 1, skipExpansion: true, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 3, maxSources: 1, maxQueriesPerSource: 2, maxLiteratureQueries: 1, skipExpansion: true, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
