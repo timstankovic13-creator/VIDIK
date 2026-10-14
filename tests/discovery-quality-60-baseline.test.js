@@ -226,6 +226,10 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       interventionFamilies: [...families],
       evidenceLeads,
       independentEvidenceSources,
+      evidenceSourceIds: [...new Set((evidence?.candidateEvidence || [])
+        .flatMap(result => result.evidenceLeads || [])
+        .filter(lead => ['candidate-match', 'verified'].includes(lead.relevanceStatus))
+        .map(lead => lead.sourceId))],
       evidenceComplete: evidence?.evidenceComplete ?? false,
       productionRelevanceRatio: Number((
         candidates.length
@@ -313,6 +317,14 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       measuredResults.reduce((sum, result) => sum + result.expectedFamilyCoverage, 0) / (measuredResults.length || 1)
     ).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
+    evidenceSourceUsage: Object.fromEntries(
+      [...new Set(measuredResults.flatMap(result => result.evidenceSourceIds || []))]
+        .map(sourceId => [sourceId, measuredResults.filter(result => (result.evidenceSourceIds || []).includes(sourceId)).length])
+    ),
+    casesWithOpenAlexAndCrossrefEvidence: measuredResults.filter(result =>
+      (result.evidenceSourceIds || []).includes('openalex-works') &&
+      (result.evidenceSourceIds || []).includes('crossref-works')
+    ).length,
     casesWithNoCandidates: measuredResults.filter(result => result.candidateCount === 0).length,
     casesWithPerfectProductionRelevance: measuredResults.filter(
       result => result.candidateCount > 0 && result.productionRelevanceRatio === 1
