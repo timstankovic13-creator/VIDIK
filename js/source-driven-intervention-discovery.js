@@ -1473,15 +1473,18 @@ function buildTaxonomyExplorationLeads(problem, workspace, candidates = []) {
     return { id: `taxonomy-exploration:${sha256(problem + '|' + family + '|' + canonicalName).slice(0, 16)}`, name, canonicalName, interventionFamily: [family], problemTags: [String(problem).toLowerCase()], domains: ['intervention-universe'], requiredEvidence: ['causal','implementation','cost','equity'], discoveryText: `Governed taxonomy expansion for ${problem}: ${term}`, evidenceStatus: 'potential', discovery: { source: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', jurisdiction: null, leadOnly: true, effectsImported: false, discoveryOnly: true, taxonomyFamily: family, expansionIndex: index, provenance: [{ sourceId: 'vidik-intervention-taxonomy', sourceType: 'taxonomy-expansion', evidenceStatus: 'potential', expansionReason: 'missing-intervention-family' }] } };
   }).filter(Boolean));
 }
-async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null,skipExpansion=false,maxSources=null,maxLiteratureQueries=null,signal=null}={}){
+async function discoverSourceDrivenInterventions({problem,jurisdiction=null,workspace='municipal',sources=null,fetchImpl,now=new Date(),rows=25,maxQueriesPerSource=null,skipExpansion=false,maxSources=null,maxLiteratureQueries=null,requestTimeoutMs=null,maxRedirects=null,maxRateLimitRetries=null,maxTransientRetries=null,signal=null}={}){
   const supplied=Array.isArray(sources)?sources:null,selected=(supplied?supplied.filter(source=>sourceMatchesJurisdiction(source,jurisdiction)).map(source=>({...source,...canonicalSource(source)})):selectInterventionSources({problem,jurisdiction})).map(source=>canonicalSource(source)?({...source,...canonicalSource(source)}):source).filter(Boolean).filter((source,index,all)=>all.findIndex(candidate=>candidate.sourceId===source.sourceId)===index);
   const applicability=buildApplicabilityAudit({problem,jurisdiction,suppliedSources:supplied}),sourceSearches=[],rawCandidates=[];
   const boundedSelected = Number.isInteger(maxSources) && maxSources > 0 ? selected.slice(0, maxSources) : selected;
   const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
   const queryPlan = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0 ? fullQueryPlan.slice(0, maxQueriesPerSource) : fullQueryPlan;
-  const retrievalOptions = skipExpansion
-    ? { fetchImpl, now, requestTimeoutMs: 4000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0 }
-    : { fetchImpl, now };
+  const retrievalOptions = { fetchImpl, now };
+  if (skipExpansion) Object.assign(retrievalOptions, { requestTimeoutMs: 4000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0 });
+  if (Number.isInteger(requestTimeoutMs) && requestTimeoutMs > 0) retrievalOptions.requestTimeoutMs = requestTimeoutMs;
+  if (Number.isInteger(maxRedirects) && maxRedirects >= 0) retrievalOptions.maxRedirects = maxRedirects;
+  if (Number.isInteger(maxRateLimitRetries) && maxRateLimitRetries >= 0) retrievalOptions.maxRateLimitRetries = maxRateLimitRetries;
+  if (Number.isInteger(maxTransientRetries) && maxTransientRetries >= 0) retrievalOptions.maxTransientRetries = maxTransientRetries;
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
     // Live government catalogues are bounded discovery surfaces, not evidence
@@ -1501,7 +1504,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       'uk-open-data-program-discovery'
     ]).has(source.sourceId);
     const sourceRetrievalOptions = boundedCatalogSource
-      ? { ...retrievalOptions, requestTimeoutMs: 5000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0 }
+      ? {
+          ...retrievalOptions,
+          requestTimeoutMs: Math.min(retrievalOptions.requestTimeoutMs || 5000, 5000),
+          maxRedirects: Math.min(retrievalOptions.maxRedirects ?? 1, 1),
+          maxRateLimitRetries: 0,
+          maxTransientRetries: 0
+        }
       : retrievalOptions;
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
