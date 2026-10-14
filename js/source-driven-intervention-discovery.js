@@ -839,15 +839,18 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // budget and starving the older missing-family/class mechanisms.
   const caps = {
     original: 1,
-    recall: 4,
-    'vocabulary-expansion': 1,
+    recall: 2,
+    'mechanism/admin': 1,
     'family-expansion': 1,
     'legacy-class-expansion': 1,
     'workspace-taxonomy': 1,
-    'business-implementation': 2,
-    'mechanism/admin': workspace === 'enterprise' ? 2 : 2
+    'vocabulary-expansion': 1,
+    'business-implementation': 1
   };
-  const laneOrder = ['original', 'recall', 'mechanism/admin', 'vocabulary-expansion', 'family-expansion', 'legacy-class-expansion', 'workspace-taxonomy', 'business-implementation'];
+  // Spend a small query budget across distinct discovery lanes before deepening
+  // any single lane. This is important for bounded production requests as well as
+  // the 60-case battery: four recall variants must not crowd out missing classes.
+  const laneOrder = ['original', 'recall', 'mechanism/admin', 'family-expansion', 'legacy-class-expansion', 'workspace-taxonomy', 'vocabulary-expansion', 'business-implementation'];
   const selected = [];
   const seen = new Set();
 
@@ -872,15 +875,25 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // even when its retrieval vocabulary is available, which lets early recall
   // expansion consume the entire effective budget.
   if (selected.length < maxQueries) {
-    for (const lane of laneOrder) {
-      for (const query of lanes.get(lane) || []) {
-        const q = normalizeText(query);
-        if (!q || seen.has(q)) continue;
-        selected.push({ query: q, queryLayer: lane });
-        seen.add(q);
+    const laneCursors = new Map(laneOrder.map(lane => [lane, 0]));
+    let added = true;
+    while (selected.length < maxQueries && added) {
+      added = false;
+      for (const lane of laneOrder) {
+        const queries = lanes.get(lane) || [];
+        let cursor = laneCursors.get(lane) || 0;
+        while (cursor < queries.length) {
+          const q = normalizeText(queries[cursor]);
+          cursor += 1;
+          laneCursors.set(lane, cursor);
+          if (!q || seen.has(q)) continue;
+          selected.push({ query: q, queryLayer: lane });
+          seen.add(q);
+          added = true;
+          break;
+        }
         if (selected.length >= maxQueries) break;
       }
-      if (selected.length >= maxQueries) break;
     }
   }
 
