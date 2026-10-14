@@ -868,9 +868,9 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
     'mechanism/admin': 1,
     'family-expansion': 2,
     'legacy-class-expansion': 1,
-    'workspace-taxonomy': 1,
-    'vocabulary-expansion': 1,
-    'business-implementation': 1
+    'workspace-taxonomy': maxQueries <= 6 ? 0 : 1,
+    'vocabulary-expansion': maxQueries <= 6 ? 0 : 1,
+    'business-implementation': maxQueries <= 6 ? 0 : 1
   };
   // Spend a small query budget across distinct discovery lanes before deepening
   // any single lane. This is important for bounded production requests as well as
