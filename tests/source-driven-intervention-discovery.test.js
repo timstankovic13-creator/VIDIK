@@ -466,6 +466,24 @@ test('municipal worker-displacement recall anchors reach the bounded source-quer
 });
 
 
+test('workspace taxonomies cover previously missing intervention families across the 60-case battery', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const cases = [
+    ['reduce food insecurity', 'municipal', /food bank|food pantry|food assistance/i],
+    ['reduce construction permitting delays', 'municipal', /construction permit fast track|digital plan review|permit concierge/i],
+    ['reduce school absenteeism', 'municipal', /attendance mentoring|truancy prevention|school attendance intervention/i],
+    ['improve small business survival', 'business', /small business grant|small business loan|business advisory service/i],
+    ['improve hiring success', 'business', /structured interview|skills-based hiring|hiring assessment/i],
+    ['reduce social isolation among seniors', 'community', /befriending program|social prescribing|senior activity program/i],
+    ['evaluate interventions for food insecurity', 'research', /food bank|food pantry|food assistance/i],
+    ['study energy poverty interventions', 'research', /weatherization assistance|home energy assistance|energy bill assistance/i],
+    ['improve remote service delivery', 'enterprise', /remote service enablement|self-service portal|virtual service delivery/i]
+  ];
+  for (const [problem, workspace, expected] of cases) {
+    assert.ok(buildDiscoveryQueries(problem, workspace).some(query => expected.test(query)), workspace + ': missing targeted intervention vocabulary for ' + problem);
+  }
+});
+
 test('small discovery query budgets retain family and missing-class search lanes', () => {
   const { buildDiscoveryQueryPlan } = require('../js/source-driven-intervention-discovery');
   const plan = buildDiscoveryQueryPlan('reduce violent crime', 'municipal', 6);
