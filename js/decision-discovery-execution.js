@@ -48,13 +48,13 @@ async function searchSource(sourceType, problem, searcher) {
   }
 }
 
-async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], comparableCitySearcher = null, requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, evidenceDiscoveryOptions = {}, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
+async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], comparableCitySearcher = null, requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, discoveryOptions = {}, evidenceDiscoveryOptions = {}, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
   const effectiveSearchers = { ...searchers };
   const effectiveDiscoveryJurisdiction = normalizeDiscoveryJurisdiction(discoveryJurisdiction || decisionContext.jurisdiction);
   if (autoDiscoverInterventionSources && typeof effectiveSearchers['intervention-library'] !== 'function') {
     effectiveSearchers['intervention-library'] = async ({ problem: requestedProblem }) => {
-      const discovered = await SourceDriven.discoverSourceDrivenInterventions({ problem: requestedProblem, jurisdiction: effectiveDiscoveryJurisdiction, fetchImpl });
+      const discovered = await SourceDriven.discoverSourceDrivenInterventions({ ...discoveryOptions, problem: requestedProblem, jurisdiction: effectiveDiscoveryJurisdiction, fetchImpl });
       return {
         sourceId: 'source-driven-intervention-discovery',
         sourceType: 'intervention-library',
