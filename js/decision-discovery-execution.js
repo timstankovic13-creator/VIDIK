@@ -48,7 +48,7 @@ async function searchSource(sourceType, problem, searcher) {
   }
 }
 
-async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], comparableCitySearcher = null, requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
+async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearcher = null, comparableCities = [], comparableCitySearcher = null, requiredSourceTypes = Orchestrator.SOURCE_TYPES, analysisInputs = {}, statusQuo = null, decisionContext = {}, intelligenceContext = {}, autoDiscoverInterventionSources = false, autoDiscoverEvidence = false, evidenceDiscoveryOptions = {}, fetchImpl = globalThis.fetch, discoveryJurisdiction = null, semanticExpansion = {} } = {}) {
   if (!problem || typeof problem !== 'string' || !problem.trim()) throw new Error('decision-discovery-problem-required');
   const effectiveSearchers = { ...searchers };
   const effectiveDiscoveryJurisdiction = normalizeDiscoveryJurisdiction(discoveryJurisdiction || decisionContext.jurisdiction);
@@ -120,7 +120,7 @@ async function executeDecisionDiscovery({ problem, searchers = {}, evidenceSearc
     let searchFn = evidenceSearcher;
     let discoveryOnly = false;
     if (typeof searchFn !== 'function' && autoDiscoverEvidence) {
-      searchFn = async ({ problem: requestedProblem, candidate: requestedCandidate }) => EvidenceDriven.discoverCandidateEvidence({ problem: requestedProblem, candidate: requestedCandidate, fetchImpl });
+      searchFn = async ({ problem: requestedProblem, candidate: requestedCandidate }) => EvidenceDriven.discoverCandidateEvidence({ maxSources: 3, maxQueriesPerSource: 3, requestTimeoutMs: 5000, maxRedirects: 2, maxRateLimitRetries: 1, ...evidenceDiscoveryOptions, problem: requestedProblem, candidate: requestedCandidate, fetchImpl });
       discoveryOnly = true;
     }
     if (typeof searchFn !== 'function') {
