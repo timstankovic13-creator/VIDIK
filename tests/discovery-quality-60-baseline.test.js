@@ -241,7 +241,27 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       queryLayers: [...new Set((discovery.sourceSearches || []).flatMap(source => (source.attempts || []).map(attempt => attempt.queryLayer).filter(Boolean)))],
       attemptedQueries: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.queriesAttempted || 0), 0),
       missingFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
-      missingClasses: discovery.interventionUniverse.missingInterventionClasses || []
+      missingClasses: discovery.interventionUniverse.missingInterventionClasses || [],
+      sourceAttemptDiagnostics: (discovery.sourceSearches || []).map(source => ({
+        sourceId: source.sourceId,
+        jurisdiction: source.jurisdiction || null,
+        status: source.status,
+        queriesAttempted: source.queriesAttempted || 0,
+        failedQueryCount: source.failedQueryCount || 0,
+        usableQueryCount: source.usableQueryCount || 0,
+        failureReason: source.failureReason || null,
+        attempts: (source.attempts || []).map(attempt => ({
+          query: attempt.query,
+          queryLayer: attempt.queryLayer || null,
+          status: attempt.status,
+          candidatesReturned: attempt.candidatesReturned || 0,
+          recordsConsidered: attempt.recordsConsidered || 0,
+          extractedCandidates: attempt.extractedCandidates || 0,
+          relevanceRejectedCount: attempt.relevanceRejectedCount || 0,
+          failureStage: attempt.failureStage || null,
+          failureReason: attempt.failureReason || null
+        }))
+      }))
     };
   });
 
