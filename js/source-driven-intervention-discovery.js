@@ -576,7 +576,7 @@ const DISCOVERY_RECALL_PACKS = Object.freeze([
   { workspace: 'municipal', match: /extreme heat illness|heat-related illness|heat illness/i, terms: ['extreme heat','heat health','heat action plan','cooling program','cooling centre','cooling infrastructure','home cooling','shade infrastructure','tree canopy','heat-health intervention'] },
   { workspace: 'municipal', match: /worker displacement|workforce displacement|job displacement|displaced workers/i, terms: ['employment services','job training','workforce development','worker transition','job placement','reskilling'] },
   { workspace: 'municipal', match: /youth unemployment|youth joblessness|young people unemployment/i, terms: ['youth employment','youth job program','youth employment program','youth apprenticeship','youth traineeship','school-to-work transition','employment services','job placement','career pathway','wage subsidy'] },
-  { workspace: 'municipal', match: /construction permitting delays|construction permit delays|permitting delays|permit delays/i, terms: ['permit modernization','one stop permitting','digital permitting','online permit portal','e-permitting','permit streamlining','permit process redesign','permit review modernization','plan review modernization','automated permit review','construction permit streamlining','inspection reform'] },
+  { workspace: 'municipal', match: /construction permitting delays|construction permit delays|permitting delays|permit delays/i, terms: ['permit modernization','construction permit fast track','digital plan review','one stop permitting','digital permitting','online permit portal','e-permitting','permit streamlining','permit process redesign','permit review modernization','plan review modernization','automated permit review','construction permit streamlining','inspection reform'] },
   { workspace: 'municipal', match: /housing construction delays|housing construction delay|residential construction delays|housing development delays/i, terms: ['development approval streamlining','housing approvals reform','expedited housing approvals','pre-approved housing designs','one stop development approvals','digital development approvals','planning approval reform','construction approval streamlining'] },
 
   { workspace: 'municipal', match: /public library wait times|library wait times|library service wait times/i, terms: ['library service redesign','queue management','appointment scheduling','self service library','extended library hours','mobile library','service capacity expansion'] },
@@ -864,7 +864,7 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   // budget and starving the older missing-family/class mechanisms.
   const caps = {
     original: 1,
-    recall: maxQueries <= 6 ? 1 : 4,
+    recall: maxQueries <= 6 ? 1 : maxQueries <= 8 ? 2 : 4,
     'mechanism/admin': 1,
     'family-expansion': 2,
     'legacy-class-expansion': 1,
@@ -878,47 +878,48 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
   const laneOrder = ['original', 'recall', 'mechanism/admin', 'family-expansion', 'legacy-class-expansion', 'workspace-taxonomy', 'vocabulary-expansion', 'business-implementation'];
   const selected = [];
   const seen = new Set();
+  const laneCursors = new Map(laneOrder.map(lane => [lane, 0]));
+  const laneSelected = new Map(laneOrder.map(lane => [lane, 0]));
 
-  for (const lane of laneOrder) {
-    let laneSelected = 0;
-    for (const query of lanes.get(lane) || []) {
-      const q = normalizeText(query);
+  const addNextFromLane = lane => {
+    const queries = lanes.get(lane) || [];
+    let cursor = laneCursors.get(lane) || 0;
+    while (cursor < queries.length) {
+      const q = normalizeText(queries[cursor]);
+      cursor += 1;
+      laneCursors.set(lane, cursor);
       if (!q || seen.has(q)) continue;
       selected.push({ query: q, queryLayer: lane });
       seen.add(q);
-      laneSelected += 1;
-      // Count against the source lane, not the public queryLayer alias. The
-      // legacy lane is emitted as "missing-class-expansion", so comparing the
-      // public label to "legacy-class-expansion" never incremented its cap and
-      // allowed it to consume every remaining slot before mechanism/admin lanes.
-      if (laneSelected >= caps[lane]) break;
+      laneSelected.set(lane, (laneSelected.get(lane) || 0) + 1);
+      return true;
     }
+    return false;
+  };
+
+  // Round-robin across discovery lanes before deepening any one lane. Enforce
+  // the requested budget during selection so recall/family caps cannot overfill
+  // the array and get truncated before missing-class and workspace-taxonomy lanes.
+  while (selected.length < maxQueries) {
+    let added = false;
+    for (const lane of laneOrder) {
+      const cap = caps[lane] ?? 1;
+      if ((laneSelected.get(lane) || 0) >= cap) continue;
+      if (addNextFromLane(lane)) added = true;
+      if (selected.length >= maxQueries) break;
+    }
+    if (!added) break;
   }
 
-  // Backfill unused capacity, then enforce representation of every non-empty
-  // late discovery lane. Deduplication can otherwise make a lane appear empty
-  // even when its retrieval vocabulary is available, which lets early recall
-  // expansion consume the entire effective budget.
-  if (selected.length < maxQueries) {
-    const laneCursors = new Map(laneOrder.map(lane => [lane, 0]));
-    let added = true;
-    while (selected.length < maxQueries && added) {
-      added = false;
-      for (const lane of laneOrder) {
-        const queries = lanes.get(lane) || [];
-        let cursor = laneCursors.get(lane) || 0;
-        while (cursor < queries.length) {
-          const q = normalizeText(queries[cursor]);
-          cursor += 1;
-          laneCursors.set(lane, cursor);
-          if (!q || seen.has(q)) continue;
-          selected.push({ query: q, queryLayer: lane });
-          seen.add(q);
-          added = true;
-          break;
-        }
-        if (selected.length >= maxQueries) break;
-      }
+  // Backfill any remaining budget by round-robin over every lane. This lets
+  // larger budgets explore additional recall/family anchors without starving
+  // the late discovery mechanisms.
+  let backfilled = true;
+  while (selected.length < maxQueries && backfilled) {
+    backfilled = false;
+    for (const lane of laneOrder) {
+      if (addNextFromLane(lane)) backfilled = true;
+      if (selected.length >= maxQueries) break;
     }
   }
 

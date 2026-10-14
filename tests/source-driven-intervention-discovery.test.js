@@ -501,6 +501,22 @@ test('small discovery query budgets retain family and missing-class search lanes
   assert.ok(classQuery && !classQuery.startsWith('reduce violent crime '), 'class search should use a direct class anchor before the narrower problem-scoped form');
 });
 
+test('larger bounded query budgets preserve recall and late discovery lanes', () => {
+  const { buildDiscoveryQueryPlan } = require('../js/source-driven-intervention-discovery');
+  const plan = buildDiscoveryQueryPlan('reduce construction permitting delays', 'municipal', 8);
+  const layers = new Set(plan.map(item => item.queryLayer));
+  assert.equal(plan.length, 8);
+  assert.ok(layers.has('original'));
+  assert.ok(layers.has('recall'));
+  assert.ok(layers.has('mechanism/admin'));
+  assert.ok(layers.has('family-expansion'));
+  assert.ok(layers.has('legacy-class-expansion'));
+  assert.ok(layers.has('workspace-taxonomy'));
+  assert.ok(layers.has('vocabulary-expansion'));
+  assert.ok(plan.filter(item => item.queryLayer === 'recall').length >= 2);
+  assert.ok(plan.some(item => /construction permit fast track|digital plan review/i.test(item.query)));
+});
+
 test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
   const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   const queries = buildDiscoveryQueries('reduce cybersecurity incident risk', 'enterprise');
