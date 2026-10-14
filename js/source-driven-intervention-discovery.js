@@ -1241,15 +1241,15 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieve({...source,url:sourceUrl},{fetchImpl,now}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
-        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); rawCandidates.push(...leads); sourceCandidates.push(...leads);
+        const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const rejectedByRelevance=extractedLeads.length-leads.length; rawCandidates.push(...leads); sourceCandidates.push(...leads);
         const interim=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,interim);
-        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
+        attempts.push({query,queryLayer:plannedQuery.queryLayer || classifyDiscoveryQuery(query,problem,workspace),queryPhase:'initial-plan',status:leads.length?'candidates-found':'searched-empty',recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,extractedCandidates:extractedLeads.length,rejectedByRelevance,candidatesReturned:leads.length,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:coverage.expectedFamilies,observedFamilies:coverage.observedFamilies,missingFamilies:coverage.missingFamilies});
         consecutiveFailures = 0;
         if(interim.length>=DISCOVERY_MIN_UNIQUE_CANDIDATES&&(coverage.expectedFamilies.length===0||coverage.coverageRatio>=DISCOVERY_TARGET_FAMILY_COVERAGE))break;
       }catch(error){
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
-        attempts.push({query,queryPhase:'initial-plan',status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+        attempts.push({query,queryPhase:'initial-plan',status:'search-failed',recordsConsidered:0,extractedCandidates:0,rejectedByRelevance:0,candidatesReturned:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
         if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
       }
     }
@@ -1285,6 +1285,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
             : extractCkanInterventionLeads(payload.value, source, problem, workspace);
           const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          const rejectedByRelevance = extractedLeads.length - leads.length;
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
@@ -1294,6 +1295,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             queryPhase: 'expansion',
             status: leads.length ? 'candidates-found' : 'searched-empty',
             candidatesReturned: leads.length,
+            extractedCandidates: extractedLeads.length,
+            rejectedByRelevance,
             recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
             provenance: snapshot.retrieval,
             failureReason: null,
@@ -1316,6 +1319,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             queryLayer: 'missing-family-expansion',
             status: 'search-failed',
             candidatesReturned: 0,
+            extractedCandidates: 0,
+            rejectedByRelevance: 0,
             recordsConsidered: 0,
             provenance: null,
             failureReason: error?.message || 'source-driven-search-failed',
