@@ -476,6 +476,11 @@ test('small discovery query budgets retain family and missing-class search lanes
   assert.ok(layers.has('mechanism/admin'));
   assert.ok(layers.has('family-expansion'));
   assert.ok(layers.has('legacy-class-expansion'));
+  const familyQueries = plan.filter(item => item.queryLayer === 'family-expansion').map(item => item.query.toLowerCase());
+  assert.ok(familyQueries.includes('violence interruption'));
+  assert.ok(familyQueries.includes('housing first'), 'a compatible housing option must survive the small query budget');
+  const classQuery = plan.find(item => item.queryLayer === 'legacy-class-expansion')?.query.toLowerCase();
+  assert.ok(classQuery && !classQuery.startsWith('reduce violent crime '), 'class search should use a direct class anchor before the narrower problem-scoped form');
 });
 
 test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
