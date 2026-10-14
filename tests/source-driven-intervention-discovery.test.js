@@ -507,3 +507,22 @@ test('discovery attempts report record-level extraction rejection reasons', asyn
   assert.equal(first.rejectedByRelevance, 1);
   assert.equal(first.candidatesReturned, 0);
 });
+
+test('GOV.UK discovery diagnostics count the provider results array correctly', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'UK',
+    sources: [GOVUK_SOURCE],
+    fetchImpl: async () => mockResponse({ results: [
+      { title: 'Home energy assistance program', description: 'Provides utility bill assistance for households.', link: '/home-energy-assistance' }
+    ] })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === GOVUK_SOURCE.sourceId);
+  assert.ok(search);
+  const first = search.attempts[0];
+  assert.equal(first.recordsConsidered, 1);
+  assert.equal(first.extractionDiagnostics.recordsSeen, 1);
+  assert.equal(first.extractedCandidates, 1);
+  assert.equal(first.rejectedByRelevance, 1);
+  assert.equal(first.candidatesReturned, 0);
+});
