@@ -6,7 +6,7 @@ on:
     branches: ["**"]
   workflow_dispatch:
 concurrency:
-  group: vidik-fast-feedback-${{ github.ref }}
+  group: vidik-fast-feedback-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   targeted-regression:
