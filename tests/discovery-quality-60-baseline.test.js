@@ -106,7 +106,7 @@ async function mapWithConcurrency(items, limit, worker) {
           durationMs: Date.now() - startedAt
         }));
       } catch (error) {
-        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-90s:')) throw error;
+        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-120s:')) throw error;
         const [workspace, jurisdiction, ...problemParts] = item;
         results[index] = {
           workspace, jurisdiction, problem: problemParts.join(' | '),
