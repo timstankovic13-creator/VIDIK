@@ -450,7 +450,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       total.extractionRejections[reason] = (total.extractionRejections[reason] || 0) + count;
     }
     return total;
-  }, { sourceCount: 0, queryAttempts: 0, retrievalFailures: 0, successfulQueriesWithNoRecords: 0, recordsConsidered: 0, recordsWithCandidates: 0, extractedCandidates: 0, rejectedByRelevance: 0, extractionRejections: {} });
+  }, { sourceCount: 0, queryAttempts: 0, retrievalFailures: 0, successfulQueriesWithNoRecords: 0, catalogQueries: 0, catalogRecordsConsidered: 0, catalogRecordsWithCandidates: 0, catalogExtractedCandidates: 0, catalogRejectedByRelevance: 0, extractionRejections: {} });
   stageTotals.averageQueriesPerProblem = Number((stageTotals.queryAttempts / results.length).toFixed(2));
   stageTotals.casesWithAllQueriesFailed = results.filter(result => result.discoveryStages.queryAttempts > 0 && result.discoveryStages.retrievalFailures === result.discoveryStages.queryAttempts).length;
   stageTotals.casesWithCatalogRecordsButNoExtraction = results.filter(result => result.discoveryStages.catalogRecordsConsidered > 0 && result.discoveryStages.catalogExtractedCandidates === 0).length;
