@@ -264,7 +264,10 @@ function missingInterventionClassSearchQueries(problem, workspace, candidates = 
   const profile = workspace === 'enterprise' ? enterpriseProblemProfile(problem) : null;
   const classes = profile ? Object.fromEntries([['profile', profile.classes]]) : (LEGACY_INTERVENTION_CLASSES[workspace] || LEGACY_INTERVENTION_CLASSES.municipal);
   const domains = inferWorkspaceDomains(problem, workspace);
-  const compatibleDomains = domains.flatMap(domain => [...(CROSS_DOMAIN_COMPATIBILITY[domain] || [])]);
+  const compatibleDomains = domains.flatMap(domain => {
+    const compatibilityKey = domain === 'safety' ? 'public-safety' : domain;
+    return [...(CROSS_DOMAIN_COMPATIBILITY[compatibilityKey] || [])];
+  });
   const searchDomains = [...new Set([...domains, ...compatibleDomains])];
   const represented = new Set(coverage.representedClasses);
   const queues = profile
