@@ -2,6 +2,14 @@ name: VIDIK Canonical 60-Problem Discovery Baseline
 on:
   push:
     branches: ["fix/data-acquisition-timeout-scope"]
+    paths:
+      - 'js/source-driven-intervention-discovery.js'
+      - 'js/source-driven-evidence-discovery.js'
+      - 'js/data-acquisition.js'
+      - 'js/source-registry.js'
+      - 'tests/discovery-quality-60-baseline.test.js'
+      - 'tests/source-driven-intervention-discovery.test.js'
+      - 'tests/source-driven-evidence-discovery.test.js'
   workflow_dispatch:
 concurrency:
   group: vidik-discovery-60-baseline-${{ github.ref }}
