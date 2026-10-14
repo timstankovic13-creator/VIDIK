@@ -813,7 +813,7 @@ function extractGovUkInterventionLeads(payload, source, problem, workspace = 'mu
     }
     const titleActionable = isActionableInterventionTitle(title, description, { allowDescriptionSignals: true });
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
-    const names = titleActionable ? [title] : (recordLike ? [] : extractConcreteInterventionFromDescription(problem, workspace, description));
+    const names = titleActionable ? [title] : extractConcreteInterventionFromDescription(problem, workspace, description);
     const extracted = names.map((name, extractedIndex) => {
       const canonicalName = normalizeInterventionName(name);
       if (!canonicalName) return null;
@@ -837,7 +837,7 @@ function extractCkanInterventionLeads(payload, source, problem, workspace = 'mun
     const titleActionable = classification.accepted && isActionableInterventionTitle(title);
     const recordLike = /\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\b/i.test(title);
     const descriptionExtracted = extractConcreteInterventionFromDescription(problem, workspace, notes + ' ' + tags.join(' '));
-    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : (!recordLike && descriptionExtracted.length ? descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' })) : []);
+    const names = titleActionable ? [{ name: title, family: classification.families, basis: classification.reason }] : descriptionExtracted.map(name => ({ name, family: inferInterventionFamily(name + ' ' + notes), basis: 'description-extracted-intervention' });
     const extracted = names.map((item, extractedIndex) => {
       const canonicalName = normalizeInterventionName(item.name);
       if (!canonicalName) return null;
