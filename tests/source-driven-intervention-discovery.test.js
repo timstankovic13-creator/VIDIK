@@ -466,6 +466,18 @@ test('municipal worker-displacement recall anchors reach the bounded source-quer
 });
 
 
+test('small discovery query budgets retain family and missing-class search lanes', () => {
+  const { buildDiscoveryQueryPlan } = require('../js/source-driven-intervention-discovery');
+  const plan = buildDiscoveryQueryPlan('reduce violent crime', 'municipal', 6);
+  const layers = new Set(plan.map(item => item.queryLayer));
+  assert.equal(plan.length, 6);
+  assert.ok(layers.has('original'));
+  assert.ok(layers.has('recall'));
+  assert.ok(layers.has('mechanism/admin'));
+  assert.ok(layers.has('family-expansion'));
+  assert.ok(layers.has('legacy-class-expansion'));
+});
+
 test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
   const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   const queries = buildDiscoveryQueries('reduce cybersecurity incident risk', 'enterprise');
