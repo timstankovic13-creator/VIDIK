@@ -329,40 +329,42 @@ const WORKSPACE_TAXONOMIES = Object.freeze({
     digitalAccess: ['digital inclusion','digital inclusion program','digital inclusion programme','broadband subsidy','broadband voucher','broadband voucher scheme','internet access support','digital lifeline fund','device lending','device grant','public wi-fi','public wifi','digital literacy training','community technology centre','computer access program']
   },
   business: {
-    employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility'],
-    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer'],
+    employment: ['retention program','career pathway','manager training','flexible scheduling','employee assistance','skills training','internal mobility','structured interview','skills-based hiring','hiring assessment','candidate sourcing','learning management system','microlearning','training completion nudges'],
+    economic: ['customer retention program','loyalty program','pricing intervention','price stabilization support','working capital support','supplier diversification','inventory buffer','small business grant','small business loan','small business financing','business advisory service','supply chain visibility','contingency sourcing'],
     energy: ['energy efficiency','energy management','energy conservation','demand response','building retrofit','HVAC optimization','weatherization','renewable energy procurement','solar','battery storage','utility efficiency'],
     infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','route optimization','warehouse automation','emergency response coordination','incident command','business continuity response','last-mile delivery','logistics optimization','delivery scheduling'],
-    safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive'],
+    safety: ['safety training','engineering control','near miss program','ergonomic assessment','safety incentive','workplace injury prevention','occupational safety intervention'],
     accessibility: ['accessible design','assistive technology','accommodation program','inclusive customer service'],
     governance: ['compliance automation','internal controls','data governance program','procurement reform']
   },
   community: {
     safety: ['violence interruption','youth mentoring','credible messenger','community patrol','safe passage'],
     housing: ['housing first','rental assistance','tenant support','community land trust','housing navigation'],
-    health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach'],
-    food: ['community food hub','food voucher','mobile market','community kitchen','school meal program'],
-    climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization'],
+    health: ['peer support','mobile clinic','community health worker','care navigation','mental health outreach','befriending program','social prescribing','senior activity program','community connector','older adult social program','loneliness outreach'],
+    food: ['community food hub','food voucher','mobile market','community kitchen','school meal program','food bank','food pantry','food assistance program'],
+    climate: ['cooling centre','clean air shelter','disaster preparedness training','evacuation support','home weatherization','evacuation transport support','wildfire evacuation planning','community emergency preparedness','smoke mitigation'],
     employment: ['job placement','bridge training','language training','apprenticeship support'],
-    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
+    digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy','remote service enablement','customer self-service','virtual service delivery','self-service portal','digital service channel']
   },
   research: {
     safety: ['hot spot policing','focused deterrence','violence interruption','community violence intervention'],
     housing: ['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention'],
-    health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention'],
-    climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation'],
-    mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing'],
+    health: ['care navigation','community paramedicine','mobile crisis response','overdose prevention','rural healthcare access','community health worker'],
+    climate: ['cooling centre','clean air shelter','smoke filtration','home weatherization','flood mitigation','wildfire smoke mitigation','air filtration','smoke exposure reduction'],
+    mobility: ['traffic calming','bus priority','protected bike lane','pedestrian crossing','demand responsive transit','community transport','rural mobility service'],
     employment: ['job training','wage subsidy','career pathway','reskilling program','worker displacement','displacement support','redeployment','worker transition'],
+    food: ['food voucher','community food hub','school meal program','food bank','food pantry','food assistance program'],
+    energy: ['weatherization assistance','home energy assistance','energy bill assistance','utility assistance','energy efficiency retrofit','energy poverty support'],
     digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy']
   },
   enterprise: {
     cybersecurity: ['zero trust','multi factor authentication','endpoint detection','security awareness training','backup and recovery'],
     governance: ['data governance program','master data management','privacy impact assessment','compliance automation','internal controls'],
-    economic: ['process automation','workflow redesign','supplier diversification','capacity planning'],
+    economic: ['process automation','workflow redesign','supplier diversification','capacity planning','remote service enablement','customer self-service','virtual service delivery','self-service portal','digital service channel','service automation'],
     employment: ['workforce planning','manager training','employee assistance','skills training','internal mobility'],
     digitalAccess: ['digital inclusion','broadband voucher','internet access support','device lending','digital literacy'],
     accessibility: ['accessible design','assistive technology','service accommodation','inclusive service design'],
-    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response']
+    infrastructure: ['preventive maintenance','asset management','capacity expansion','redundancy','incident response','emergency response coordination','incident command','business continuity response']
   }
 });
 
