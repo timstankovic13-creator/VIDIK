@@ -366,6 +366,24 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
     const expectedFamilies = expectedInterventionFamilies(problem, workspace);
     const expectedFamilyHits = expectedFamilies.filter(family => families.has(family));
+    const sourceAttempts = discovery.sourceSearches.flatMap(search => search.attempts || []);
+    const extractionRejections = {};
+    for (const attempt of sourceAttempts) {
+      for (const [reason, count] of Object.entries(attempt.extractionDiagnostics?.rejectionReasons || {})) {
+        extractionRejections[reason] = (extractionRejections[reason] || 0) + count;
+      }
+    }
+    const discoveryStages = {
+      sourceCount: discovery.sourceSearches.length,
+      queryAttempts: sourceAttempts.length,
+      retrievalFailures: sourceAttempts.filter(attempt => attempt.status === 'search-failed').length,
+      successfulQueriesWithNoRecords: sourceAttempts.filter(attempt => attempt.status !== 'search-failed' && attempt.recordsConsidered === 0).length,
+      recordsConsidered: sourceAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0),
+      recordsWithCandidates: sourceAttempts.reduce((sum, attempt) => sum + (attempt.extractionDiagnostics?.recordsWithCandidates || 0), 0),
+      extractedCandidates: sourceAttempts.reduce((sum, attempt) => sum + (attempt.extractedCandidates || 0), 0),
+      rejectedByRelevance: sourceAttempts.reduce((sum, attempt) => sum + (attempt.rejectedByRelevance || 0), 0),
+      extractionRejections
+    };
 
     // Discovery must remain discovery: no causal effects or recommendation can leak in here.
     assert.ok(candidates.every(candidate => candidate.discovery?.leadOnly === true));
@@ -413,7 +431,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       independentEvidenceSources,
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      discoveryStages
     };
   });
 
@@ -421,6 +440,19 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
+  const stageTotals = results.reduce((total, result) => {
+    for (const key of ['sourceCount','queryAttempts','retrievalFailures','successfulQueriesWithNoRecords','recordsConsidered','recordsWithCandidates','extractedCandidates','rejectedByRelevance']) {
+      total[key] += result.discoveryStages[key] || 0;
+    }
+    for (const [reason, count] of Object.entries(result.discoveryStages.extractionRejections)) {
+      total.extractionRejections[reason] = (total.extractionRejections[reason] || 0) + count;
+    }
+    return total;
+  }, { sourceCount: 0, queryAttempts: 0, retrievalFailures: 0, successfulQueriesWithNoRecords: 0, recordsConsidered: 0, recordsWithCandidates: 0, extractedCandidates: 0, rejectedByRelevance: 0, extractionRejections: {} });
+  stageTotals.averageQueriesPerProblem = Number((stageTotals.queryAttempts / results.length).toFixed(2));
+  stageTotals.casesWithAllQueriesFailed = results.filter(result => result.discoveryStages.queryAttempts > 0 && result.discoveryStages.retrievalFailures === result.discoveryStages.queryAttempts).length;
+  stageTotals.casesWithRecordsButNoExtraction = results.filter(result => result.discoveryStages.recordsConsidered > 0 && result.discoveryStages.extractedCandidates === 0).length;
+  stageTotals.casesWithExtractionButNoRelevantCandidate = results.filter(result => result.discoveryStages.extractedCandidates > 0 && result.candidateCount === 0).length;
 
   assert.equal(results.length, CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
@@ -439,6 +471,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
     casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
     totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
+    discoveryStageTotals: stageTotals,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
