@@ -133,10 +133,10 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 2, async ([workspace, jurisdiction, problem], index, signal) => {
+  const results = await mapWithConcurrency(BASELINE_60, 4, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 3, maxSources: 2, maxQueriesPerSource: 2, maxLiteratureQueries: 1, skipExpansion: true, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 2, maxQueriesPerSource: 6, maxLiteratureQueries: 3, skipExpansion: true, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
