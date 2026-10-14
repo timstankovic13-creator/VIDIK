@@ -12,7 +12,7 @@ const DATAGOV_MIN_ROWS = 25;
 const MAX_TRANSIENT_SOURCE_RETRIES = 2;
 const TRANSIENT_RETRY_DELAYS_MS = [250, 1000];
 const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
-  'openalex-works': 2,
+  'openalex-works': 1,
   'crossref-works': 1,
   'pubmed-eutils': 1,
   'ca-program-discovery': 1,
@@ -25,15 +25,15 @@ const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
 const discoverySourceConcurrency = new Map();
 const discoverySourceNextAllowedAt = new Map();
 const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
-  'openalex-works': 1200,
-  'crossref-works': 1000,
-  'pubmed-eutils': 350,
-  'ca-program-discovery': 400,
-  'ca-ontario-program-discovery': 400,
-  'us-open-data-program-discovery': 400,
-  'uk-open-data-program-discovery': 400,
-  'uk-gov-program-discovery': 400,
-  'au-open-data-program-discovery': 400
+  'openalex-works': 250,
+  'crossref-works': 250,
+  'pubmed-eutils': 150,
+  'ca-program-discovery': 200,
+  'ca-ontario-program-discovery': 200,
+  'us-open-data-program-discovery': 200,
+  'uk-open-data-program-discovery': 200,
+  'uk-gov-program-discovery': 200,
+  'au-open-data-program-discovery': 200
 });
 const DISCOVERY_SOURCE_QUEUE_MAX_WAIT_MS = 15000;
 
