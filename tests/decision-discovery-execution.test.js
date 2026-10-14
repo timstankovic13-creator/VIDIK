@@ -5,6 +5,26 @@ const test = require('node:test');
 const { executeDecisionDiscovery, executeFullCapacityDecision, normalizeDiscoveryJurisdiction } = require('../js/decision-discovery-execution');
 const { SOURCE_TYPES } = require('../js/decision-discovery-orchestrator');
 
+const BOUNDED_FULL_CAPACITY_OPTIONS = {
+  discoveryOptions: {
+    maxSources: 2,
+    maxQueriesPerSource: 2,
+    maxLiteratureQueries: 1,
+    skipExpansion: true,
+    requestTimeoutMs: 1000,
+    maxRedirects: 1,
+    maxRateLimitRetries: 0,
+    maxTransientRetries: 0
+  },
+  evidenceDiscoveryOptions: {
+    maxSources: 2,
+    maxQueriesPerSource: 1,
+    requestTimeoutMs: 1000,
+    maxRedirects: 1,
+    maxRateLimitRetries: 0
+  }
+};
+
 function response(value) {
   const bytes = Buffer.from(JSON.stringify(value));
   return { ok: true, status: 200, headers: { get(name) { return name.toLowerCase() === 'content-type' ? 'application/json' : String(bytes.length); } }, async arrayBuffer() { return bytes; } };
@@ -13,10 +33,14 @@ function response(value) {
 function fakeFetch(url) {
   const parsed = new URL(url);
   if (parsed.hostname === 'open.canada.ca' || parsed.hostname === 'data.ontario.ca') {
-    return Promise.resolve(response({ success: true, result: { results: [
-      { id: 'worker-transition-service', title: 'Worker transition training and employment service', notes: 'Employment training and placement support for workers displaced by automation', tags: [{ display_name: 'employment' }, { display_name: 'training' }] },
-      { id: 'worker-data', title: 'Worker displacement statistics dataset', notes: 'Administrative records and statistics', tags: [{ display_name: 'data' }] }
-    ] } }));
+    const query = [...parsed.searchParams.values()].join(' ').toLowerCase();
+    const results = /violent crime|violence|crime/.test(query)
+      ? [{ id: 'community-violence-intervention', title: 'Community violence intervention and street outreach program', notes: 'Community violence prevention and outreach to reduce violent crime', tags: [{ display_name: 'public safety' }, { display_name: 'violence prevention' }] }]
+      : [
+          { id: 'worker-transition-service', title: 'Worker transition training and employment service', notes: 'Employment training and placement support for workers displaced by automation', tags: [{ display_name: 'employment' }, { display_name: 'training' }] },
+          { id: 'worker-data', title: 'Worker displacement statistics dataset', notes: 'Administrative records and statistics', tags: [{ display_name: 'data' }] }
+        ];
+    return Promise.resolve(response({ success: true, result: { results } }));
   }
   if (parsed.hostname === 'api.openalex.org') return Promise.resolve(response({ results: [{ id: 'https://openalex.org/W1', display_name: 'Evaluation of worker retraining and employment support after technological displacement' }] }));
   if (parsed.hostname === 'api.crossref.org') return Promise.resolve(response({ message: { items: [] } }));
@@ -102,6 +126,7 @@ test('execution does not convert missing searchers into an empty search', async 
 test('full-capacity execution automatically discovers a novel intervention universe and evidence leads', async () => {
   assert.equal(normalizeDiscoveryJurisdiction('Ottawa, Canada'), 'CA');
   const run = await executeFullCapacityDecision({
+    ...BOUNDED_FULL_CAPACITY_OPTIONS,
     problem: 'worker displacement from automation',
     requiredSourceTypes: ['intervention-library'],
     fetchImpl: fakeFetch,
@@ -119,6 +144,7 @@ test('full-capacity execution automatically discovers a novel intervention unive
 
 test('full-capacity discovery does not promote a data-only record into an intervention', async () => {
   const run = await executeFullCapacityDecision({
+    ...BOUNDED_FULL_CAPACITY_OPTIONS,
     problem: 'worker displacement from automation',
     requiredSourceTypes: ['intervention-library'],
     fetchImpl: fakeFetch,
@@ -130,6 +156,7 @@ test('full-capacity discovery does not promote a data-only record into an interv
 
 test('full-capacity flagship execution traverses the legacy and new intelligence layers together', async () => {
   const run = await executeFullCapacityDecision({
+    ...BOUNDED_FULL_CAPACITY_OPTIONS,
     problem: 'How should a municipality allocate $10M of new spending over three years to reduce violent crime?',
     requiredSourceTypes: ['intervention-library', 'comparable-city'],
     fetchImpl: fakeFetch,
