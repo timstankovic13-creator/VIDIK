@@ -794,6 +794,18 @@ function buildMechanismSearchQueries(problem, workspace = 'municipal') {
   return [...mechanisms];
 }
 
+function preferredFamilySearchTerms(problem) {
+  const p = normalizeText(problem).toLowerCase();
+  if (/construction permit|construction permitting|permitting delays|permit delays/.test(p)) return ['construction permit fast track', 'digital plan review', 'permit concierge'];
+  if (/school absenteeism|school attendance|truancy/.test(p)) return ['attendance mentoring', 'truancy prevention', 'school attendance intervention'];
+  if (/hiring success|hiring quality|improve hiring/.test(p)) return ['structured interview', 'skills-based hiring', 'hiring assessment'];
+  if (/social isolation|loneliness|isolat.*senior/.test(p)) return ['befriending program', 'social prescribing', 'senior activity program'];
+  if (/food insecurity|food access|hunger/.test(p)) return ['food bank', 'food pantry', 'food assistance program'];
+  if (/energy poverty|energy burden|energy affordability/.test(p)) return ['weatherization assistance', 'home energy assistance', 'energy bill assistance'];
+  if (/remote service delivery|digital service access/.test(p)) return ['remote service enablement', 'self-service portal', 'virtual service delivery'];
+  return [];
+}
+
 function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = DISCOVERY_MAX_QUERIES_PER_SOURCE) {
   const original = normalizeText(problem);
   const normalized = original.toLowerCase();
@@ -822,13 +834,17 @@ function buildDiscoveryQueryPlan(problem, workspace = 'municipal', maxQueries = 
 
   const expected = relatedInterventionFamilies(original, workspace);
   const familyQueries = [];
+  const preferredTerms = preferredFamilySearchTerms(original)
+    .filter(term => expected.some(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).includes(term)));
+  familyQueries.push(...preferredTerms);
+  const preferredSet = new Set(preferredTerms);
   const maxFamilyTerms = Math.max(0, ...expected.map(family => (INTERVENTION_FAMILY_SEARCH_TERMS[family] || []).length));
   // Interleave primary and compatible-family terms so a small budget explores
   // more than one intervention family instead of exhausting the primary family.
   for (let termIndex = 0; termIndex < maxFamilyTerms; termIndex++) {
     for (const family of expected) {
       const term = (INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])[termIndex];
-      if (term) familyQueries.push(term);
+      if (term && !preferredSet.has(term)) familyQueries.push(term);
     }
   }
   lanes.set('family-expansion', [...new Set(familyQueries)]);
