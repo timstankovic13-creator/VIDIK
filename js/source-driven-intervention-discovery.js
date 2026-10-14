@@ -1285,6 +1285,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             ? extractGovUkInterventionLeads(payload.value, source, problem, workspace)
             : extractCkanInterventionLeads(payload.value, source, problem, workspace);
           const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          const rejectedByRelevance = extractedLeads.length - leads.length;
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
@@ -1294,6 +1295,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             queryPhase: 'expansion',
             status: leads.length ? 'candidates-found' : 'searched-empty',
             candidatesReturned: leads.length,
+            extractedCandidates: extractedLeads.length,
+            rejectedByRelevance,
             recordsConsidered: Array.isArray(payload.value?.result?.results) ? payload.value.result.results.length : 0,
             provenance: snapshot.retrieval,
             failureReason: null,
@@ -1316,6 +1319,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             queryLayer: 'missing-family-expansion',
             status: 'search-failed',
             candidatesReturned: 0,
+            extractedCandidates: 0,
+            rejectedByRelevance: 0,
             recordsConsidered: 0,
             provenance: null,
             failureReason: error?.message || 'source-driven-search-failed',
