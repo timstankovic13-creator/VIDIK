@@ -134,7 +134,10 @@ async function mapWithConcurrency(items, limit, worker) {
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
   const results = await mapWithConcurrency(BASELINE_60, 3, async ([workspace, jurisdiction, problem], index, signal) => {
+    const discoveryStartedAt = Date.now();
+    console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
     const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5, maxSources: 2, maxQueriesPerSource: 6, maxLiteratureQueries: 1, skipExpansion: true, signal });
+    console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
@@ -156,13 +159,18 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
     let evidence = null;
     if (candidates.length) {
+      const evidenceStartedAt = Date.now();
+      console.log(JSON.stringify({ event: 'baseline-evidence-start', case: index + 1, candidateCount: candidates.length }));
       evidence = await discoverCandidateUniverseEvidence({
         problem,
         candidates,
         rows: 2,
         maxCandidates: 1,
+        maxSources: 2,
+        maxQueriesPerSource: 2,
         signal
       });
+      console.log(JSON.stringify({ event: 'baseline-evidence-complete', case: index + 1, durationMs: Date.now() - evidenceStartedAt, sourceSearchCount: evidence.candidateEvidence[0]?.sourceSearches?.length || 0 }));
       assert.equal(evidence.recommendationEligible, false);
       assert.equal(evidence.effectsImported, false);
       assert.ok(evidence.candidateEvidence.every(result => result.sourceSearches.length >= 2));
@@ -249,9 +257,6 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     result => result.independentEvidenceSources >= 2 && result.evidenceLeads > 0
   ).length;
 
-  assert.equal(results.length, 60);
-  assert.equal(measuredResults.length, 60, 'all 60 live discovery cases must complete; timed-out cases are not valid quality measurements');
-  assert.ok(results.every(result => result.grade));
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
     cases: results.length,
@@ -295,6 +300,9 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
     note: 'This is a measurement baseline, not a quality-threshold gate. Architectural invariants remain strict; quality grades are findings for comparison against later discovery work.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
+  assert.equal(results.length, 60);
+  assert.equal(measuredResults.length, 60, `all 60 live discovery cases must complete; completed=${measuredResults.length}; timedOut=${results.length - measuredResults.length}`);
+  assert.ok(results.every(result => result.grade));
 });
 
 function evidenceSufficiencyCount(result) {
