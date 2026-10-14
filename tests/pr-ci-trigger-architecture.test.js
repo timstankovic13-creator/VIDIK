@@ -5,8 +5,8 @@ const assert = require('node:assert/strict');
 
 const workflowDir = path.join(process.cwd(), '.github', 'workflows');
 const canonicalPrWorkflows = new Set([
-  'intelligence-completion-v1.yml',
-  'pr-ci-orchestrator.yml'
+  'pr-ci-orchestrator.yml',
+  'vidik-fast-feedback.yml'
 ]);
 
 test('PR CI trigger architecture has one canonical test gate plus orchestrator', () => {
@@ -37,3 +37,33 @@ test('Insight Quality gates run before expensive downstream certification', () =
   assert.ok(fast >= 0 && universe >= 0 && relevance >= 0 && battery >= 0 && evidence >= 0);
   assert.ok(fast < universe && universe < relevance && relevance < battery && battery < evidence);
 });
+
+
+test('pull requests use a fast targeted gate; full certification is reserved for non-PR runs', () => {
+  const workflow = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
+  const lines = workflow.split('\n');
+  const fastGate = lines.indexOf('      - name: Data acquisition timeout regression');
+  const expensiveGate = lines.indexOf('      - name: Intervention universe hardening');
+  const fullBattery = lines.indexOf('      - name: Insight Quality Battery (60 real-world decision problems)');
+  assert.ok(fastGate >= 0 && fastGate < expensiveGate);
+  for (const name of [
+    'Intervention universe hardening',
+    'Insight Quality Battery (60 real-world decision problems)',
+    'Product usage gamut',
+    'Nonmunicipal workspace integration',
+    'Final integrated 60-problem discovery baseline'
+  ]) {
+    const index = lines.indexOf('      - name: ' + name);
+    assert.ok(index >= 0, name + ' step must exist');
+    assert.equal(lines[index + 1], "        if: github.event_name != 'pull_request'", name + ' must not run as part of the pull-request feedback gate');
+  }
+  assert.ok(fullBattery > expensiveGate);
+});
+
+test('full certification is not a pull-request trigger; fast feedback is', () => {
+  const full = fs.readFileSync(path.join(workflowDir, 'intelligence-completion-v1.yml'), 'utf8');
+  const fast = fs.readFileSync(path.join(workflowDir, 'vidik-fast-feedback.yml'), 'utf8');
+  assert.equal(full.split('\n').some(line => line.trim() === 'pull_request:'), false);
+  assert.equal(fast.split('\n').some(line => line.trim() === 'pull_request:'), true);
+});
+

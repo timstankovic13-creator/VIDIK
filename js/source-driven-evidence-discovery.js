@@ -1,6 +1,7 @@
 'use strict';
 
 const { retrieve, parsePayload, sha256 } = require('./data-acquisition');
+const { withDiscoverySourceConcurrency } = require('./source-driven-intervention-discovery');
 const { SOURCE_REGISTRY } = require('./source-registry');
 const EVIDENCE_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils', 'crossref-works']);
 const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
@@ -11,7 +12,7 @@ const EVIDENCE_SOURCE_FAMILIES = Object.freeze({
 const EVIDENCE_CAUSAL_SOURCE_IDS = new Set(['openalex-works', 'pubmed-eutils']);
 const EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE = 10;
 
-const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 2;
+const EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS = 1;
 const EVIDENCE_FAMILY_TERMS = Object.freeze({
   'public-safety':['violence interruption','focused deterrence','hot spot policing','community violence intervention','violence prevention','street outreach','firearm violence prevention'],
   housing:['housing first','rapid rehousing','supportive housing','rental assistance','eviction prevention','housing outcomes'],
@@ -196,11 +197,27 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
   const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && independentSourceFamilyCount >= 2 && causalSourceCount >= 1 && relevantLeads.length > 0;
   return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
-async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
+async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10, maxSources = null, maxQueriesPerSource = null, requestTimeoutMs = null, maxRedirects = null, maxRateLimitRetries = null, signal = null } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
   const supplied = Array.isArray(sources) ? sources : null;
-  const selected = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
-    .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source));
+  const biomedicalContext = /\b(health|hospital|medical|clinical|patient|opioid|overdose|disease|mental health|public health|care navigation|community paramedicine)\b/i
+    .test([problem, candidate.name, candidate.discoveryText, ...(candidate.interventionFamily || [])].filter(Boolean).join(' ')) ||
+    (Array.isArray(candidate.interventionFamily) && candidate.interventionFamily.includes('health-service'));
+  const availableSources = (supplied ? supplied : SOURCE_REGISTRY.filter(source => EVIDENCE_SOURCE_IDS.has(source.sourceId)))
+    .filter(sourceIsAuthoritative).map(source => canonicalEvidenceSource(source))
+    // Keep OpenAlex as the default causal-research anchor. Pair it with Crossref
+    // for broad cross-domain evidence; reserve PubMed for biomedical problems,
+    // where its specialized index adds more value than a second general catalogue.
+    .sort((a, b) => {
+      const priority = source => source.sourceId === 'openalex-works' ? 0
+        : source.sourceId === 'pubmed-eutils' ? (biomedicalContext ? 1 : 2)
+        : source.sourceId === 'crossref-works' ? (biomedicalContext ? 2 : 1)
+        : 3;
+      return priority(a) - priority(b);
+    });
+  const selected = Number.isInteger(maxSources) && maxSources > 0
+    ? availableSources.slice(0, maxSources)
+    : availableSources;
   const query = queryFor(candidate, problem);
   const discoveryTerms = evidenceConceptTokens(candidate?.discoveryText).slice(0, 8);
   const name = String(candidate?.name || '').trim();
@@ -226,7 +243,7 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     'economic-support': ['cash transfer','income support','food voucher','subsidy']
   };
   const mechanismPhrase = [...new Set((candidate.interventionFamily || []).flatMap(f => mechanismTerms[f] || []))].slice(0, 4).join(' ');
-  const diversifiedQueries = [...new Set([
+  const fullDiversifiedQueries = [...new Set([
     name,
     name + ' ' + problem,
     name + ' ' + familyTerms.join(' '),
@@ -243,22 +260,31 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
     problem + ' implementation evaluation',
     query
   ].map(value => value.replace(/\s+/g, ' ').trim()).filter(value => value.length > 3))].slice(0, EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE);
+  const diversifiedQueries = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0
+    ? fullDiversifiedQueries.slice(0, Math.min(EVIDENCE_SEARCH_MAX_QUERIES_PER_SOURCE, maxQueriesPerSource))
+    : fullDiversifiedQueries;
   const searches = [], rawLeads = [];
   for (const source of selected) {
+    if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
     for (const searchQuery of diversifiedQueries) {
+      if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
       try {
         const url = buildEvidenceSearchUrl(source, searchQuery);
-        const snapshot = await retrieve({ ...source, url }, { fetchImpl, now });
+        const retrievalOptions = { fetchImpl, now, signal };
+        if (Number.isInteger(requestTimeoutMs) && requestTimeoutMs > 0) retrievalOptions.requestTimeoutMs = requestTimeoutMs;
+        if (Number.isInteger(maxRedirects) && maxRedirects >= 0) retrievalOptions.maxRedirects = maxRedirects;
+        if (Number.isInteger(maxRateLimitRetries) && maxRateLimitRetries >= 0) retrievalOptions.maxRateLimitRetries = maxRateLimitRetries;
+        const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url }, retrievalOptions), signal);
         const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
         if (payload.format !== 'json') throw new Error('evidence-discovery-response-not-json');
         let evidencePayload = payload.value;
         if (source.sourceId === 'pubmed-eutils') {
           const ids = Array.isArray(evidencePayload?.esearchresult?.idlist) ? evidencePayload.esearchresult.idlist.slice(0,20) : [];
           if (ids.length) {
-            const summarySnapshot = await retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, { fetchImpl, now });
+            const summarySnapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url: buildPubmedSummaryUrl(source, ids) }, retrievalOptions), signal);
             const summaryPayload = parsePayload(summarySnapshot.bytes, summarySnapshot.retrieval.contentType);
             if (summaryPayload.format !== 'json') throw new Error('pubmed-summary-response-not-json');
-            const abstractSnapshot = await retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, { fetchImpl, now });
+            const abstractSnapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieve({ ...source, url: buildPubmedAbstractUrl(source, ids) }, retrievalOptions), signal);
             const abstractText = Buffer.from(abstractSnapshot.bytes).toString('utf8');
             evidencePayload = { ...evidencePayload, _vidikSummaries: summaryPayload.value?.result || {}, _vidikAbstracts: extractPubmedAbstracts(abstractText) };
           }
@@ -271,6 +297,7 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
         const candidateMatched = found.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified').length;
         if (candidateMatched >= EVIDENCE_SEARCH_STOP_AFTER_CANDIDATE_LEADS) break;
       } catch (error) {
+        if (signal?.aborted) throw (signal.reason || error);
         searches.push({ sourceId: source.sourceId, status: 'search-failed', query: searchQuery, candidatesReturned: 0, provenance: null, failureReason: error?.message || 'evidence-discovery-failed' });
       }
     }
@@ -280,11 +307,12 @@ async function discoverCandidateEvidence({ problem, candidate, sources = null, f
   const sourceDiagnostics = Object.fromEntries(selected.map(source => [source.sourceId, { sourceFamily:EVIDENCE_SOURCE_FAMILIES[source.sourceId] || source.sourceId, sourceRole:EVIDENCE_CAUSAL_SOURCE_IDS.has(source.sourceId)?'causal-research-index':'supporting-literature-index', attempted: searches.filter(s => s.sourceId === source.sourceId).length, failed: searches.filter(s => s.sourceId === source.sourceId && s.status === 'search-failed').length, leads: evidenceLeads.filter(l => l.sourceId === source.sourceId).length, candidateMatches: evidenceLeads.filter(l => l.sourceId === source.sourceId && ['candidate-match','verified'].includes(l.relevanceStatus)).length }]));
   return { schemaVersion: 'vidik.source-driven-evidence-discovery.v5', problem, candidateId: candidate.id, query, diversifiedQueries, sourceDiagnostics, sourceSearches: searches, evidenceLeads, evidenceSufficiency: sufficiency, evidenceComplete: sufficiency.evidenceComplete === true, recommendationEligible: false, effectsImported: false, discoveryHash: sha256({ problem, candidateId: candidate.id, searches, evidenceLeads }) };
 }
-async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3 } = {}) {
+async function discoverCandidateUniverseEvidence({ problem, candidates = [], sources = null, fetchImpl, now = new Date(), rows = 10, maxCandidates = 3, maxSources = null, maxQueriesPerSource = null, requestTimeoutMs = null, maxRedirects = null, maxRateLimitRetries = null, signal = null } = {}) {
   const selectedCandidates = (Array.isArray(candidates) ? candidates : []).filter(candidate => candidate?.id).slice(0, Math.max(1, Math.min(10, maxCandidates)));
   const results = [];
   for (const candidate of selectedCandidates) {
-    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows }));
+    if (signal?.aborted) throw (signal.reason || new Error('discovery-aborted'));
+    results.push(await discoverCandidateEvidence({ problem, candidate, sources, fetchImpl, now, rows, maxSources, maxQueriesPerSource, requestTimeoutMs, maxRedirects, maxRateLimitRetries, signal }));
   }
   const relevantLeads = results.flatMap(result => result.evidenceLeads || []).filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSources = [...new Set(relevantLeads.map(lead => lead.sourceId))];

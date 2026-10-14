@@ -1,0 +1,56 @@
+name: VIDIK Fast Feedback
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+concurrency:
+  group: vidik-fast-feedback-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  targeted-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: CI architecture guard
+        run: timeout --foreground --kill-after=5s 20s node --test tests/pr-ci-trigger-architecture.test.js
+      - name: Acquisition timeout regression
+        run: timeout --foreground --kill-after=5s 60s node --test tests/data-acquisition.test.js
+      - name: Insight quality battery syntax guard
+        run: timeout --foreground --kill-after=5s 15s node --check tests/insight-quality-battery.test.js
+      - name: Insight quality evidence preflight
+        run: timeout --foreground --kill-after=5s 45s node --test tests/insight-quality-fast-gate.test.js
+      - name: Source applicability jurisdiction aliases
+        run: timeout --foreground --kill-after=5s 20s node --test tests/source-applicability.test.js
+      - name: Source-driven intervention discovery regressions
+        run: timeout --foreground --kill-after=5s 120s node --test tests/source-driven-intervention-discovery.test.js
+      - name: Source-driven evidence discovery regressions
+        run: timeout --foreground --kill-after=5s 60s node --test tests/source-driven-evidence-discovery.test.js
+      - name: Decision discovery orchestration and execution
+        run: timeout --foreground --kill-after=5s 90s node --test tests/decision-discovery-orchestrator.test.js tests/decision-discovery-execution.test.js
+      - name: External intervention-recall benchmark
+        run: timeout --foreground --kill-after=5s 60s node --test tests/external-open-world-benchmark.test.js
+      - name: Intervention universe classification and coverage
+        run: timeout --foreground --kill-after=5s 60s node --test tests/intelligence-completion-intervention-universe.test.js
+      - name: Arbitrary-problem discovery and evidence integration
+        run: timeout --foreground --kill-after=5s 90s node --test tests/intelligence-completion-arbitrary-problem.integration.test.js
+      - name: Blind cross-domain generalization tournament
+        run: timeout --foreground --kill-after=5s 90s node --test tests/intelligence-generalization-blind-tournament.test.js
+      - name: Adversarial non-intervention rejection
+        run: timeout --foreground --kill-after=5s 90s node --test tests/outsider-adversarial-hardening-v2.test.js
+      - name: Evidence sufficiency and promotion gates
+        run: timeout --foreground --kill-after=5s 60s node --test tests/intelligence-completion-evidence-sufficiency.test.js tests/evidence-promotion-gate.test.js
+      - name: Evidence acquisition orchestration
+        run: timeout --foreground --kill-after=5s 120s node tests/evidence-acquisition-orchestrator.test.js
+      - name: Quantification, resource optimization, and parameter verification
+        run: timeout --foreground --kill-after=5s 90s bash -euc 'node tests/decision-quantification-bridge.test.js && node tests/vidik-resource-optimization.test.js && node tests/independent-evidence-parameter-verification.test.js'
+      - name: Nonmunicipal workspace endpoint contract
+        run: timeout --foreground --kill-after=5s 90s node --test tests/nonmunicipal-workspace-contract.test.js
+
+
+

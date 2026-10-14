@@ -413,7 +413,37 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       independentEvidenceSources,
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      // Keep expensive live-battery failures diagnosable. Only blocked cases emit
+      // per-source/query detail, so successful cases do not flood Actions logs.
+      sourceDiagnostics: candidates.length ? undefined : {
+        sourcesSelected: discovery.sourcesSelected || [],
+        sourceSearches: (discovery.sourceSearches || []).map(search => ({
+          sourceId: search.sourceId,
+          sourceType: search.sourceType,
+          status: search.status,
+          queriesAttempted: search.queriesAttempted,
+          usableQueryCount: search.usableQueryCount,
+          failedQueryCount: search.failedQueryCount,
+          candidatesReturned: search.candidatesReturned,
+          failureClasses: search.failureClasses || {},
+          failureStages: search.failureStages || {},
+          missingFamilies: search.missingFamilies || [],
+          failedQuerySamples: (search.attempts || [])
+            .filter(attempt => attempt.status === 'search-failed')
+            .slice(0, 3)
+            .map(attempt => ({
+              query: attempt.query,
+              queryLayer: attempt.queryLayer || null,
+              failureClass: attempt.failureClass || 'other',
+              failureStage: attempt.failureStage || 'retrieval',
+              failureReason: attempt.failureReason || null,
+              terminal: Boolean(attempt.terminal)
+            }))
+        })),
+        missingInterventionFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
+        missingInterventionClasses: discovery.interventionUniverse.missingInterventionClasses || []
+      }
     };
   });
 

@@ -31,6 +31,33 @@ test('source failure classification distinguishes terminal API failures from ret
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'response-parse', stage: 'retrieval', terminal: true });
 });
 
+test('shared source pacing serializes and spaces calls to rate-limited providers', async () => {
+  const { withDiscoverySourceConcurrency } = require('../js/source-driven-intervention-discovery');
+  for (const [sourceId, minimumGapMs] of [
+    ['crossref-works', 200],
+    ['pubmed-eutils', 100]
+  ]) {
+    const starts = [];
+    let active = 0;
+    let maximumActive = 0;
+    const work = async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      starts.push(Date.now());
+      await new Promise(resolve => setTimeout(resolve, 25));
+      active -= 1;
+      return true;
+    };
+    await Promise.all([
+      withDiscoverySourceConcurrency(sourceId, work),
+      withDiscoverySourceConcurrency(sourceId, work)
+    ]);
+    assert.equal(maximumActive, 1, sourceId + ': concurrent requests were not serialized');
+    assert.ok(starts[1] - starts[0] >= minimumGapMs,
+      sourceId + ': minimum request interval was not enforced (' + (starts[1] - starts[0]) + 'ms)');
+  }
+});
+
 test('terminal source failures trip a circuit breaker instead of repeating the same query budget', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
@@ -439,6 +466,57 @@ test('municipal worker-displacement recall anchors reach the bounded source-quer
 });
 
 
+test('workspace taxonomies cover previously missing intervention families across the 60-case battery', () => {
+  const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
+  const cases = [
+    ['reduce food insecurity', 'municipal', /food bank|food pantry|food assistance/i],
+    ['reduce construction permitting delays', 'municipal', /construction permit fast track|digital plan review|permit concierge/i],
+    ['reduce school absenteeism', 'municipal', /attendance mentoring|truancy prevention|school attendance intervention/i],
+    ['improve small business survival', 'business', /small business grant|small business loan|business advisory service/i],
+    ['improve hiring success', 'business', /structured interview|skills-based hiring|hiring assessment/i],
+    ['reduce social isolation among seniors', 'community', /befriending program|social prescribing|senior activity program/i],
+    ['evaluate interventions for food insecurity', 'research', /food bank|food pantry|food assistance/i],
+    ['study energy poverty interventions', 'research', /weatherization assistance|home energy assistance|energy bill assistance/i],
+    ['improve remote service delivery', 'enterprise', /remote service enablement|self-service portal|virtual service delivery/i]
+  ];
+  for (const [problem, workspace, expected] of cases) {
+    assert.ok(buildDiscoveryQueries(problem, workspace).some(query => expected.test(query)), workspace + ': missing targeted intervention vocabulary for ' + problem);
+  }
+});
+
+test('small discovery query budgets retain family and missing-class search lanes', () => {
+  const { buildDiscoveryQueryPlan } = require('../js/source-driven-intervention-discovery');
+  const plan = buildDiscoveryQueryPlan('reduce violent crime', 'municipal', 6);
+  const layers = new Set(plan.map(item => item.queryLayer));
+  assert.equal(plan.length, 6);
+  assert.ok(layers.has('original'));
+  assert.ok(layers.has('recall'));
+  assert.ok(layers.has('mechanism/admin'));
+  assert.ok(layers.has('family-expansion'));
+  assert.ok(layers.has('legacy-class-expansion'));
+  const familyQueries = plan.filter(item => item.queryLayer === 'family-expansion').map(item => item.query.toLowerCase());
+  assert.ok(familyQueries.includes('violence interruption'));
+  assert.ok(familyQueries.includes('housing first'), 'a compatible housing option must survive the small query budget');
+  const classQuery = plan.find(item => item.queryLayer === 'legacy-class-expansion')?.query.toLowerCase();
+  assert.ok(classQuery && !classQuery.startsWith('reduce violent crime '), 'class search should use a direct class anchor before the narrower problem-scoped form');
+});
+
+test('larger bounded query budgets preserve recall and late discovery lanes', () => {
+  const { buildDiscoveryQueryPlan } = require('../js/source-driven-intervention-discovery');
+  const plan = buildDiscoveryQueryPlan('reduce construction permitting delays', 'municipal', 8);
+  const layers = new Set(plan.map(item => item.queryLayer));
+  assert.equal(plan.length, 8);
+  assert.ok(layers.has('original'));
+  assert.ok(layers.has('recall'));
+  assert.ok(layers.has('mechanism/admin'));
+  assert.ok(layers.has('family-expansion'));
+  assert.ok(layers.has('legacy-class-expansion'));
+  assert.ok(layers.has('workspace-taxonomy'));
+  assert.ok(layers.has('vocabulary-expansion'));
+  assert.ok(plan.filter(item => item.queryLayer === 'recall').length >= 2);
+  assert.ok(plan.some(item => /construction permit fast track|digital plan review/i.test(item.query)));
+});
+
 test('discovery query budget preserves mechanism and administrative pivots alongside recall anchors', () => {
   const { buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   const queries = buildDiscoveryQueries('reduce cybersecurity incident risk', 'enterprise');
@@ -483,4 +561,75 @@ test('semantic relevance does not promote generic source records whose descripti
     }, 'enterprise'),
     true
   );
+});
+
+test('intervention discovery stops source-query retries when caller aborts', async () => {
+  const controller = new AbortController();
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const pending = discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    workspace: 'municipal',
+    sources: [SOURCE],
+    maxQueriesPerSource: 1,
+    signal: controller.signal,
+    fetchImpl: (_url, options) => new Promise((resolve, reject) => {
+      markStarted();
+      options.signal.addEventListener('abort', () => reject(options.signal.reason || new Error('aborted')), { once: true });
+    })
+  });
+  await started;
+  const reason = new Error('baseline-test-cancelled');
+  controller.abort(reason);
+  await assert.rejects(pending, error => error === reason || error.message === reason.message);
+});
+
+
+test('bounded discovery budget applies request timeouts and retry limits to literature fallback', async () => {
+  const startedAt = Date.now();
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries',
+    jurisdiction: null,
+    workspace: 'municipal',
+    rows: 1,
+    maxSources: 1,
+    maxQueriesPerSource: 1,
+    maxLiteratureQueries: 1,
+    skipExpansion: true,
+    fetchImpl: async url => {
+      const hostname = new URL(url).hostname;
+      if (hostname === 'api.openalex.org' || hostname === 'api.crossref.org') {
+        return new Promise(() => {});
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  const durationMs = Date.now() - startedAt;
+  assert.ok(durationMs < 12000, 'bounded literature fallback exceeded its retrieval budget: ' + durationMs + 'ms');
+  const literatureSearches = result.sourceSearches.filter(search =>
+    ['openalex-works', 'crossref-works'].includes(search.sourceId)
+  );
+  assert.ok(literatureSearches.length > 0, 'literature fallback did not run');
+  assert.ok(literatureSearches.every(search =>
+    search.attempts.every(attempt => attempt.status === 'search-failed' && /upstream-request-timeout/.test(attempt.failureReason || ''))
+  ), 'literature fallback did not record bounded upstream timeouts');
+});
+
+
+test('blocked 60-case workspace problems have targeted source-backed recall anchors', () => {
+  const { buildDiscoveryQueries, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  const cases = [
+    { workspace: 'business', problem: 'reduce energy costs', terms: ['business energy audit', 'commercial energy efficiency grant'] },
+    { workspace: 'business', problem: 'reduce delivery delays', terms: ['last-mile delivery', 'transport management system'] },
+    { workspace: 'community', problem: 'improve food access', terms: ['food relief program', 'community food pantry'] },
+    { workspace: 'community', problem: 'reduce wildfire evacuation barriers', terms: ['evacuation transport support', 'accessible evacuation planning'] }
+  ];
+  for (const item of cases) {
+    const queries = buildDiscoveryQueries(item.problem, item.workspace).map(query => query.toLowerCase());
+    assert.ok(item.terms.some(term => queries.some(query => query.includes(term))), item.workspace + ': missing targeted recall query for ' + item.problem);
+  }
+  for (const title of ['business energy audit', 'last-mile delivery', 'food relief program', 'evacuation transport support']) {
+    assert.equal(isActionableInterventionTitle(title), true, 'controlled recall anchor was rejected: ' + title);
+  }
 });

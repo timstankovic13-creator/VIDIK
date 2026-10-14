@@ -81,7 +81,51 @@ async function mapWithConcurrency(items, limit, worker) {
     while (true) {
       const index = next++;
       if (index >= items.length) return;
-      results[index] = await worker(items[index], index);
+      const item = items[index];
+      const label = Array.isArray(item) ? item.join(' | ') : String(index);
+      const startedAt = Date.now();
+      let timeoutHandle;
+      const controller = new AbortController();
+      console.log(JSON.stringify({ event: 'baseline-case-start', case: index + 1, total: items.length, label }));
+      try {
+        results[index] = await Promise.race([
+          worker(item, index, controller.signal),
+          new Promise((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              const error = new Error('baseline-case-timeout-after-60s: ' + label);
+              controller.abort(error);
+              reject(error);
+            }, 60000);
+          })
+        ]);
+        console.log(JSON.stringify({
+          event: 'baseline-case-complete',
+          case: index + 1,
+          total: items.length,
+          label,
+          durationMs: Date.now() - startedAt
+        }));
+      } catch (error) {
+        if (!String(error?.message || error).startsWith('baseline-case-timeout-after-60s:')) throw error;
+        const [workspace, jurisdiction, ...problemParts] = item;
+        results[index] = {
+          workspace, jurisdiction, problem: problemParts.join(' | '),
+          candidateCount: null, actionableCount: null, relevantCount: null, relevanceRatio: null,
+          expectedClassHits: null, expectedFamilyHits: null, expectedFamilyCoverage: null,
+          interventionFamilies: [], evidenceLeads: null, independentEvidenceSources: null,
+          evidenceComplete: null, productionRelevanceRatio: null, candidateQualityDefects: null,
+          topCandidates: [], grade: 'BLOCKED', measurementStatus: 'timed-out',
+          baselineError: error.message, sourceFailureCount: null, sourceEmptyCount: null,
+          sourceSearchCount: null, queryLayers: [], attemptedQueries: null,
+          missingFamilies: [], missingClasses: []
+        };
+        console.log(JSON.stringify({
+          event: 'baseline-case-timeout', case: index + 1, total: items.length,
+          label, durationMs: Date.now() - startedAt, error: error.message
+        }));
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
@@ -89,8 +133,11 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 8, async ([workspace, jurisdiction, problem]) => {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 5 });
+  const results = await mapWithConcurrency(BASELINE_60, 2, async ([workspace, jurisdiction, problem], index, signal) => {
+    const discoveryStartedAt = Date.now();
+    console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4, maxSources: 3, maxQueriesPerSource: 8, maxLiteratureQueries: 2, requestTimeoutMs: 2000, maxRedirects: 1, maxRateLimitRetries: 1, maxTransientRetries: 0, signal });
+    console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
     assert.ok(discovery.sourceSearches.length > 0, workspace + ': no source searches for ' + problem);
@@ -112,12 +159,21 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
     let evidence = null;
     if (candidates.length) {
+      const evidenceStartedAt = Date.now();
+      console.log(JSON.stringify({ event: 'baseline-evidence-start', case: index + 1, candidateCount: candidates.length }));
       evidence = await discoverCandidateUniverseEvidence({
         problem,
         candidates,
         rows: 3,
-        maxCandidates: 2
+        maxCandidates: 2,
+        maxSources: 3,
+        maxQueriesPerSource: 2,
+        requestTimeoutMs: 2000,
+        maxRedirects: 1,
+        maxRateLimitRetries: 1,
+        signal
       });
+      console.log(JSON.stringify({ event: 'baseline-evidence-complete', case: index + 1, durationMs: Date.now() - evidenceStartedAt, sourceSearchCount: evidence.candidateEvidence[0]?.sourceSearches?.length || 0 }));
       assert.equal(evidence.recommendationEligible, false);
       assert.equal(evidence.effectsImported, false);
       assert.ok(evidence.candidateEvidence.every(result => result.sourceSearches.length >= 2));
@@ -157,6 +213,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       workspace,
       jurisdiction,
       problem,
+      measurementStatus: 'completed',
       candidateCount: candidates.length,
       actionableCount: actionable.length,
       relevantCount: relevant.length,
@@ -169,6 +226,10 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       interventionFamilies: [...families],
       evidenceLeads,
       independentEvidenceSources,
+      evidenceSourceIds: [...new Set((evidence?.candidateEvidence || [])
+        .flatMap(result => result.evidenceLeads || [])
+        .filter(lead => ['candidate-match', 'verified'].includes(lead.relevanceStatus))
+        .map(lead => lead.sourceId))],
       evidenceComplete: evidence?.evidenceComplete ?? false,
       productionRelevanceRatio: Number((
         candidates.length
@@ -184,10 +245,42 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       sourceFailureCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.failedQueryCount || 0), 0),
       sourceEmptyCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.attempts || []).filter(attempt => attempt.status === 'searched-empty').length, 0),
       sourceSearchCount: discovery.sourceSearches?.length || 0,
+      sourceFailureSamples: (discovery.sourceSearches || []).flatMap(source => (source.attempts || [])
+        .filter(attempt => attempt.status === 'search-failed')
+        .slice(0, 2)
+        .map(attempt => ({
+          sourceId: source.sourceId,
+          query: attempt.query,
+          queryLayer: attempt.queryLayer || attempt.queryPhase || null,
+          failureClass: attempt.failureClass || null,
+          failureStage: attempt.failureStage || null,
+          reason: attempt.failureReason || null
+        }))).slice(0, 6),
       queryLayers: [...new Set((discovery.sourceSearches || []).flatMap(source => (source.attempts || []).map(attempt => attempt.queryLayer).filter(Boolean)))],
       attemptedQueries: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.queriesAttempted || 0), 0),
       missingFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
-      missingClasses: discovery.interventionUniverse.missingInterventionClasses || []
+      missingClasses: discovery.interventionUniverse.missingInterventionClasses || [],
+      sourceAttemptDiagnostics: (discovery.sourceSearches || []).map(source => ({
+        sourceId: source.sourceId,
+        jurisdiction: source.jurisdiction || null,
+        status: source.status,
+        queriesAttempted: source.queriesAttempted || 0,
+        failedQueryCount: source.failedQueryCount || 0,
+        usableQueryCount: source.usableQueryCount || 0,
+        failureReason: source.failureReason || null,
+        attempts: (source.attempts || []).map(attempt => ({
+          query: attempt.query,
+          queryLayer: attempt.queryLayer || null,
+          status: attempt.status,
+          candidatesReturned: attempt.candidatesReturned || 0,
+          recordsConsidered: attempt.recordsConsidered || 0,
+          extractedCandidates: attempt.extractedCandidates || 0,
+          relevanceRejectedCount: attempt.relevanceRejectedCount || 0,
+          extractionDiagnostics: attempt.extractionDiagnostics || null,
+          failureStage: attempt.failureStage || null,
+          failureReason: attempt.failureReason || null
+        }))
+      }))
     };
   });
 
@@ -197,53 +290,78 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       results.filter(result => result.grade === grade).length
     ])
   );
-  const totalCandidates = results.reduce((sum, result) => sum + result.candidateCount, 0);
+  const measuredResults = results.filter(result => result.measurementStatus === 'completed');
+  const totalCandidates = measuredResults.reduce((sum, result) => sum + result.candidateCount, 0);
   const evidenceBackedCases = results.filter(
     result => result.independentEvidenceSources >= 2 && result.evidenceLeads > 0
   ).length;
 
-  assert.equal(results.length, 60);
-  assert.ok(results.every(result => result.grade));
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
+    runProfile: { liveDiscovery: true, maxJurisdictionalSourcesPerProblem: 3, maxQueriesPerSource: 8, literatureQueriesPerSource: 2, familyExpansion: 'enabled', discoveryConcurrency: 2, requestTimeoutMs: 2000, maxRateLimitRetries: 1, maxTransientRetries: 0 },
+    runProfile: { concurrency: 2, maxInterventionSources: 3, maxQueriesPerSource: 8, maxLiteratureQueriesPerSource: 2, requestTimeoutMs: 2000, maxEvidenceCandidatesPerProblem: 2, maxEvidenceSourcesPerCandidate: 3, maxEvidenceQueriesPerSource: 2, rateLimitRetries: 1 },
     cases: results.length,
     gradeCounts,
-    averageCandidatesPerProblem: Number((totalCandidates / results.length).toFixed(2)),
+    completedDiscoveryCases: measuredResults.length,
+    timedOutCases: results.filter(result => result.measurementStatus === 'timed-out').map(result => ({ workspace: result.workspace, jurisdiction: result.jurisdiction, problem: result.problem, error: result.baselineError })),
+    averageCandidatesPerProblem: measuredResults.length ? Number((totalCandidates / measuredResults.length).toFixed(2)) : null,
     averageActionableRatio: Number((
-      results.reduce(
+      measuredResults.reduce(
         (sum, result) => sum + (result.candidateCount ? result.actionableCount / result.candidateCount : 0),
         0
-      ) / results.length
+      ) / (measuredResults.length || 1)
     ).toFixed(2)),
-    casesWithExpectedInterventionClassHit: results.filter(result => result.expectedClassHits > 0).length,
-    casesWithExpectedFamilyCoverage: results.filter(result => result.expectedFamilyHits > 0).length,
+    casesWithExpectedInterventionClassHit: measuredResults.filter(result => result.expectedClassHits > 0).length,
+    casesWithExpectedFamilyCoverage: measuredResults.filter(result => result.expectedFamilyHits > 0).length,
     averageExpectedFamilyCoverage: Number((
-      results.reduce((sum, result) => sum + result.expectedFamilyCoverage, 0) / results.length
+      measuredResults.reduce((sum, result) => sum + result.expectedFamilyCoverage, 0) / (measuredResults.length || 1)
     ).toFixed(2)),
     casesWithTwoIndependentEvidenceSources: evidenceBackedCases,
-    casesWithNoCandidates: gradeCounts.BLOCKED,
-    casesWithPerfectProductionRelevance: results.filter(
+    evidenceSourceUsage: Object.fromEntries(
+      [...new Set(measuredResults.flatMap(result => result.evidenceSourceIds || []))]
+        .map(sourceId => [sourceId, measuredResults.filter(result => (result.evidenceSourceIds || []).includes(sourceId)).length])
+    ),
+    casesWithOpenAlexAndCrossrefEvidence: measuredResults.filter(result =>
+      (result.evidenceSourceIds || []).includes('openalex-works') &&
+      (result.evidenceSourceIds || []).includes('crossref-works')
+    ).length,
+    casesWithNoCandidates: measuredResults.filter(result => result.candidateCount === 0).length,
+    casesWithPerfectProductionRelevance: measuredResults.filter(
       result => result.candidateCount > 0 && result.productionRelevanceRatio === 1
     ).length,
-    casesWithProductionRelevanceGaps: results.filter(
+    casesWithProductionRelevanceGaps: measuredResults.filter(
       result => result.productionRelevanceRatio < 1
     ).length,
-    totalCandidateQualityDefects: results.reduce(
+    totalCandidateQualityDefects: measuredResults.reduce(
       (sum, result) => sum + result.candidateQualityDefects, 0
     ),
     diagnostic: {
-      casesWithSourceFailures: results.filter(result => result.sourceFailureCount > 0).length,
-      totalSourceFailures: results.reduce((sum, result) => sum + result.sourceFailureCount, 0),
-      casesWithSourceEmpties: results.filter(result => result.sourceEmptyCount > 0).length,
-      totalSourceEmpties: results.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
-      averageQueriesAttemptedPerCase: Number((results.reduce((sum, result) => sum + result.attemptedQueries, 0) / results.length).toFixed(2)),
-      queryLayerUsage: Object.fromEntries([...new Set(results.flatMap(result => result.queryLayers))].map(layer => [layer, results.filter(result => result.queryLayers.includes(layer)).length])),
+      sourceDiagnosticsCases: measuredResults.length,
+      casesWithSourceFailures: measuredResults.filter(result => result.sourceFailureCount > 0).length,
+      totalSourceFailures: measuredResults.reduce((sum, result) => sum + result.sourceFailureCount, 0),
+      casesWithSourceEmpties: measuredResults.filter(result => result.sourceEmptyCount > 0).length,
+      totalSourceEmpties: measuredResults.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
+      averageQueriesAttemptedPerCase: measuredResults.length ? Number((measuredResults.reduce((sum, result) => sum + result.attemptedQueries, 0) / measuredResults.length).toFixed(2)) : null,
+      queryLayerUsage: Object.fromEntries([...new Set(measuredResults.flatMap(result => result.queryLayers))].map(layer => [layer, measuredResults.filter(result => result.queryLayers.includes(layer)).length])),
       noCandidateCasesWithSourceFailure: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount > 0).map(result => result.problem),
-      noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem)
+      noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem),
+      blockedCaseDiagnostics: results.filter(result => result.candidateCount === 0).map(result => ({
+        workspace: result.workspace,
+        jurisdiction: result.jurisdiction,
+        problem: result.problem,
+        sourceSearchCount: result.sourceSearchCount,
+        sourceFailureCount: result.sourceFailureCount,
+        sourceEmptyCount: result.sourceEmptyCount,
+        attemptedQueries: result.attemptedQueries,
+        sourceFailureSamples: result.sourceFailureSamples
+      }))
     },
     note: 'This is a measurement baseline, not a quality-threshold gate. Architectural invariants remain strict; quality grades are findings for comparison against later discovery work.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
+  assert.equal(results.length, 60);
+  assert.equal(measuredResults.length, 60, `all 60 live discovery cases must complete; completed=${measuredResults.length}; timedOut=${results.length - measuredResults.length}`);
+  assert.ok(results.every(result => result.grade));
 });
 
 function evidenceSufficiencyCount(result) {
