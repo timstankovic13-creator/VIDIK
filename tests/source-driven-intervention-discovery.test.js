@@ -506,3 +506,34 @@ test('intervention discovery stops source-query retries when caller aborts', asy
   controller.abort(reason);
   await assert.rejects(pending, error => error === reason || error.message === reason.message);
 });
+
+
+test('bounded discovery budget applies request timeouts and retry limits to literature fallback', async () => {
+  const startedAt = Date.now();
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries',
+    jurisdiction: null,
+    workspace: 'municipal',
+    rows: 1,
+    maxSources: 1,
+    maxQueriesPerSource: 1,
+    maxLiteratureQueries: 1,
+    skipExpansion: true,
+    fetchImpl: async url => {
+      const hostname = new URL(url).hostname;
+      if (hostname === 'api.openalex.org' || hostname === 'api.crossref.org') {
+        return new Promise(() => {});
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  const durationMs = Date.now() - startedAt;
+  assert.ok(durationMs < 12000, 'bounded literature fallback exceeded its retrieval budget: ' + durationMs + 'ms');
+  const literatureSearches = result.sourceSearches.filter(search =>
+    ['openalex-works', 'crossref-works'].includes(search.sourceId)
+  );
+  assert.ok(literatureSearches.length > 0, 'literature fallback did not run');
+  assert.ok(literatureSearches.every(search =>
+    search.attempts.every(attempt => attempt.status === 'search-failed' && /upstream-request-timeout/.test(attempt.failureReason || ''))
+  ), 'literature fallback did not record bounded upstream timeouts');
+});
