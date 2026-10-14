@@ -133,10 +133,10 @@ async function mapWithConcurrency(items, limit, worker) {
 }
 
 test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integrated discovery work', async () => {
-  const results = await mapWithConcurrency(BASELINE_60, 3, async ([workspace, jurisdiction, problem], index, signal) => {
+  const results = await mapWithConcurrency(BASELINE_60, 2, async ([workspace, jurisdiction, problem], index, signal) => {
     const discoveryStartedAt = Date.now();
     console.log(JSON.stringify({ event: 'baseline-discovery-start', case: index + 1, workspace, jurisdiction, problem }));
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4, maxSources: 2, maxQueriesPerSource: 3, maxLiteratureQueries: 1, skipExpansion: true, requestTimeoutMs: 2000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0, signal });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, workspace, rows: 4, maxSources: 3, maxQueriesPerSource: 6, maxLiteratureQueries: 2, requestTimeoutMs: 2000, maxRedirects: 1, maxRateLimitRetries: 1, maxTransientRetries: 0, signal });
     console.log(JSON.stringify({ event: 'baseline-discovery-complete', case: index + 1, durationMs: Date.now() - discoveryStartedAt, candidateCount: discovery.candidates?.length || 0, sourceCount: discovery.sourceSearches?.length || 0 }));
     assert.equal(discovery.problem, problem);
     assert.ok(discovery.discoveryHash, workspace + ': missing discovery hash for ' + problem);
@@ -294,7 +294,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
-    runProfile: { liveDiscovery: true, maxJurisdictionalSourcesPerProblem: 2, maxQueriesPerSource: 3, literatureQueriesPerSource: 1, familyExpansion: 'disabled for bounded measurement', discoveryConcurrency: 3, requestTimeoutMs: 2000, maxRateLimitRetries: 0, maxTransientRetries: 0 },
+    runProfile: { liveDiscovery: true, maxJurisdictionalSourcesPerProblem: 3, maxQueriesPerSource: 6, literatureQueriesPerSource: 2, familyExpansion: 'enabled', discoveryConcurrency: 2, requestTimeoutMs: 2000, maxRateLimitRetries: 1, maxTransientRetries: 0 },
     runProfile: { concurrency: 2, maxInterventionSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, requestTimeoutMs: 2000, maxEvidenceCandidatesPerProblem: 1, maxEvidenceSourcesPerCandidate: 2, maxEvidenceQueriesPerSource: 3, rateLimitRetries: 1 },
     cases: results.length,
     gradeCounts,
