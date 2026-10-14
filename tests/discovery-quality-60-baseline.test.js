@@ -164,10 +164,10 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       evidence = await discoverCandidateUniverseEvidence({
         problem,
         candidates,
-        rows: 3,
-        maxCandidates: 2,
-        maxSources: 2,
-        maxQueriesPerSource: 3,
+        rows: 5,
+        maxCandidates: 3,
+        maxSources: 3,
+        maxQueriesPerSource: 6,
         requestTimeoutMs: 3000,
         maxRedirects: 1,
         maxRateLimitRetries: 0,
@@ -283,7 +283,7 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
 
   console.log(JSON.stringify({
     battery: 'VIDIK Discovery Quality Baseline — canonical 60-problem battery',
-    acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, transientRetries: 0, concurrency: 4 },
+    acquisitionBudget: { maxJurisdictionalSources: 3, maxQueriesPerSource: 6, maxLiteratureQueriesPerSource: 2, familyAndClassExpansion: 'enabled', requestTimeoutMs: 3000, transientRetries: 0, concurrency: 4, evidenceCandidates: 3, evidenceSources: 3, evidenceQueriesPerSource: 6 },
     cases: results.length,
     gradeCounts,
     completedDiscoveryCases: measuredResults.length,
