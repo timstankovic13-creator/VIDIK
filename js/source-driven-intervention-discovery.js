@@ -1480,7 +1480,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
   const fullQueryPlan = buildDiscoveryQueryPlan(problem,workspace);
   const queryPlan = Number.isInteger(maxQueriesPerSource) && maxQueriesPerSource > 0 ? fullQueryPlan.slice(0, maxQueriesPerSource) : fullQueryPlan;
   const retrievalOptions = skipExpansion
-    ? { fetchImpl, now, requestTimeoutMs: 4000, maxTransientRetries: 0 }
+    ? { fetchImpl, now, requestTimeoutMs: 4000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0 }
     : { fetchImpl, now };
   const queries=queryPlan.map(item=>item.query);
   for(const source of boundedSelected){
@@ -1501,7 +1501,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       'uk-open-data-program-discovery'
     ]).has(source.sourceId);
     const sourceRetrievalOptions = boundedCatalogSource
-      ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
+      ? { ...retrievalOptions, requestTimeoutMs: 5000, maxRedirects: 1, maxRateLimitRetries: 0, maxTransientRetries: 0 }
       : retrievalOptions;
     const attempts=[],sourceCandidates=[];
     let consecutiveFailures = 0;
