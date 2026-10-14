@@ -369,15 +369,22 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     const sourceAttempts = discovery.sourceSearches.flatMap(search => search.attempts || []);
     const catalogAttempts = sourceAttempts.filter(attempt => attempt.extractionDiagnostics);
     const extractionRejections = {};
+    const sourceFailureClasses = {};
     for (const attempt of catalogAttempts) {
       for (const [reason, count] of Object.entries(attempt.extractionDiagnostics.rejectionReasons || {})) {
         extractionRejections[reason] = (extractionRejections[reason] || 0) + count;
       }
     }
+    for (const attempt of sourceAttempts.filter(item => item.status === 'search-failed')) {
+      const failureClass = attempt.failureClass || 'unclassified';
+      sourceFailureClasses[failureClass] = (sourceFailureClasses[failureClass] || 0) + 1;
+    }
     const discoveryStages = {
       sourceCount: discovery.sourceSearches.length,
       queryAttempts: sourceAttempts.length,
       retrievalFailures: sourceAttempts.filter(attempt => attempt.status === 'search-failed').length,
+      failedSources: discovery.sourceSearches.filter(search => search.status === 'search-failed').map(search => search.sourceId),
+      sourceFailureClasses,
       successfulQueriesWithNoRecords: sourceAttempts.filter(attempt => attempt.status !== 'search-failed' && attempt.recordsConsidered === 0).length,
       catalogQueries: catalogAttempts.length,
       catalogRecordsConsidered: catalogAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0),
