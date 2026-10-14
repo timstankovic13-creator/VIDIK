@@ -241,6 +241,17 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       sourceFailureCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.failedQueryCount || 0), 0),
       sourceEmptyCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.attempts || []).filter(attempt => attempt.status === 'searched-empty').length, 0),
       sourceSearchCount: discovery.sourceSearches?.length || 0,
+      sourceFailureSamples: (discovery.sourceSearches || []).flatMap(source => (source.attempts || [])
+        .filter(attempt => attempt.status === 'search-failed')
+        .slice(0, 2)
+        .map(attempt => ({
+          sourceId: source.sourceId,
+          query: attempt.query,
+          queryLayer: attempt.queryLayer || attempt.queryPhase || null,
+          failureClass: attempt.failureClass || null,
+          failureStage: attempt.failureStage || null,
+          reason: attempt.failureReason || null
+        }))).slice(0, 6),
       queryLayers: [...new Set((discovery.sourceSearches || []).flatMap(source => (source.attempts || []).map(attempt => attempt.queryLayer).filter(Boolean)))],
       attemptedQueries: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.queriesAttempted || 0), 0),
       missingFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
@@ -320,7 +331,17 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       averageQueriesAttemptedPerCase: measuredResults.length ? Number((measuredResults.reduce((sum, result) => sum + result.attemptedQueries, 0) / measuredResults.length).toFixed(2)) : null,
       queryLayerUsage: Object.fromEntries([...new Set(measuredResults.flatMap(result => result.queryLayers))].map(layer => [layer, measuredResults.filter(result => result.queryLayers.includes(layer)).length])),
       noCandidateCasesWithSourceFailure: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount > 0).map(result => result.problem),
-      noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem)
+      noCandidateCasesWithAllSourcesEmpty: results.filter(result => result.candidateCount === 0 && result.sourceFailureCount === 0 && result.sourceEmptyCount >= result.sourceSearchCount && result.sourceSearchCount > 0).map(result => result.problem),
+      blockedCaseDiagnostics: results.filter(result => result.candidateCount === 0).map(result => ({
+        workspace: result.workspace,
+        jurisdiction: result.jurisdiction,
+        problem: result.problem,
+        sourceSearchCount: result.sourceSearchCount,
+        sourceFailureCount: result.sourceFailureCount,
+        sourceEmptyCount: result.sourceEmptyCount,
+        attemptedQueries: result.attemptedQueries,
+        sourceFailureSamples: result.sourceFailureSamples
+      }))
     },
     note: 'This is a measurement baseline, not a quality-threshold gate. Architectural invariants remain strict; quality grades are findings for comparison against later discovery work.'
   }, null, 2));
