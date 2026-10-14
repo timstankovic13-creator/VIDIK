@@ -367,9 +367,10 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     const expectedFamilies = expectedInterventionFamilies(problem, workspace);
     const expectedFamilyHits = expectedFamilies.filter(family => families.has(family));
     const sourceAttempts = discovery.sourceSearches.flatMap(search => search.attempts || []);
+    const catalogAttempts = sourceAttempts.filter(attempt => attempt.extractionDiagnostics);
     const extractionRejections = {};
-    for (const attempt of sourceAttempts) {
-      for (const [reason, count] of Object.entries(attempt.extractionDiagnostics?.rejectionReasons || {})) {
+    for (const attempt of catalogAttempts) {
+      for (const [reason, count] of Object.entries(attempt.extractionDiagnostics.rejectionReasons || {})) {
         extractionRejections[reason] = (extractionRejections[reason] || 0) + count;
       }
     }
@@ -378,10 +379,11 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       queryAttempts: sourceAttempts.length,
       retrievalFailures: sourceAttempts.filter(attempt => attempt.status === 'search-failed').length,
       successfulQueriesWithNoRecords: sourceAttempts.filter(attempt => attempt.status !== 'search-failed' && attempt.recordsConsidered === 0).length,
-      recordsConsidered: sourceAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0),
-      recordsWithCandidates: sourceAttempts.reduce((sum, attempt) => sum + (attempt.extractionDiagnostics?.recordsWithCandidates || 0), 0),
-      extractedCandidates: sourceAttempts.reduce((sum, attempt) => sum + (attempt.extractedCandidates || 0), 0),
-      rejectedByRelevance: sourceAttempts.reduce((sum, attempt) => sum + (attempt.rejectedByRelevance || 0), 0),
+      catalogQueries: catalogAttempts.length,
+      catalogRecordsConsidered: catalogAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0),
+      catalogRecordsWithCandidates: catalogAttempts.reduce((sum, attempt) => sum + (attempt.extractionDiagnostics.recordsWithCandidates || 0), 0),
+      catalogExtractedCandidates: catalogAttempts.reduce((sum, attempt) => sum + (attempt.extractedCandidates || 0), 0),
+      catalogRejectedByRelevance: catalogAttempts.reduce((sum, attempt) => sum + (attempt.rejectedByRelevance || 0), 0),
       extractionRejections
     };
 
@@ -441,7 +443,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
   const stageTotals = results.reduce((total, result) => {
-    for (const key of ['sourceCount','queryAttempts','retrievalFailures','successfulQueriesWithNoRecords','recordsConsidered','recordsWithCandidates','extractedCandidates','rejectedByRelevance']) {
+    for (const key of ['sourceCount','queryAttempts','retrievalFailures','successfulQueriesWithNoRecords','catalogQueries','catalogRecordsConsidered','catalogRecordsWithCandidates','catalogExtractedCandidates','catalogRejectedByRelevance']) {
       total[key] += result.discoveryStages[key] || 0;
     }
     for (const [reason, count] of Object.entries(result.discoveryStages.extractionRejections)) {
@@ -451,8 +453,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   }, { sourceCount: 0, queryAttempts: 0, retrievalFailures: 0, successfulQueriesWithNoRecords: 0, recordsConsidered: 0, recordsWithCandidates: 0, extractedCandidates: 0, rejectedByRelevance: 0, extractionRejections: {} });
   stageTotals.averageQueriesPerProblem = Number((stageTotals.queryAttempts / results.length).toFixed(2));
   stageTotals.casesWithAllQueriesFailed = results.filter(result => result.discoveryStages.queryAttempts > 0 && result.discoveryStages.retrievalFailures === result.discoveryStages.queryAttempts).length;
-  stageTotals.casesWithRecordsButNoExtraction = results.filter(result => result.discoveryStages.recordsConsidered > 0 && result.discoveryStages.extractedCandidates === 0).length;
-  stageTotals.casesWithExtractionButNoRelevantCandidate = results.filter(result => result.discoveryStages.extractedCandidates > 0 && result.candidateCount === 0).length;
+  stageTotals.casesWithCatalogRecordsButNoExtraction = results.filter(result => result.discoveryStages.catalogRecordsConsidered > 0 && result.discoveryStages.catalogExtractedCandidates === 0).length;
+  stageTotals.casesWithCatalogExtractionButNoRelevantCandidate = results.filter(result => result.discoveryStages.catalogExtractedCandidates > 0 && result.discoveryStages.catalogRejectedByRelevance === result.discoveryStages.catalogExtractedCandidates).length;
 
   assert.equal(results.length, CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
