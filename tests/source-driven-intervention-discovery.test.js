@@ -31,6 +31,33 @@ test('source failure classification distinguishes terminal API failures from ret
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'response-parse', stage: 'retrieval', terminal: true });
 });
 
+test('shared source pacing serializes and spaces calls to rate-limited providers', async () => {
+  const { withDiscoverySourceConcurrency } = require('../js/source-driven-intervention-discovery');
+  for (const [sourceId, minimumGapMs] of [
+    ['ca-program-discovery', 350],
+    ['crossref-works', 950]
+  ]) {
+    const starts = [];
+    let active = 0;
+    let maximumActive = 0;
+    const work = async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      starts.push(Date.now());
+      await new Promise(resolve => setTimeout(resolve, 25));
+      active -= 1;
+      return true;
+    };
+    await Promise.all([
+      withDiscoverySourceConcurrency(sourceId, work),
+      withDiscoverySourceConcurrency(sourceId, work)
+    ]);
+    assert.equal(maximumActive, 1, sourceId + ': concurrent requests were not serialized');
+    assert.ok(starts[1] - starts[0] >= minimumGapMs,
+      sourceId + ': minimum request interval was not enforced (' + (starts[1] - starts[0]) + 'ms)');
+  }
+});
+
 test('terminal source failures trip a circuit breaker instead of repeating the same query budget', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
