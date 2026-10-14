@@ -16,6 +16,27 @@ test('evidence discovery searches independent sources per candidate and imports 
   assert.ok(run.discoveryHash);
 });
 
+test('bounded evidence source selection pairs general and biomedical problems with the right independent indexes', async () => {
+  const fetchImpl = async url => {
+    if (url.includes('openalex')) return response({ results: [] });
+    if (url.includes('api.crossref.org')) return response({ message: { items: [] } });
+    return response({ esearchresult: { idlist: [] } });
+  };
+  const general = await EvidenceDriven.discoverCandidateEvidence({
+    problem: 'reduce procurement cycle time',
+    candidate: { id: 'candidate:general', name: 'workflow redesign', interventionFamily: ['regulatory'], discoveryText: 'process improvement' },
+    maxSources: 2, maxQueriesPerSource: 1, fetchImpl
+  });
+  assert.deepEqual(general.sourceSearches.map(source => source.sourceId), ['openalex-works', 'crossref-works']);
+
+  const biomedical = await EvidenceDriven.discoverCandidateEvidence({
+    problem: 'reduce hospital waiting times',
+    candidate: { id: 'candidate:health', name: 'care navigation', interventionFamily: ['health-service'], discoveryText: 'hospital service access' },
+    maxSources: 2, maxQueriesPerSource: 1, fetchImpl
+  });
+  assert.deepEqual(biomedical.sourceSearches.map(source => source.sourceId), ['openalex-works', 'pubmed-eutils']);
+});
+
 test('arbitrary unmatched problems use broad intervention catalogue fallback and audit it', () => {
   const audit = SourceDriven.buildApplicabilityAudit({ problem: 'reduce asteroid impact risk', jurisdiction: 'CA' });
   assert.equal(audit.fallbackUsed, true);
