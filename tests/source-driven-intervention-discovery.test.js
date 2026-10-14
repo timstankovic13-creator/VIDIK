@@ -466,3 +466,22 @@ test('semantic relevance does not promote generic source records whose descripti
     true
   );
 });
+
+test('discovery attempts account for candidates removed by semantic relevance filtering', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'trees-1', title: 'Tree planting program', notes: 'A city program that plants and maintains trees.' }
+    ] } })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  const first = search.attempts[0];
+  assert.ok(first.recordsConsidered > 0);
+  assert.ok(first.extractedCandidates > 0);
+  assert.ok(first.rejectedByRelevance > 0);
+  assert.equal(first.candidatesReturned, 0);
+  assert.equal(first.extractedCandidates, first.rejectedByRelevance + first.candidatesReturned);
+});
