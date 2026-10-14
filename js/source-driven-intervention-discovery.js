@@ -13,12 +13,27 @@ const MAX_TRANSIENT_SOURCE_RETRIES = 2;
 const TRANSIENT_RETRY_DELAYS_MS = [250, 1000];
 const DISCOVERY_SOURCE_CONCURRENCY_LIMITS = Object.freeze({
   'openalex-works': 2,
-  'crossref-works': 2
+  'crossref-works': 1,
+  'pubmed-eutils': 1,
+  'ca-program-discovery': 1,
+  'ca-ontario-program-discovery': 1,
+  'us-open-data-program-discovery': 1,
+  'uk-open-data-program-discovery': 1,
+  'uk-gov-program-discovery': 1,
+  'au-open-data-program-discovery': 1
 });
 const discoverySourceConcurrency = new Map();
 const discoverySourceNextAllowedAt = new Map();
 const DISCOVERY_SOURCE_MIN_INTERVAL_MS = Object.freeze({
-  'openalex-works': 750
+  'openalex-works': 1200,
+  'crossref-works': 1000,
+  'pubmed-eutils': 350,
+  'ca-program-discovery': 400,
+  'ca-ontario-program-discovery': 400,
+  'us-open-data-program-discovery': 400,
+  'uk-open-data-program-discovery': 400,
+  'uk-gov-program-discovery': 400,
+  'au-open-data-program-discovery': 400
 });
 const DISCOVERY_SOURCE_QUEUE_MAX_WAIT_MS = 15000;
 
@@ -1523,7 +1538,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       const query = plannedQuery.query;
       if (terminalFailure) { skippedQueries += 1; continue; }
       try{
-        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await retrieveWithTransientRetry({...source,url:sourceUrl},{...sourceRetrievalOptions,signal}),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
+        const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId) ? buildGovUkSearchUrl(source, query, { rows }) : buildCkanSearchUrl(source, query, { rows }); const snapshot=await withDiscoverySourceConcurrency(source.sourceId,()=>retrieveWithTransientRetry({...source,url:sourceUrl},{...sourceRetrievalOptions,signal}),signal),payload=parsePayload(snapshot.bytes,snapshot.retrieval.contentType);
         if(payload.format!=='json')throw new Error('source-driven-response-not-json');
         if(payload.value?.error)throw new Error('source-driven-upstream-error');
         const extractedLeads=GOVUK_SOURCE_IDS.has(source.sourceId) ? extractGovUkInterventionLeads(payload.value,source,problem,workspace) : extractCkanInterventionLeads(payload.value,source,problem,workspace); const leads=extractedLeads.filter(candidate=>interventionMatchesProblem(problem,candidate,workspace)); const extractionRows = source?.sourceId === 'us-open-data-program-discovery' ? (Array.isArray(payload.value?.results) ? payload.value.results : []) : (Array.isArray(payload.value?.result?.results) ? payload.value.result.results : []); const extractionDiagnostics=extractionRows ? extractionRows.slice(0,10).map(row=>{const title=normalizeText(row?.title||row?.name); const notes=normalizeText([row?.notes,row?.description].filter(Boolean).join(' ')); const classification=classifyCkanRecord(row); const descriptionExtracted=extractConcreteInterventionFromDescription(problem,workspace,notes+' '+(Array.isArray(row?.tags)?row.tags.map(tag=>normalizeText(tag?.display_name||tag?.name)).filter(Boolean).slice(0,12).join(' '):'')); return {title,classification,actionable:isActionableInterventionTitle(title),descriptionExtracted,recordLike:/\\b(data|dataset|report|statistics|statistic|indicator|dashboard|observations?|measurements?|counts?|trends?|profile|census|infographic|archive|map|mapping|inventory|directory|register|records?|catalogue|catalog|portal|database|series|timeseries|time series|list|index|metadata|results?|questionnaire|survey|feedback|findings?|evaluation|assessment results?)\\b/i.test(title),controlledTitleAnchor:titleHasControlledInterventionAnchor(problem,workspace,title)};}) : []; const relevanceRejectedCount=Math.max(0,extractedLeads.length-leads.length); rawCandidates.push(...leads); sourceCandidates.push(...leads);
@@ -1596,7 +1611,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const expansionRetrievalOptions = boundedCatalogSource
             ? { ...retrievalOptions, requestTimeoutMs: 5000, maxTransientRetries: 0 }
             : retrievalOptions;
-          const snapshot = await retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal});
+          const snapshot = await withDiscoverySourceConcurrency(source.sourceId, () => retrieveWithTransientRetry({...source, url: sourceUrl}, {...expansionRetrievalOptions, signal}), signal);
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
