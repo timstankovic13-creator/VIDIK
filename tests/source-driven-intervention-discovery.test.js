@@ -97,6 +97,27 @@ test('repeated retryable source failures are bounded without hiding the failure'
   assert.equal(search.status, 'search-failed');
 });
 
+test('literature fallback records classified retrieval failures', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const host = new URL(url).hostname;
+      if (host === 'api.openalex.org' || host === 'api.crossref.org') {
+        return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  const literature = result.sourceSearches.filter(search => search.sourceType === 'intervention-literature');
+  assert.ok(literature.length > 0);
+  const failedAttempts = literature.flatMap(search => search.attempts || []).filter(attempt => attempt.status === 'search-failed');
+  assert.ok(failedAttempts.length > 0);
+  assert.ok(failedAttempts.every(attempt => attempt.failureClass === 'upstream-5xx'));
+  assert.ok(failedAttempts.every(attempt => attempt.failureStage === 'retrieval'));
+  assert.ok(failedAttempts.every(attempt => attempt.terminal === false));
+});
+
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
