@@ -29,6 +29,11 @@ test('source failure classification distinguishes terminal API failures from ret
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:503')), { class: 'upstream-5xx', stage: 'retrieval', terminal: false });
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('fetch failed: ECONNRESET')), { class: 'transport-retryable', stage: 'retrieval', terminal: false });
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-driven-response-not-json')), { class: 'response-parse', stage: 'retrieval', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-content-too-large')), { class: 'response-size-limit', stage: 'retrieval', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('fetch-unavailable')), { class: 'acquisition-config', stage: 'configuration', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('redirect-must-use-https')), { class: 'redirect-policy', stage: 'redirect-validation', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-redirect-missing-location')), { class: 'redirect-policy', stage: 'redirect-validation', terminal: true });
+  assert.deepEqual(mod.classifyDiscoveryFailure(new Error('source-provider-jurisdiction-domain-required')), { class: 'source-contract', stage: 'source-validation', terminal: true });
 });
 
 test('terminal source failures trip a circuit breaker instead of repeating the same query budget', async () => {
