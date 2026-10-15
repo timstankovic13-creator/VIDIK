@@ -781,7 +781,7 @@ function extractConcreteInterventionFromDescription(problem, workspace, descript
   if (/\bhospital(?:-based|\s+based)?\b/i.test(text) && /\bviolence\b/i.test(text) && /\b(peer[- ]support|peer\s+support|navigator)\b/i.test(text)) extracted.push('hospital-based violence intervention with peer support navigators');
   else if (/\bhospital(?:-based|\s+based)?\b/i.test(text) && /\bviolence\b/i.test(text) && /\bviolence\s+intervention\b/i.test(text)) extracted.push('hospital-based violence intervention');
   const terms = [...new Set([...taxonomyTerms(problem, workspace), ...expectedInterventionFamilies(problem, workspace).flatMap(family => INTERVENTION_FAMILY_SEARCH_TERMS[family] || [])])].sort((a,b) => b.length - a.length);
-  const actionCue = /\b(provides?|provide|providing|funds?|funding|funded|offers?|offer|operates?|operate|delivers?|deliver|implements?|implement|deploys?|deploy|supports?|support|subsidizes?|subsidize|administers?|administer|runs?|run|launches?|launch|establishes?|establish|expands?|expand|maintains?|maintain|service|program|programme|scheme|initiative|intervention|pilot)\b/i;
+  const actionCue = /\b(provides?|provide|providing|funds?|funding|funded|offers?|offer|operates?|operate|delivers?|deliver|implements?|implement|deploys?|deploy|supports?|support|subsidizes?|subsidize|administers?|administer|runs?|run|launches?|launch|establishes?|establish|expands?|expand|maintains?|maintain)\b/i;
   extracted.push(...terms.filter(term => { const idx = text.indexOf(String(term).toLowerCase()); return idx >= 0 && actionCue.test(text.slice(Math.max(0, idx - 140), Math.min(text.length, idx + String(term).length + 140))); }));
   return [...new Set(extracted)].slice(0, 4);
 }
