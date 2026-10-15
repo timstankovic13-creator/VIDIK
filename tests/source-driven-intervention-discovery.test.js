@@ -485,3 +485,64 @@ test('discovery attempts account for candidates removed by semantic relevance fi
   assert.equal(first.candidatesReturned, 0);
   assert.equal(first.extractedCandidates, first.rejectedByRelevance + first.candidatesReturned);
 });
+
+test('discovery attempts report record-level extraction rejection reasons', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'crime-dashboard', title: 'Violent crime statistics dashboard', notes: 'A dashboard of reported incidents.' },
+      { id: 'energy-assistance', title: 'Home energy assistance program', notes: 'Provides utility bill assistance for households.' }
+    ] } })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === SOURCE.sourceId);
+  assert.ok(search);
+  const first = search.attempts[0];
+  assert.equal(first.extractionDiagnostics.recordsSeen, 2);
+  assert.equal(first.extractionDiagnostics.candidatesExtracted, first.extractedCandidates);
+  assert.equal(first.extractionDiagnostics.recordsWithCandidates, 1);
+  assert.ok(Object.values(first.extractionDiagnostics.rejectionReasons).reduce((sum, count) => sum + count, 0) >= 1);
+  assert.equal(first.extractedCandidates, 1);
+  assert.equal(first.rejectedByRelevance, 1);
+  assert.equal(first.candidatesReturned, 0);
+});
+
+test('GOV.UK discovery diagnostics count the provider results array correctly', async () => {
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'UK',
+    sources: [GOVUK_SOURCE],
+    fetchImpl: async () => mockResponse({ results: [
+      { title: 'Home energy assistance program', description: 'Provides utility bill assistance for households.', link: '/home-energy-assistance' }
+    ] })
+  });
+  const search = result.sourceSearches.find(item => item.sourceId === GOVUK_SOURCE.sourceId);
+  assert.ok(search);
+  const first = search.attempts[0];
+  assert.equal(first.recordsConsidered, 1);
+  assert.equal(first.extractionDiagnostics.recordsSeen, 1);
+  assert.equal(first.extractedCandidates, 1);
+  assert.equal(first.rejectedByRelevance, 1);
+  assert.equal(first.candidatesReturned, 0);
+});
+
+test('CKAN description extraction recovers explicit interventions from report-like records', () => {
+  const leads = extractCkanInterventionLeads({ result: { results: [
+    { id: 'crime-dashboard', title: 'Violent crime statistics dashboard', notes: 'The city operates a focused deterrence program and community violence intervention for high-risk groups.' }
+  ] } }, SOURCE, 'reduce violent crime', 'municipal');
+  assert.ok(leads.some(lead => /focused deterrence/i.test(lead.name)));
+  assert.ok(leads.some(lead => /community violence intervention/i.test(lead.name)));
+  assert.ok(leads.every(lead => !/statistics dashboard/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});
+
+test('GOV.UK description extraction recovers explicit interventions from report-like records', () => {
+  const leads = extractGovUkInterventionLeads({ results: [
+    { title: 'Violent crime statistics dashboard', description: 'The city operates a focused deterrence program and community violence intervention for high-risk groups.', link: '/crime-statistics-dashboard' }
+  ] }, GOVUK_SOURCE, 'reduce violent crime', 'municipal');
+  assert.ok(leads.some(lead => /focused deterrence/i.test(lead.name)));
+  assert.ok(leads.some(lead => /community violence intervention/i.test(lead.name)));
+  assert.ok(leads.every(lead => !/statistics dashboard/i.test(lead.name)));
+  assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
+});

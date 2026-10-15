@@ -366,6 +366,33 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     const families = new Set(candidates.flatMap(candidate => candidate.interventionFamily || []));
     const expectedFamilies = expectedInterventionFamilies(problem, workspace);
     const expectedFamilyHits = expectedFamilies.filter(family => families.has(family));
+    const sourceAttempts = discovery.sourceSearches.flatMap(search => search.attempts || []);
+    const catalogAttempts = sourceAttempts.filter(attempt => attempt.extractionDiagnostics);
+    const extractionRejections = {};
+    const sourceFailureClasses = {};
+    for (const attempt of catalogAttempts) {
+      for (const [reason, count] of Object.entries(attempt.extractionDiagnostics.rejectionReasons || {})) {
+        extractionRejections[reason] = (extractionRejections[reason] || 0) + count;
+      }
+    }
+    for (const attempt of sourceAttempts.filter(item => item.status === 'search-failed')) {
+      const failureClass = attempt.failureClass || 'unclassified';
+      sourceFailureClasses[failureClass] = (sourceFailureClasses[failureClass] || 0) + 1;
+    }
+    const discoveryStages = {
+      sourceCount: discovery.sourceSearches.length,
+      queryAttempts: sourceAttempts.length,
+      retrievalFailures: sourceAttempts.filter(attempt => attempt.status === 'search-failed').length,
+      failedSources: discovery.sourceSearches.filter(search => search.status === 'search-failed').map(search => search.sourceId),
+      sourceFailureClasses,
+      successfulQueriesWithNoRecords: sourceAttempts.filter(attempt => attempt.status !== 'search-failed' && attempt.recordsConsidered === 0).length,
+      catalogQueries: catalogAttempts.length,
+      catalogRecordsConsidered: catalogAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0),
+      catalogRecordsWithCandidates: catalogAttempts.reduce((sum, attempt) => sum + (attempt.extractionDiagnostics.recordsWithCandidates || 0), 0),
+      catalogExtractedCandidates: catalogAttempts.reduce((sum, attempt) => sum + (attempt.extractedCandidates || 0), 0),
+      catalogRejectedByRelevance: catalogAttempts.reduce((sum, attempt) => sum + (attempt.rejectedByRelevance || 0), 0),
+      extractionRejections
+    };
 
     // Discovery must remain discovery: no causal effects or recommendation can leak in here.
     assert.ok(candidates.every(candidate => candidate.discovery?.leadOnly === true));
@@ -413,7 +440,8 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
       independentEvidenceSources,
       evidenceComplete: evidence?.evidenceComplete ?? false,
       grade,
-      discoveryState: discovery.interventionUniverse.stoppingReason
+      discoveryState: discovery.interventionUniverse.stoppingReason,
+      discoveryStages
     };
   });
 
@@ -421,6 +449,22 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
   const totalCandidates = results.reduce((n, r) => n + r.candidateCount, 0);
   const avgCandidates = totalCandidates / results.length;
   const evidenceBackedCases = results.filter(r => r.independentEvidenceSources >= 2 && r.evidenceLeads > 0).length;
+  const stageTotals = results.reduce((total, result) => {
+    for (const key of ['sourceCount','queryAttempts','retrievalFailures','successfulQueriesWithNoRecords','catalogQueries','catalogRecordsConsidered','catalogRecordsWithCandidates','catalogExtractedCandidates','catalogRejectedByRelevance']) {
+      total[key] += result.discoveryStages[key] || 0;
+    }
+    for (const [reason, count] of Object.entries(result.discoveryStages.extractionRejections)) {
+      total.extractionRejections[reason] = (total.extractionRejections[reason] || 0) + count;
+    }
+    for (const [failureClass, count] of Object.entries(result.discoveryStages.sourceFailureClasses)) {
+      total.sourceFailureClasses[failureClass] = (total.sourceFailureClasses[failureClass] || 0) + count;
+    }
+    return total;
+  }, { sourceCount: 0, queryAttempts: 0, retrievalFailures: 0, successfulQueriesWithNoRecords: 0, catalogQueries: 0, catalogRecordsConsidered: 0, catalogRecordsWithCandidates: 0, catalogExtractedCandidates: 0, catalogRejectedByRelevance: 0, extractionRejections: {}, sourceFailureClasses: {} });
+  stageTotals.averageQueriesPerProblem = Number((stageTotals.queryAttempts / results.length).toFixed(2));
+  stageTotals.casesWithAllQueriesFailed = results.filter(result => result.discoveryStages.queryAttempts > 0 && result.discoveryStages.retrievalFailures === result.discoveryStages.queryAttempts).length;
+  stageTotals.casesWithCatalogRecordsButNoExtraction = results.filter(result => result.discoveryStages.catalogRecordsConsidered > 0 && result.discoveryStages.catalogExtractedCandidates === 0).length;
+  stageTotals.casesWithCatalogExtractionButNoRelevantCandidate = results.filter(result => result.discoveryStages.catalogExtractedCandidates > 0 && result.discoveryStages.catalogRejectedByRelevance === result.discoveryStages.catalogExtractedCandidates).length;
 
   assert.equal(results.length, CASES.length);
   assert.ok(results.every(r => r.grade !== undefined));
@@ -439,6 +483,7 @@ test('VIDIK INSIGHT QUALITY BATTERY: 100 genuinely different problems produce in
     casesWithPerfectProductionRelevance: results.filter(r => r.candidateCount > 0 && r.productionRelevanceRatio === 1).length,
     casesWithProductionRelevanceGaps: results.filter(r => r.productionRelevanceRatio < 1).length,
     totalCandidateQualityDefects: results.reduce((n,r) => n + r.candidateQualityDefects, 0),
+    discoveryStageTotals: stageTotals,
     note: 'Grades are automated triage, not expert semantic judgments. STRONG means the returned universe is relevant by domain-term checks, diversified, and has independent evidence leads; USEFUL-INCOMPLETE means an inspectable universe exists but one or more quality dimensions remain weak; BLOCKED means no relevant candidate universe was produced.'
   }, null, 2));
   console.log(JSON.stringify(results, null, 2));
