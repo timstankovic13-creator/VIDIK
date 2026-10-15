@@ -118,6 +118,37 @@ test('literature fallback records classified retrieval failures', async () => {
   assert.ok(failedAttempts.every(attempt => attempt.terminal === false));
 });
 
+test('literature fallback stops after three consecutive retryable failures per provider and records skipped queries', async () => {
+  const callsByHost = {};
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl: async url => {
+      const host = new URL(url).hostname;
+      callsByHost[host] = (callsByHost[host] || 0) + 1;
+      if (host === 'api.openalex.org' || host === 'api.crossref.org') {
+        return { ok: false, status: 503, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+      }
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  const literature = result.sourceSearches.filter(search => search.sourceType === 'intervention-literature');
+  assert.equal(literature.length, 2);
+  for (const search of literature) {
+    assert.equal(search.queriesAttempted, 3);
+    assert.equal(search.terminalFailure, true);
+    assert.equal(search.stopReason, 'retryable-failure-circuit-breaker');
+    assert.equal(search.skippedQueries, search.queryBudget - 3);
+    assert.equal(search.failedQueryCount, 3);
+    assert.equal(search.failureClasses['upstream-5xx'], 3);
+    assert.equal(search.failureStages.retrieval, 3);
+    assert.ok(search.attempts.every(attempt => attempt.status === 'search-failed' && attempt.failureClass === 'upstream-5xx'));
+  }
+  assert.equal(callsByHost['api.openalex.org'], 3);
+  assert.equal(callsByHost['api.crossref.org'], 3);
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
