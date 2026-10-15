@@ -1399,7 +1399,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
               break;
             }
           } catch (error) {
-            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            const failure = classifyDiscoveryFailure(error);
+            attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
           }
         }
         const sourceCandidates = deduplicateInterventionLeads(rawCandidates.slice(sourceCandidateStart))
