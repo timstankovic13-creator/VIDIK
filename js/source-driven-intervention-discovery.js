@@ -1376,7 +1376,15 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const attempts = [];
         const sourceCandidateStart = rawCandidates.length;
         let stopReason = 'query-budget-exhausted';
+        let consecutiveFailureClass = null;
+        let consecutiveFailures = 0;
+        let terminalFailure = false;
+        let skippedQueries = 0;
         for (const query of literatureQueries) {
+          if (terminalFailure) {
+            skippedQueries = literatureQueries.length - attempts.length;
+            break;
+          }
           try {
             const url = source.sourceId === 'openalex-works'
               ? buildOpenAlexInterventionSearchUrl(source, query, { rows })
@@ -1394,6 +1402,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
               ? payload.value?.results
               : payload.value?.message?.items;
             attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:leads.length?'candidates-found':'searched-empty',candidatesReturned:leads.length,recordsConsidered:Array.isArray(records)?records.length:0,provenance:snapshot.retrieval,failureReason:null,cumulativeUniqueCandidates:interim.length,expectedFamilies:interimCoverage.expectedFamilies,observedFamilies:interimCoverage.observedFamilies,missingFamilies:interimCoverage.missingFamilies});
+            consecutiveFailureClass = null;
+            consecutiveFailures = 0;
             if (interim.length >= DISCOVERY_MIN_UNIQUE_CANDIDATES && (!interimCoverage.expectedFamilies.length || interimCoverage.coverageRatio >= DISCOVERY_TARGET_FAMILY_COVERAGE)) {
               stopReason = 'candidate-and-family-threshold';
               break;
@@ -1401,12 +1411,27 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           } catch (error) {
             const failure = classifyDiscoveryFailure(error);
             attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
+            if (failure.terminal) {
+              terminalFailure = true;
+              stopReason = 'terminal-source-failure';
+            } else {
+              consecutiveFailures = failure.class === consecutiveFailureClass ? consecutiveFailures + 1 : 1;
+              consecutiveFailureClass = failure.class;
+              if (consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) {
+                terminalFailure = true;
+                stopReason = 'retryable-failure-circuit-breaker';
+              }
+            }
           }
         }
+        skippedQueries = Math.max(skippedQueries, literatureQueries.length - attempts.length);
         const sourceCandidates = deduplicateInterventionLeads(rawCandidates.slice(sourceCandidateStart))
           .filter(candidate => candidate.discovery?.source === source.sourceId);
         const sourceCoverage = discoveryCoverage(problem, workspace, sourceCandidates);
-        sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-literature',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:literatureQueries.length,stopReason,failedQueryCount:attempts.filter(a=>a.status==='search-failed').length,usableQueryCount:attempts.filter(a=>a.status!=='search-failed').length,status:sourceCandidates.length?(sourceCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&attempts.every(a=>a.status==='search-failed')?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),recordsConsidered:attempts.reduce((sum,a)=>sum+a.recordsConsidered,0),attempts,expectedFamilies:sourceCoverage.expectedFamilies,observedFamilies:sourceCoverage.observedFamilies,missingFamilies:sourceCoverage.missingFamilies,failureReason:sourceCandidates.length?null:attempts.find(a=>a.status==='search-failed')?.failureReason||null});
+        const failedAttempts = attempts.filter(a => a.status === 'search-failed');
+        const failureClasses = Object.fromEntries([...new Set(failedAttempts.map(a => a.failureClass || 'other'))].map(kind => [kind, failedAttempts.filter(a => a.failureClass === kind).length]));
+        const failureStages = Object.fromEntries([...new Set(failedAttempts.map(a => a.failureStage || 'retrieval'))].map(stage => [stage, failedAttempts.filter(a => (a.failureStage || 'retrieval') === stage).length]));
+        sourceSearches.push({sourceId:source.sourceId,sourceType:'intervention-literature',jurisdiction:source.jurisdiction,originalProblem:problem,queriesAttempted:attempts.length,queryBudget:literatureQueries.length,skippedQueries,terminalFailure,stopReason,failedQueryCount:failedAttempts.length,usableQueryCount:attempts.length-failedAttempts.length,failureClasses,failureStages,status:sourceCandidates.length?(sourceCoverage.missingFamilies.length?'candidate-universe-expanded-incomplete':'candidates-found'):(attempts.length&&failedAttempts.length===attempts.length?'search-failed':'searched-empty'),candidatesReturned:attempts.reduce((sum,a)=>sum+a.candidatesReturned,0),recordsConsidered:attempts.reduce((sum,a)=>sum+a.recordsConsidered,0),attempts,expectedFamilies:sourceCoverage.expectedFamilies,observedFamilies:sourceCoverage.observedFamilies,missingFamilies:sourceCoverage.missingFamilies,failureReason:sourceCandidates.length?null:failedAttempts[0]?.failureReason||null});
       }
       candidates=deduplicateInterventionLeads(rawCandidates);
       coverage=discoveryCoverage(problem,workspace,candidates);
