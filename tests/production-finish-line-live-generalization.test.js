@@ -37,7 +37,32 @@ function assertDiscoveryBoundary(result, problem, jurisdiction) {
     assert.equal(result.candidates.length, 0, `${jurisdiction}:${problem} produced candidates despite total source failure`);
     return { sourceFailureClosed: true };
   }
-  assert.ok(result.candidates.length > 0, `${jurisdiction}:${problem} produced no intervention leads`);
+  const sourceDiagnostics = result.sourceSearches.map(source => ({
+    sourceId: source.sourceId,
+    status: source.status,
+    queriesAttempted: source.queriesAttempted,
+    failedQueryCount: source.failedQueryCount,
+    candidatesReturned: source.candidatesReturned,
+    failureClasses: source.failureClasses,
+    attempts: (source.attempts || [])
+      .filter(attempt => attempt.status === 'search-failed' || attempt.recordsConsidered > 0 || attempt.extractedCandidates > 0)
+      .slice(0, 6)
+      .map(attempt => ({
+        query: attempt.query,
+        status: attempt.status,
+        failureClass: attempt.failureClass,
+        failureReason: attempt.failureReason,
+        recordsConsidered: attempt.recordsConsidered,
+        extractedCandidates: attempt.extractedCandidates,
+        rejectedByRelevance: attempt.rejectedByRelevance,
+        candidatesReturned: attempt.candidatesReturned,
+        rejectionReasons: attempt.extractionDiagnostics?.rejectionReasons
+      }))
+  }));
+  assert.ok(
+    result.candidates.length > 0,
+    `${jurisdiction}:${problem} produced no intervention leads; source diagnostics=${JSON.stringify(sourceDiagnostics)}`
+  );
   assert.ok(result.candidates.every(candidate => candidate.discovery?.leadOnly === true), `${jurisdiction}:${problem} candidate escaped lead-only boundary`);
   assert.ok(result.candidates.every(candidate => candidate.discovery?.effectsImported === false), `${jurisdiction}:${problem} effect imported into discovery`);
   return { sourceFailureClosed: false };
