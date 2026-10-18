@@ -154,6 +154,46 @@ test('literature fallback stops after three consecutive retryable failures per p
   assert.equal(result.recommendationEligible, false);
 });
 
+test('literature rate limits open a shared provider cooldown across discovery calls', async () => {
+  const { LITERATURE_PROVIDER_COOLDOWN_MS } = require('../js/source-driven-intervention-discovery');
+  const providerCooldowns = new Map();
+  const callsByHost = {};
+  const fetchImpl = async url => {
+    const host = new URL(url).hostname;
+    if (host === 'api.openalex.org' || host === 'api.crossref.org') {
+      callsByHost[host] = (callsByHost[host] || 0) + 1;
+      return { ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    return mockResponse({ result: { results: [] } });
+  };
+  const first = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure',
+    jurisdiction: 'CA',
+    fetchImpl,
+    providerCooldowns
+  });
+  const firstOpenAlex = first.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(firstOpenAlex.stopReason, 'provider-rate-limit-cooldown');
+  assert.equal(firstOpenAlex.queriesAttempted, 1);
+  assert.equal(firstOpenAlex.skippedQueries, firstOpenAlex.queryBudget - 1);
+  assert.equal(providerCooldowns.get('openalex-works') > Date.now(), true);
+  assert.equal(providerCooldowns.get('openalex-works') <= Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS, true);
+
+  const second = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries',
+    jurisdiction: 'CA',
+    fetchImpl,
+    providerCooldowns
+  });
+  const secondOpenAlex = second.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(secondOpenAlex.stopReason, 'provider-rate-limit-cooldown');
+  assert.equal(secondOpenAlex.queriesAttempted, 0);
+  assert.equal(secondOpenAlex.skippedQueries, secondOpenAlex.queryBudget);
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
+  assert.equal(second.recommendationEligible, false);
+});
+
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
   const result = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
