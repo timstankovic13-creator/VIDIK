@@ -176,11 +176,11 @@ test('literature rate limits open a shared provider cooldown across discovery ca
   assert.equal(firstOpenAlex.stopReason, 'provider-rate-limit-cooldown');
   assert.equal(firstOpenAlex.queriesAttempted, 1);
   assert.equal(firstOpenAlex.skippedQueries, firstOpenAlex.queryBudget - 1);
-  assert.equal(providerCooldowns.get('openalex-works') > Date.now(), true);
-  assert.equal(providerCooldowns.get('openalex-works') <= Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS, true);
+  assert.equal(providerCooldowns.get('openalex-works:reduce wildfire smoke exposure') > Date.now(), true);
+  assert.equal(providerCooldowns.get('openalex-works:reduce wildfire smoke exposure') <= Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS, true);
 
   const second = await discoverSourceDrivenInterventions({
-    problem: 'reduce pedestrian injuries',
+    problem: 'reduce wildfire smoke exposure',
     jurisdiction: 'CA',
     fetchImpl,
     providerCooldowns
