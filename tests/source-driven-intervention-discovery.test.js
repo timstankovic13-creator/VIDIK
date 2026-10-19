@@ -241,6 +241,34 @@ test('OpenAlex abstract-backed literature retains intervention leads when the ti
   assert.ok(leads.every(lead => lead.discovery.leadOnly === true && lead.discovery.effectsImported === false));
 });
 
+test('pedestrian-injury discovery prioritizes executable road-safety interventions', async () => {
+  const { buildDiscoveryQueryPlan, discoveryRecallTerms } = require('../js/source-driven-intervention-discovery');
+  const terms = discoveryRecallTerms('reduce pedestrian injuries', 'municipal');
+  assert.ok(terms.includes('traffic calming'));
+  assert.ok(terms.includes('pedestrian crossing'));
+  assert.ok(terms.includes('safe routes to school'));
+  const plan = buildDiscoveryQueryPlan('reduce pedestrian injuries', 'municipal');
+  assert.ok(plan.some(item => item.query === 'traffic calming'));
+  assert.ok(plan.some(item => item.query === 'pedestrian crossing'));
+  assert.ok(plan.some(item => item.query === 'safe routes to school'));
+
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries',
+    jurisdiction: 'CA',
+    sources: [SOURCE],
+    fetchImpl: async () => mockResponse({ result: { results: [
+      { id: 'traffic-calming', title: 'Traffic calming program', notes: 'Road design changes reduce vehicle speed near pedestrian crossings.' },
+      { id: 'safe-routes', title: 'Safe Routes to School program', notes: 'School-area crossing upgrades and walking safety improvements.' },
+      { id: 'raw-stats', title: 'Pedestrian injury statistics', notes: 'Annual counts of pedestrian injuries.' }
+    ] } })
+  });
+  assert.ok(result.candidates.some(candidate => /traffic calming program/i.test(candidate.name)));
+  assert.ok(result.candidates.some(candidate => /safe routes to school program/i.test(candidate.name)));
+  assert.ok(!result.candidates.some(candidate => /injury statistics/i.test(candidate.name)));
+  assert.ok(result.candidates.every(candidate => candidate.discovery.leadOnly === true && candidate.discovery.effectsImported === false));
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('bounded thesaurus expansion broadens problem vocabulary before intervention-family search', () => {
   const variants = expandDiscoveryVocabulary('reduce violent crime', 'municipal', 8);
   assert.equal(variants[0], 'reduce violent crime');
