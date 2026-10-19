@@ -192,6 +192,19 @@ test('literature rate limits open a shared provider cooldown across discovery ca
   assert.equal(callsByHost['api.openalex.org'], 1);
   assert.equal(callsByHost['api.crossref.org'], 1);
   assert.equal(second.recommendationEligible, false);
+
+  const unrelated = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries',
+    jurisdiction: 'CA',
+    fetchImpl,
+    providerCooldowns
+  });
+  const unrelatedOpenAlex = unrelated.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(unrelatedOpenAlex.queriesAttempted, 1);
+  assert.equal(unrelatedOpenAlex.stopReason, 'provider-rate-limit-cooldown');
+  assert.equal(callsByHost['api.openalex.org'], 2);
+  assert.equal(callsByHost['api.crossref.org'], 2);
+  assert.equal(unrelated.recommendationEligible, false);
 });
 
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {
