@@ -1386,7 +1386,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         let consecutiveFailures = 0;
         let terminalFailure = false;
         let skippedQueries = 0;
-        const cooldownUntil = providerCooldowns.get(source.sourceId) || 0;
+        const cooldownKey = `${source.sourceId}:${normalizeText(problem)}`;
+        const cooldownUntil = providerCooldowns.get(cooldownKey) || 0;
         if (cooldownUntil > Date.now()) {
           terminalFailure = true;
           stopReason = 'provider-rate-limit-cooldown';
@@ -1423,7 +1424,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             const failure = classifyDiscoveryFailure(error);
             attempts.push({query,queryLayer:classifyDiscoveryQuery(query,problem,workspace),status:'search-failed',candidatesReturned:0,recordsConsidered:0,provenance:null,failureReason:error?.message||'intervention-literature-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
             if (failure.class === 'rate-limited') {
-              providerCooldowns.set(source.sourceId, Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS);
+              providerCooldowns.set(cooldownKey, Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS);
               terminalFailure = true;
               stopReason = 'provider-rate-limit-cooldown';
             } else if (failure.terminal) {
