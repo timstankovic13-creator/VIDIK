@@ -1386,7 +1386,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         let consecutiveFailures = 0;
         let terminalFailure = false;
         let skippedQueries = 0;
-        const cooldownKey = `${source.sourceId}:${normalizeText(problem)}`;
+        const cooldownKey = `${source.sourceId}:${String(jurisdiction || 'unspecified').toUpperCase()}:${normalizeText(problem)}`;
         const cooldownUntil = providerCooldowns.get(cooldownKey) || 0;
         if (cooldownUntil > Date.now()) {
           terminalFailure = true;
