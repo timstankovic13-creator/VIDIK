@@ -1305,6 +1305,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       if (!sourceSearch || sourceSearch.terminalFailure || sourceSearch.routeExpansion === false) continue;
       const remainingQueryBudget = Math.max(0, DISCOVERY_MAX_QUERIES_PER_SOURCE - sourceSearch.queriesAttempted); const sourceTargetQueries = targetedQueries.filter(query => !existingQueries.has(query)).slice(0, Math.min(remainingQueryBudget, 5));
       for (const query of sourceTargetQueries) {
+        if (sourceSearch.terminalFailure) break;
         existingQueries.add(query);
         try {
           const sourceUrl = GOVUK_SOURCE_IDS.has(source.sourceId)
