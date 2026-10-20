@@ -1387,7 +1387,8 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         let consecutiveFailures = 0;
         let terminalFailure = false;
         let skippedQueries = 0;
-        const cooldownKey = `${source.sourceId}:${String(jurisdiction || 'unspecified').toUpperCase()}:${normalizeText(problem)}`;
+        // HTTP 429 applies to the provider, not just one query or jurisdiction.
+        const cooldownKey = source.sourceId;
         const cooldownUntil = providerCooldowns.get(cooldownKey) || 0;
         if (cooldownUntil > Date.now()) {
           terminalFailure = true;
