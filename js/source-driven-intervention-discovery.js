@@ -1511,7 +1511,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearch.expectedFamilies = coverage.expectedFamilies;
     }
   }
-  if (false && candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
+  if (candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
     const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
     if (exploratory.length) {
       rawCandidates.push(...exploratory);
