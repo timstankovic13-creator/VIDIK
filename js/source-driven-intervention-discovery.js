@@ -1283,7 +1283,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         const failure = classifyDiscoveryFailure(error);
         consecutiveFailures += 1;
         attempts.push({query,queryPhase:'initial-plan',status:'search-failed',recordsConsidered:0,extractedCandidates:0,rejectedByRelevance:0,extractionDiagnostics:createExtractionDiagnostics(),candidatesReturned:0,provenance:null,failureReason:error?.message||'source-driven-search-failed',failureClass:failure.class,failureStage:failure.stage,terminal:failure.terminal,cumulativeUniqueCandidates:deduplicateInterventionLeads(rawCandidates).length});
-        if (failure.terminal || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
+        if (failure.terminal || failure.class === 'rate-limited' || consecutiveFailures >= MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES) terminalFailure = true;
       }
     }
     const failedAttempts=attempts.filter(a=>a.status==='search-failed').length,usableAttempts=attempts.filter(a=>a.status!=='search-failed').length,finalCandidates=deduplicateInterventionLeads(sourceCandidates),coverage=discoveryCoverage(problem,workspace,finalCandidates);
@@ -1367,7 +1367,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           });
           sourceSearch.queriesAttempted += 1;
           sourceSearch.failedQueryCount += 1;
-          if (failure.terminal || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
+          if (failure.terminal || failure.class === 'rate-limited' || sourceSearch.attempts.slice(-MAX_CONSECUTIVE_RETRYABLE_SOURCE_FAILURES).every(a => a.status === 'search-failed' && a.failureClass === failure.class)) sourceSearch.terminalFailure = true;
         }
       }
       if (coverage.missingFamilies.length === 0) break;
@@ -1511,7 +1511,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
       sourceSearch.expectedFamilies = coverage.expectedFamilies;
     }
   }
-  if (candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
+  if (false && candidates.length === 0 && sourceSearches.some(search => search.status !== 'search-failed')) {
     const exploratory = buildTaxonomyExplorationLeads(problem, workspace, candidates);
     if (exploratory.length) {
       rawCandidates.push(...exploratory);
