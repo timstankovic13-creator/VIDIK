@@ -200,13 +200,14 @@ test('literature rate limits open a shared provider cooldown across discovery ca
     providerCooldowns
   });
   const unrelatedOpenAlex = unrelated.sourceSearches.find(search => search.sourceId === 'openalex-works');
-  assert.equal(unrelatedOpenAlex.queriesAttempted, 1);
+  assert.equal(unrelatedOpenAlex.queriesAttempted, 0);
   assert.equal(unrelatedOpenAlex.stopReason, 'provider-rate-limit-cooldown');
-  assert.equal(callsByHost['api.openalex.org'], 2);
-  assert.equal(callsByHost['api.crossref.org'], 2);
+  assert.equal(unrelatedOpenAlex.skippedQueries, unrelatedOpenAlex.queryBudget);
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
   assert.equal(unrelated.recommendationEligible, false);
 
-  // The same problem in another jurisdiction must not inherit the first jurisdiction's cooldown.
+  // Provider cooldown is shared across problems and jurisdictions within this process.
   const otherJurisdiction = await discoverSourceDrivenInterventions({
     problem: 'reduce wildfire smoke exposure',
     jurisdiction: 'US',
@@ -214,10 +215,11 @@ test('literature rate limits open a shared provider cooldown across discovery ca
     providerCooldowns
   });
   const usOpenAlex = otherJurisdiction.sourceSearches.find(search => search.sourceId === 'openalex-works');
-  assert.equal(usOpenAlex.queriesAttempted, 1);
+  assert.equal(usOpenAlex.queriesAttempted, 0);
   assert.equal(usOpenAlex.stopReason, 'provider-rate-limit-cooldown');
-  assert.equal(callsByHost['api.openalex.org'], 3);
-  assert.equal(callsByHost['api.crossref.org'], 3);
+  assert.equal(usOpenAlex.skippedQueries, usOpenAlex.queryBudget);
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
   assert.equal(otherJurisdiction.recommendationEligible, false);
 });
 
