@@ -97,7 +97,7 @@ test('worker displacement expands to transition and redeployment intervention cl
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
   const summaries = [];
   for (const [problem, jurisdiction] of CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10, providerCooldowns: new Map() });
     const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
 
     if (boundary.sourceFailureClosed) {

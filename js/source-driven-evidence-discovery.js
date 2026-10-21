@@ -184,7 +184,42 @@ function extractEvidenceLeads(payload, source, candidate, problem) {
 }
 function sanitizeEvidenceLead(lead) { const safe = { ...lead }; for (const key of ['effect','causalEffect','estimatedImpact','effectSize','recommendationEligible','recommendation','productionEffect']) delete safe[key]; safe.evidenceLeadOnly = true; safe.causalEffectImported = false; return safe; }
 function deduplicateEvidenceLeads(leads = []) { const seen = new Map(); for (const lead of leads) { const safe = sanitizeEvidenceLead(lead); const key = String(safe.id || '').toLowerCase(); if (!key) continue; const existing = seen.get(key); if (!existing) seen.set(key, { ...safe, sourceIds: [safe.sourceId] }); else existing.sourceIds = [...new Set([...existing.sourceIds, safe.sourceId])]; } return [...seen.values()]; }
-function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], requiredEvidence = ['causal','implementation','cost','equity'] } = {}) {
+function assessDecisionGradeEvidence({ verifiedEvidence = [], requiredEvidence = ['causal','implementation','cost','equity'], targetJurisdiction = null } = {}) {
+  const required = [...new Set(Array.isArray(requiredEvidence) ? requiredEvidence : [])];
+  const records = Array.isArray(verifiedEvidence) ? verifiedEvidence : [];
+  const admissible = [];
+  const rejected = [];
+  for (const item of records) {
+    const reasons = [];
+    const source = canonicalEvidenceSource({ sourceId: item?.sourceId });
+    const type = String(item?.type || item?.evidenceType || '').trim().toLowerCase();
+    if (item?.verified !== true) reasons.push('independent-verification-not-confirmed');
+    if (!required.includes(type)) reasons.push('evidence-type-not-required-or-missing');
+    if (!source || source.sourceId !== item?.sourceId) reasons.push('source-not-in-canonical-registry');
+    if (!String(item?.externalId || item?.provenance?.externalId || '').trim()) reasons.push('external-evidence-identifier-missing');
+    if (!String(item?.sourceUrl || item?.url || item?.provenance?.url || '').trim()) reasons.push('source-url-missing');
+    const recordTarget = String(item?.targetJurisdiction || '').trim();
+    if (!recordTarget) reasons.push('target-jurisdiction-missing');
+    else if (targetJurisdiction && recordTarget.toLowerCase() !== String(targetJurisdiction).trim().toLowerCase()) reasons.push('target-jurisdiction-mismatch');
+    if (type === 'causal' && !EVIDENCE_CAUSAL_SOURCE_IDS.has(item?.sourceId)) reasons.push('causal-evidence-source-not-admissible');
+    if (reasons.length) rejected.push({ id: item?.id || null, type: type || null, reasons });
+    else admissible.push(item);
+  }
+  const verifiedTypes = [...new Set(admissible.map(item => String(item.type || item.evidenceType).trim().toLowerCase()))];
+  const missingEvidence = required.filter(type => !verifiedTypes.includes(type));
+  return {
+    schemaVersion: 'vidik.decision-grade-evidence.v1',
+    complete: missingEvidence.length === 0,
+    requiredEvidence: required,
+    verifiedEvidenceTypes: verifiedTypes,
+    missingEvidence,
+    rejectedEvidence: rejected,
+    evidenceCount: admissible.length,
+    recommendationEligible: false,
+    effectsImported: false
+  };
+}
+function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], requiredEvidence = ['causal','implementation','cost','equity'], verifiedEvidence = [], targetJurisdiction = null } = {}) {
   const usable = sourceSearches.filter(search => search.status !== 'search-failed'); const failed = sourceSearches.filter(search => search.status === 'search-failed'); const uniqueLeads = deduplicateEvidenceLeads(evidenceLeads);
   const relevantLeads = uniqueLeads.filter(lead => lead.relevanceStatus === 'candidate-match' || lead.relevanceStatus === 'verified');
   const independentSourceCount = new Set(relevantLeads.map(lead => lead.sourceId)).size;
@@ -194,7 +229,8 @@ function assessEvidenceSufficiency({ sourceSearches = [], evidenceLeads = [], re
   // metadata index, not causal identification. Completion therefore requires at
   // least one causal provider plus two independent provider families.
   const complete = failed.length === 0 && usable.length >= 2 && independentSourceCount >= 2 && independentSourceFamilyCount >= 2 && causalSourceCount >= 1 && relevantLeads.length > 0;
-  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
+  const decisionGradeEvidence = assessDecisionGradeEvidence({ verifiedEvidence, requiredEvidence, targetJurisdiction });
+  return { sourceCount: sourceSearches.length, usableSourceCount: usable.length, failedSourceCount: failed.length, independentSourceCount, independentSourceFamilyCount, causalSourceCount, leadCount: uniqueLeads.length, requiredEvidence, evidenceComplete: complete, discoverySufficient: complete, decisionGradeEvidence, decisionGradeEvidenceComplete: decisionGradeEvidence.complete, recommendationEligible: false, effectsImported: false, stoppingReason: sourceSearches.length === 0 ? 'no-evidence-searches' : failed.length === sourceSearches.length ? 'all-evidence-sources-failed' : uniqueLeads.length === 0 ? 'no-evidence-leads' : failed.length ? 'partial-evidence-source-failure' : independentSourceCount < 2 ? 'insufficient-independent-sources' : 'evidence-leads-acquired-not-validated' };
 }
 async function discoverCandidateEvidence({ problem, candidate, sources = null, fetchImpl, now = new Date(), rows = 10 } = {}) {
   if (!candidate?.id) throw new Error('candidate-required');
@@ -301,4 +337,4 @@ async function discoverCandidateUniverseEvidence({ problem, candidates = [], sou
     effectsImported: false
   };
 }
-module.exports = { EVIDENCE_SOURCE_IDS, EVIDENCE_SOURCE_FAMILIES, EVIDENCE_CAUSAL_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };
+module.exports = { EVIDENCE_SOURCE_IDS, EVIDENCE_SOURCE_FAMILIES, EVIDENCE_CAUSAL_SOURCE_IDS, queryFor, evidenceLeadRelevant, evidenceLeadRelevance, buildPubmedSummaryUrl, buildPubmedAbstractUrl, extractPubmedAbstracts, buildEvidenceSearchUrl, canonicalEvidenceSource, sourceIsAuthoritative, extractEvidenceLeads, sanitizeEvidenceLead, deduplicateEvidenceLeads, assessDecisionGradeEvidence, assessEvidenceSufficiency, discoverCandidateEvidence, discoverCandidateUniverseEvidence };
