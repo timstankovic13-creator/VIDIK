@@ -1,0 +1,24 @@
+{
+  "schema_version": "municipal-reference-sources.v1",
+  "sources": [
+    {
+      "id": "statcan-police-municipal-35100077",
+      "publisher": "Statistics Canada",
+      "table": "35-10-0077-01",
+      "title": "Police personnel and selected crime statistics, municipal police services",
+      "frequency": "annual",
+      "official_url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3510007701",
+      "role": "municipal public-safety reference"
+    },
+    {
+      "id": "statcan-police-gender-municipal-35100079",
+      "publisher": "Statistics Canada",
+      "table": "35-10-0079-01",
+      "title": "Police personnel by gender, municipal police services",
+      "frequency": "annual",
+      "official_url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3510007901",
+      "role": "municipal staffing reference"
+    }
+  ],
+  "selection_rule": "Only official publisher sources are admitted to the reference pack. Source records must be versioned and hashed when physically cached."
+}
