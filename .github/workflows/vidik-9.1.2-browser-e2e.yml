@@ -1,0 +1,50 @@
+name: VIDIK 9.1.2 Browser E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'setup/**']
+  pull_request:
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/e2e/package.json
+
+      - name: Install Playwright
+        working-directory: tests/e2e
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Verify canonical artifact exists
+        run: test -s canonical/9.1.2/VIDIK__HTML_REFERENCE_V9_1_2_CANONICAL.html
+
+      - name: Run Chromium E2E suite
+        working-directory: tests/e2e
+        run: npm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: vidik-9.1.2-playwright-report
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results.json
+            tests/e2e/test-results
+          if-no-files-found: warn
