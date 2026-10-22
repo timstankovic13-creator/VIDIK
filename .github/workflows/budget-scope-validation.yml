@@ -1,0 +1,19 @@
+name: Budget Scope Validation
+
+on:
+  push:
+    branches:
+      - feat/budget-scale-decision-intent
+  workflow_dispatch:
+
+jobs:
+  budget-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate budget scope intent
+        run: node --test tests/budget-scope.test.js
