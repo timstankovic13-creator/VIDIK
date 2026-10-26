@@ -68,6 +68,18 @@ function assertDiscoveryBoundary(result, problem, jurisdiction) {
   return { sourceFailureClosed: false };
 }
 
+test('extreme-heat response mechanisms remain actionable at the intervention boundary', () => {
+  const { isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  for (const name of [
+    'Heat Alert and Response System',
+    'Heat-Health Action Plan',
+    'Extreme Heat Response Plan',
+    'Cooling Assistance Program'
+  ]) {
+    assert.equal(isActionableInterventionTitle(name), true, name);
+  }
+});
+
 test('wildfire smoke retrieval vocabulary remains actionable at the intervention boundary', () => {
   const { isActionableInterventionTitle, interventionMatchesProblem, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   for (const name of ['wildfire smoke mitigation', 'smoke filtration', 'wildfire evacuation support', 'clean air shelter']) {
