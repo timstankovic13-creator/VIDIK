@@ -80,6 +80,24 @@ test('extreme-heat response mechanisms remain actionable at the intervention bou
   }
 });
 
+test('climate-response intervention titles survive CKAN classification', () => {
+  const { classifyCkanRecord, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  for (const title of [
+    'Wildfire Smoke Mitigation Program',
+    'Smoke Filtration',
+    'Wildfire Evacuation Support',
+    'Clean Air Shelter',
+    'Heat Alert and Response System',
+    'Heat-Health Action Plan',
+    'Extreme Heat Response Plan',
+    'Cooling Assistance Program'
+  ]) {
+    assert.equal(classifyCkanRecord({ title }).accepted, true, title);
+    assert.equal(isActionableInterventionTitle(title), true, title);
+  }
+  assert.equal(classifyCkanRecord({ title: 'Wildfire Smoke Exposure Dataset' }).accepted, false);
+});
+
 test('wildfire smoke retrieval vocabulary remains actionable at the intervention boundary', () => {
   const { isActionableInterventionTitle, interventionMatchesProblem, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   for (const name of ['wildfire smoke mitigation', 'smoke filtration', 'wildfire evacuation support', 'clean air shelter']) {
