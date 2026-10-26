@@ -68,6 +68,36 @@ function assertDiscoveryBoundary(result, problem, jurisdiction) {
   return { sourceFailureClosed: false };
 }
 
+test('extreme-heat response mechanisms remain actionable at the intervention boundary', () => {
+  const { isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  for (const name of [
+    'Heat Alert and Response System',
+    'Heat-Health Action Plan',
+    'Extreme Heat Response Plan',
+    'Cooling Assistance Program'
+  ]) {
+    assert.equal(isActionableInterventionTitle(name), true, name);
+  }
+});
+
+test('climate-response intervention titles survive CKAN classification', () => {
+  const { classifyCkanRecord, isActionableInterventionTitle } = require('../js/source-driven-intervention-discovery');
+  for (const title of [
+    'Wildfire Smoke Mitigation Program',
+    'Smoke Filtration',
+    'Wildfire Evacuation Support',
+    'Clean Air Shelter',
+    'Heat Alert and Response System',
+    'Heat-Health Action Plan',
+    'Extreme Heat Response Plan',
+    'Cooling Assistance Program'
+  ]) {
+    assert.equal(classifyCkanRecord({ title }).accepted, true, title);
+    assert.equal(isActionableInterventionTitle(title), true, title);
+  }
+  assert.equal(classifyCkanRecord({ title: 'Wildfire Smoke Exposure Dataset' }).accepted, false);
+});
+
 test('wildfire smoke retrieval vocabulary remains actionable at the intervention boundary', () => {
   const { isActionableInterventionTitle, interventionMatchesProblem, buildDiscoveryQueries } = require('../js/source-driven-intervention-discovery');
   for (const name of ['wildfire smoke mitigation', 'smoke filtration', 'wildfire evacuation support', 'clean air shelter']) {
@@ -97,7 +127,7 @@ test('worker displacement expands to transition and redeployment intervention cl
 test('production finish line: live blind problem discovery and evidence acquisition remain governed', async () => {
   const summaries = [];
   for (const [problem, jurisdiction] of CASES) {
-    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10 });
+    const discovery = await discoverSourceDrivenInterventions({ problem, jurisdiction, rows: 10, providerCooldowns: new Map() });
     const boundary = assertDiscoveryBoundary(discovery, problem, jurisdiction);
 
     if (boundary.sourceFailureClosed) {
