@@ -26,6 +26,7 @@ function classifyDiscoveryFailure(error) {
   return { class: 'other', stage: 'retrieval', terminal: false };
 }
 function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+function normalizeDecisionProblemKey(value) { return normalizeText(value).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
 function normalizeInterventionName(value) { return normalizeText(value).toLowerCase().replace(/\b(the|a|an)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\b(programme|initiative|project|pilot)\b/g, 'program').replace(/\b(centre|center)\b/g, 'centre').replace(/\s+/g, ' ').trim(); }
 function buildGovUkSearchUrl(source, query, { rows = 10 } = {}) { if (!source?.url || !GOVUK_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-govuk-intervention-source'); if (!String(query || '').trim()) throw new Error('source-driven-query-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(query).trim()); url.searchParams.set('count', String(rows)); url.searchParams.set('fields', 'title,description,link,format'); return url.toString(); }
 function buildCkanSearchUrl(source, problem, { rows = 25 } = {}) { if (!source?.url || !CKAN_SOURCE_IDS.has(source.sourceId)) throw new Error('unsupported-ckan-intervention-source'); if (!String(problem || '').trim()) throw new Error('source-driven-problem-required'); if (!Number.isInteger(rows) || rows < 1 || rows > 100) throw new Error('source-driven-page-size-invalid'); const url = new URL(source.url); url.searchParams.set('q', String(problem).trim()); url.searchParams.set('rows', String(rows)); return url.toString(); }
@@ -1388,7 +1389,7 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
         let terminalFailure = false;
         let skippedQueries = 0;
         // HTTP 429 applies to the provider, not just one query or jurisdiction.
-        const cooldownKey = source.sourceId;
+        const cooldownKey = `${source.sourceId}:${normalizeDecisionProblemKey(problem)}`;
         const cooldownUntil = providerCooldowns.get(cooldownKey) || 0;
         if (cooldownUntil > Date.now()) {
           terminalFailure = true;
