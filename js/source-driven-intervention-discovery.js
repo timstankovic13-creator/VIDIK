@@ -1502,10 +1502,13 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
           const payload = parsePayload(snapshot.bytes, snapshot.retrieval.contentType);
           if (payload.format !== 'json') throw new Error('source-driven-response-not-json');
           if (payload.value?.error) throw new Error('source-driven-upstream-error');
+          const extractionDiagnostics = createExtractionDiagnostics();
+          const sourcePayload = DATAGOV_SOURCE_IDS.has(source.sourceId) ? normalizeDataGovPayload(payload.value) : payload.value;
           const extractedLeads = (GOVUK_SOURCE_IDS.has(source.sourceId)||DATAGOV_SOURCE_IDS.has(source.sourceId))
-            ? extractGovUkInterventionLeads(DATAGOV_SOURCE_IDS.has(source.sourceId) ? normalizeDataGovPayload(payload.value) : payload.value, source, problem, workspace)
-            : extractCkanInterventionLeads(payload.value, source, problem, workspace);
+            ? extractGovUkInterventionLeads(sourcePayload, source, problem, workspace, extractionDiagnostics)
+            : extractCkanInterventionLeads(payload.value, source, problem, workspace, extractionDiagnostics);
           const leads = extractedLeads.filter(candidate => interventionMatchesProblem(problem, candidate, workspace));
+          const rejectedByRelevance = extractedLeads.length - leads.length;
           rawCandidates.push(...leads);
           candidates = deduplicateInterventionLeads(rawCandidates);
           coverage = discoveryCoverage(problem, workspace, candidates);
@@ -1513,7 +1516,10 @@ async function discoverSourceDrivenInterventions({problem,jurisdiction=null,work
             query, queryLayer:'missing-class-expansion',
             status:leads.length?'candidates-found':'searched-empty',
             candidatesReturned:leads.length,
-            recordsConsidered:Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0,
+            extractedCandidates:extractedLeads.length,
+            rejectedByRelevance,
+            extractionDiagnostics,
+            recordsConsidered:(GOVUK_SOURCE_IDS.has(source.sourceId)||DATAGOV_SOURCE_IDS.has(source.sourceId))?(Array.isArray(payload.value?.results)?payload.value.results.length:0):(Array.isArray(payload.value?.result?.results)?payload.value.result.results.length:0),
             provenance:snapshot.retrieval, failureReason:null,
             cumulativeUniqueCandidates:candidates.length,
             expectedFamilies:coverage.expectedFamilies,
