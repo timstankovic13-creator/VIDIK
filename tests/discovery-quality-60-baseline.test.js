@@ -153,6 +153,20 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       grade = 'USEFUL-INCOMPLETE';
     }
 
+    const discoveryAttempts = (discovery.sourceSearches || []).flatMap(source => source.attempts || []);
+    const extractionRejectionReasons = discoveryAttempts.reduce((counts, attempt) => {
+      for (const [reason, count] of Object.entries(attempt.extractionDiagnostics?.rejectionReasons || {})) {
+        counts[reason] = (counts[reason] || 0) + count;
+      }
+      return counts;
+    }, {});
+    const discoveryFailureClasses = discoveryAttempts.reduce((counts, attempt) => {
+      if (attempt.failureClass) counts[attempt.failureClass] = (counts[attempt.failureClass] || 0) + 1;
+      return counts;
+    }, {});
+    const recordsConsidered = discoveryAttempts.reduce((sum, attempt) => sum + (attempt.recordsConsidered || 0), 0);
+    const extractedCandidateCount = discoveryAttempts.reduce((sum, attempt) => sum + (attempt.extractedCandidates || 0), 0);
+    const rejectedByRelevanceCount = discoveryAttempts.reduce((sum, attempt) => sum + (attempt.rejectedByRelevance || 0), 0);
     return {
       workspace,
       jurisdiction,
@@ -185,6 +199,11 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       sourceEmptyCount: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.attempts || []).filter(attempt => attempt.status === 'searched-empty').length, 0),
       providerCooldownSkipCount: (discovery.sourceSearches || []).filter(source => source.status === 'provider-cooldown-skipped').length,
       sourceSearchCount: discovery.sourceSearches?.length || 0,
+      recordsConsidered,
+      extractedCandidateCount,
+      rejectedByRelevanceCount,
+      discoveryFailureClasses,
+      extractionRejectionReasons,
       queryLayers: [...new Set((discovery.sourceSearches || []).flatMap(source => (source.attempts || []).map(attempt => attempt.queryLayer).filter(Boolean)))],
       attemptedQueries: (discovery.sourceSearches || []).reduce((sum, source) => sum + (source.queriesAttempted || 0), 0),
       missingFamilies: discovery.interventionUniverse.missingInterventionFamilies || [],
@@ -238,6 +257,19 @@ test('VIDIK DISCOVERY QUALITY BASELINE: canonical 60-problem battery after integ
       casesWithSourceEmpties: results.filter(result => result.sourceEmptyCount > 0).length,
       totalSourceEmpties: results.reduce((sum, result) => sum + result.sourceEmptyCount, 0),
       casesWithProviderCooldownSkips: results.filter(result => result.providerCooldownSkipCount > 0).length,
+      casesWithRecordsButNoExtractedCandidates: results.filter(result => result.recordsConsidered > 0 && result.extractedCandidateCount === 0).length,
+      casesWithExtractedCandidatesAllRejectedByRelevance: results.filter(result => result.extractedCandidateCount > 0 && result.rejectedByRelevanceCount >= result.extractedCandidateCount).length,
+      totalRecordsConsidered: results.reduce((sum, result) => sum + result.recordsConsidered, 0),
+      totalExtractedCandidates: results.reduce((sum, result) => sum + result.extractedCandidateCount, 0),
+      totalCandidatesRejectedByRelevance: results.reduce((sum, result) => sum + result.rejectedByRelevanceCount, 0),
+      extractionRejectionReasons: results.reduce((counts, result) => {
+        for (const [reason, count] of Object.entries(result.extractionRejectionReasons)) counts[reason] = (counts[reason] || 0) + count;
+        return counts;
+      }, {}),
+      discoveryFailureClasses: results.reduce((counts, result) => {
+        for (const [kind, count] of Object.entries(result.discoveryFailureClasses)) counts[kind] = (counts[kind] || 0) + count;
+        return counts;
+      }, {}),
       totalProviderCooldownSkips: results.reduce((sum, result) => sum + result.providerCooldownSkipCount, 0),
       averageQueriesAttemptedPerCase: Number((results.reduce((sum, result) => sum + result.attemptedQueries, 0) / results.length).toFixed(2)),
       queryLayerUsage: Object.fromEntries([...new Set(results.flatMap(result => result.queryLayers))].map(layer => [layer, results.filter(result => result.queryLayers.includes(layer)).length])),
