@@ -23,6 +23,55 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
+test('Data.gov discovery uses the v4 API, authenticated headers, and explicit key configuration', async () => {
+  const { buildDataGovSearchUrl, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+  const { SOURCE_REGISTRY } = require('../js/source-registry');
+  const source = SOURCE_REGISTRY.find(item => item.sourceId === 'us-open-data-program-discovery');
+  assert.equal(source.accessMethod, 'datagov-v4-api');
+  assert.equal(source.url, 'https://api.gsa.gov/technology/datagov/v4/search');
+  const built = new URL(buildDataGovSearchUrl(source, 'reduce violent crime', { rows: 12 }));
+  assert.equal(built.searchParams.get('q'), 'reduce violent crime');
+  assert.equal(built.searchParams.get('per_page'), '12');
+  assert.equal(built.searchParams.has('rows'), false);
+
+  let calls = 0;
+  const noKey = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'US',
+    fetchImpl: async () => { calls += 1; throw new Error('should-not-fetch-without-api-key'); }
+  });
+  const missingKey = noKey.sourceSearches.find(search => search.sourceId === source.sourceId);
+  assert.equal(missingKey.status, 'configuration-missing');
+  assert.equal(missingKey.stopReason, 'datagov-api-key-required');
+  assert.equal(calls, 0);
+  assert.equal(noKey.recommendationEligible, false);
+
+  const requests = [];
+  const withKey = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'US',
+    dataGovApiKey: 'test-datagov-key',
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), headers: options.headers });
+      return mockResponse({ results: [{
+        identifier: 'dataset-001',
+        title: 'Community Violence Intervention Program',
+        description: 'A public safety service that funds community violence interruption and focused outreach.',
+        publisher: 'U.S. Department of Justice',
+        landingPage: 'https://example.gov/violence-program'
+      }] });
+    }
+  });
+  assert.ok(requests.length > 0);
+  assert.ok(requests.every(request => request.url.startsWith('https://api.gsa.gov/technology/datagov/v4/search?')));
+  assert.ok(requests.every(request => request.headers['X-Api-Key'] === 'test-datagov-key'));
+  assert.ok(requests.every(request => new URL(request.url).searchParams.has('per_page')));
+  const searched = withKey.sourceSearches.find(search => search.sourceId === source.sourceId);
+  assert.ok(searched.queriesAttempted > 0);
+  assert.notEqual(searched.status, 'search-failed');
+  assert.equal(withKey.recommendationEligible, false);
+});
+
 test('source failure classification distinguishes terminal API failures from retryable transport failures', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:404')), { class: 'upstream-4xx', stage: 'retrieval', terminal: true });
