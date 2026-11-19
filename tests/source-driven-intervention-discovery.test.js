@@ -23,6 +23,67 @@ function mockResponse(value) {
   return { ok: true, status: 200, headers: { get: key => key === 'content-type' ? 'application/json' : null }, arrayBuffer: async () => bytes };
 }
 
+test('Data.gov discovery uses the v4 API, authenticated headers, and explicit key configuration', async () => {
+  const { buildDataGovSearchUrl, normalizeDataGovPayload, extractGovUkInterventionLeads, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+  const { SOURCE_REGISTRY } = require('../js/source-registry');
+  const source = SOURCE_REGISTRY.find(item => item.sourceId === 'us-open-data-program-discovery');
+  assert.equal(source.accessMethod, 'datagov-v4-api');
+  assert.equal(source.url, 'https://api.gsa.gov/technology/datagov/v4/search');
+  const built = new URL(buildDataGovSearchUrl(source, 'reduce violent crime', { rows: 12 }));
+  assert.equal(built.searchParams.get('q'), 'reduce violent crime');
+  assert.equal(built.searchParams.get('per_page'), '12');
+  assert.equal(built.searchParams.has('rows'), false);
+  const normalized = normalizeDataGovPayload({ results: [{ identifier: 'dataset-001', landingPage: 'https://example.gov/record-001', title: 'Community Violence Intervention Program', description: 'A public safety service that funds community violence interruption and focused outreach.' }] });
+  assert.equal(normalized.results[0].link, 'https://example.gov/record-001');
+  assert.equal(normalized.results[0].identifier, 'dataset-001');
+  const normalizedLeads = extractGovUkInterventionLeads(normalized, source, 'reduce violent crime');
+  assert.equal(normalizedLeads[0].discovery.externalId, 'dataset-001');
+  assert.equal(normalizedLeads[0].discovery.provenance[0].url, 'https://example.gov/record-001');
+
+  const noKeyRequests = [];
+  const noKey = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'US',
+    dataGovApiKey: null,
+    fetchImpl: async url => {
+      noKeyRequests.push(String(url));
+      return mockResponse({ results: [] });
+    }
+  });
+  const missingKey = noKey.sourceSearches.find(search => search.sourceId === source.sourceId);
+  assert.equal(missingKey.status, 'configuration-missing');
+  assert.equal(missingKey.stopReason, 'datagov-api-key-required');
+  assert.equal(noKeyRequests.some(url => new URL(url).hostname === 'api.gsa.gov'), false);
+  assert.ok(noKeyRequests.some(url => new URL(url).hostname !== 'api.gsa.gov'), 'unrelated providers must remain available');
+  assert.equal(noKey.recommendationEligible, false);
+
+  const requests = [];
+  const withKey = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'US',
+    dataGovApiKey: 'test-datagov-key',
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), headers: options.headers });
+      return mockResponse({ results: [{
+        identifier: 'dataset-001',
+        title: 'Community Violence Intervention Program',
+        description: 'A public safety service that funds community violence interruption and focused outreach.',
+        publisher: 'U.S. Department of Justice',
+        landingPage: 'https://example.gov/violence-program'
+      }] });
+    }
+  });
+  const dataGovRequests = requests.filter(request => new URL(request.url).hostname === 'api.gsa.gov');
+  assert.ok(dataGovRequests.length > 0);
+  assert.ok(dataGovRequests.every(request => request.url.startsWith('https://api.gsa.gov/technology/datagov/v4/search?')));
+  assert.ok(dataGovRequests.every(request => request.headers['X-Api-Key'] === 'test-datagov-key'));
+  assert.ok(dataGovRequests.every(request => new URL(request.url).searchParams.has('per_page')));
+  const searched = withKey.sourceSearches.find(search => search.sourceId === source.sourceId);
+  assert.ok(searched.queriesAttempted > 0);
+  assert.notEqual(searched.status, 'search-failed');
+  assert.equal(withKey.recommendationEligible, false);
+});
+
 test('source failure classification distinguishes terminal API failures from retryable transport failures', () => {
   const mod = require('../js/source-driven-intervention-discovery');
   assert.deepEqual(mod.classifyDiscoveryFailure(new Error('upstream-http:404')), { class: 'upstream-4xx', stage: 'retrieval', terminal: true });
@@ -152,6 +213,127 @@ test('literature fallback stops after three consecutive retryable failures per p
   assert.equal(callsByHost['api.openalex.org'], 3);
   assert.equal(callsByHost['api.crossref.org'], 3);
   assert.equal(result.recommendationEligible, false);
+});
+
+test('intervention discovery selects only intervention-universe sources', () => {
+  const { selectInterventionSources, buildApplicabilityAudit } = require('../js/source-driven-intervention-discovery');
+  const selected = selectInterventionSources({ problem: 'reduce violent crime', jurisdiction: 'CA' });
+  assert.deepEqual(selected.map(source => source.sourceId), [
+    'ca-program-discovery',
+    'ca-ontario-program-discovery'
+  ]);
+  assert.ok(!selected.some(source => ['ca-open-government','ca-procurement-program-discovery'].includes(source.sourceId)));
+  const audit = buildApplicabilityAudit({ problem: 'reduce violent crime', jurisdiction: 'CA' });
+  assert.deepEqual(audit.eligibleSources, ['ca-program-discovery','ca-ontario-program-discovery']);
+});
+
+test('explicit discovery sources cannot route baseline or cost-resource records as interventions', async () => {
+  const { SOURCE_REGISTRY } = require('../js/source-registry');
+  const baseline = SOURCE_REGISTRY.find(source => source.sourceId === 'ca-open-government');
+  const procurement = SOURCE_REGISTRY.find(source => source.sourceId === 'ca-procurement-program-discovery');
+  let calls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [baseline, procurement],
+    fetchImpl: async () => {
+      calls += 1;
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.deepEqual(result.sourcesSelected, []);
+  assert.equal(calls, 0);
+  assert.equal(result.recommendationEligible, false);
+});
+
+test('catalog rate limits cool down only the affected provider host', async () => {
+  const { providerHostCooldownKey, SOURCE_PROVIDER_RATE_LIMIT_COOLDOWN_MS } = require('../js/source-driven-intervention-discovery');
+  const ONTARIO_SOURCE = {
+    sourceId: 'ca-ontario-program-discovery', provider: 'Ontario Data Catalogue', jurisdiction: 'CA',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://data.ontario.ca/api/3/action/package_search?q='
+  };
+  const providerCooldowns = new Map();
+  const callsByHost = {};
+  const fetchImpl = async url => {
+    const host = new URL(url).hostname;
+    callsByHost[host] = (callsByHost[host] || 0) + 1;
+    if (host === 'open.canada.ca') {
+      return { ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    return mockResponse({ result: { results: [] } });
+  };
+  const first = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'CA',
+    sources: [SOURCE, ONTARIO_SOURCE], fetchImpl, providerCooldowns
+  });
+  const firstCanada = first.sourceSearches.find(search => search.sourceId === SOURCE.sourceId);
+  assert.equal(firstCanada.queriesAttempted, 1);
+  assert.equal(firstCanada.stopReason, 'provider-rate-limit-cooldown');
+  assert.ok(providerCooldowns.get(providerHostCooldownKey(SOURCE)) > Date.now());
+  assert.ok(providerCooldowns.get(providerHostCooldownKey(SOURCE)) <= Date.now() + SOURCE_PROVIDER_RATE_LIMIT_COOLDOWN_MS);
+  const ontarioCallsAfterFirst = callsByHost['data.ontario.ca'];
+
+  const second = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries', jurisdiction: 'CA',
+    sources: [SOURCE, ONTARIO_SOURCE], fetchImpl, providerCooldowns
+  });
+  const cooledCanada = second.sourceSearches.find(search => search.sourceId === SOURCE.sourceId);
+  assert.equal(cooledCanada.status, 'provider-cooldown-skipped');
+  assert.equal(cooledCanada.queriesAttempted, 0);
+  assert.ok(cooledCanada.skippedQueries > 0);
+  assert.equal(callsByHost['open.canada.ca'], 1);
+  assert.ok(callsByHost['data.ontario.ca'] > ontarioCallsAfterFirst);
+  assert.equal(second.recommendationEligible, false);
+});
+
+test('literature rate limits use host cooldowns without suppressing unrelated source providers', async () => {
+  const { providerHostCooldownKey } = require('../js/source-driven-intervention-discovery');
+  const providerCooldowns = new Map();
+  const callsByHost = {};
+  const fetchImpl = async url => {
+    const host = new URL(url).hostname;
+    callsByHost[host] = (callsByHost[host] || 0) + 1;
+    if (host === 'api.openalex.org' || host === 'api.crossref.org') {
+      return { ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    return mockResponse({ result: { results: [] } });
+  };
+  const first = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'CA', fetchImpl, providerCooldowns
+  });
+  const firstOpenAlex = first.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(firstOpenAlex.stopReason, 'provider-rate-limit-cooldown');
+  assert.equal(firstOpenAlex.queriesAttempted, 1);
+  assert.equal(firstOpenAlex.skippedQueries, firstOpenAlex.queryBudget - 1);
+  assert.ok(providerCooldowns.get(providerHostCooldownKey({ url: 'https://api.openalex.org/works' })) > Date.now());
+  const canadaCallsAfterFirst = callsByHost['open.canada.ca'];
+  const ontarioCallsAfterFirst = callsByHost['data.ontario.ca'];
+
+  const unrelated = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries', jurisdiction: 'CA', fetchImpl, providerCooldowns
+  });
+  const unrelatedOpenAlex = unrelated.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  const unrelatedCrossref = unrelated.sourceSearches.find(search => search.sourceId === 'crossref-works');
+  assert.equal(unrelatedOpenAlex.status, 'provider-cooldown-skipped');
+  assert.equal(unrelatedOpenAlex.queriesAttempted, 0);
+  assert.equal(unrelatedOpenAlex.skippedQueries, unrelatedOpenAlex.queryBudget);
+  assert.equal(unrelatedCrossref.status, 'provider-cooldown-skipped');
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
+  assert.ok(callsByHost['open.canada.ca'] > canadaCallsAfterFirst);
+  assert.ok(callsByHost['data.ontario.ca'] > ontarioCallsAfterFirst);
+  assert.equal(unrelated.recommendationEligible, false);
+
+  const otherJurisdiction = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'US', fetchImpl, providerCooldowns
+  });
+  const usOpenAlex = otherJurisdiction.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(usOpenAlex.status, 'provider-cooldown-skipped');
+  assert.equal(usOpenAlex.queriesAttempted, 0);
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
+  assert.equal(otherJurisdiction.recommendationEligible, false);
 });
 
 test('live default discovery preserves wildfire-smoke recall through the literature fallback', async () => {

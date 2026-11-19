@@ -23,9 +23,9 @@ const SOURCE_REGISTRY = Object.freeze([
     discoveryTags: ['ontario','municipal','provincial','programs','services','health','safety','transport','housing','environment','employment','education','business']
   },
   {
-    sourceId: 'us-open-data-program-discovery', provider: 'Data.gov', jurisdiction: 'US',
-    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
-    url: 'https://catalog.data.gov/api/3/action/package_search?q=',
+    sourceId: 'us-open-data-program-discovery', provider: 'Data.gov Catalog API v4', jurisdiction: 'US',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'datagov-v4-api',
+    url: 'https://api.gsa.gov/technology/datagov/v4/search',
     discoveryTags: ['municipal','programs','services','health','safety','transport','housing','environment','crime','public-safety','employment','education','business']
   },
   {
