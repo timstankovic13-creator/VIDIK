@@ -33,7 +33,7 @@ test('Data.gov discovery uses the v4 API, authenticated headers, and explicit ke
   assert.equal(built.searchParams.get('q'), 'reduce violent crime');
   assert.equal(built.searchParams.get('per_page'), '12');
   assert.equal(built.searchParams.has('rows'), false);
-  const normalized = normalizeDataGovPayload({ results: [{ identifier: 'dataset-001', landingPage: 'https://example.gov/record-001', title: 'Example' }] });
+  const normalized = normalizeDataGovPayload({ results: [{ identifier: 'dataset-001', landingPage: 'https://example.gov/record-001', title: 'Community Violence Intervention Program', description: 'A public safety service that funds community violence interruption and focused outreach.' }] });
   assert.equal(normalized.results[0].link, 'https://example.gov/record-001');
   assert.equal(normalized.results[0].identifier, 'dataset-001');
   const normalizedLeads = extractGovUkInterventionLeads(normalized, source, 'reduce violent crime');
