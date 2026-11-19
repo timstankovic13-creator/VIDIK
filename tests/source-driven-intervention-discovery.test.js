@@ -38,6 +38,7 @@ test('Data.gov discovery uses the v4 API, authenticated headers, and explicit ke
   const noKey = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
     jurisdiction: 'US',
+    dataGovApiKey: null,
     fetchImpl: async () => { calls += 1; throw new Error('should-not-fetch-without-api-key'); }
   });
   const missingKey = noKey.sourceSearches.find(search => search.sourceId === source.sourceId);
