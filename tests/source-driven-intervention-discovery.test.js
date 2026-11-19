@@ -40,17 +40,21 @@ test('Data.gov discovery uses the v4 API, authenticated headers, and explicit ke
   assert.equal(normalizedLeads[0].discovery.externalId, 'dataset-001');
   assert.equal(normalizedLeads[0].discovery.provenance[0].url, 'https://example.gov/record-001');
 
-  let calls = 0;
+  const noKeyRequests = [];
   const noKey = await discoverSourceDrivenInterventions({
     problem: 'reduce violent crime',
     jurisdiction: 'US',
     dataGovApiKey: null,
-    fetchImpl: async () => { calls += 1; throw new Error('should-not-fetch-without-api-key'); }
+    fetchImpl: async url => {
+      noKeyRequests.push(String(url));
+      return mockResponse({ results: [] });
+    }
   });
   const missingKey = noKey.sourceSearches.find(search => search.sourceId === source.sourceId);
   assert.equal(missingKey.status, 'configuration-missing');
   assert.equal(missingKey.stopReason, 'datagov-api-key-required');
-  assert.equal(calls, 0);
+  assert.equal(noKeyRequests.some(url => new URL(url).hostname === 'api.gsa.gov'), false);
+  assert.ok(noKeyRequests.some(url => new URL(url).hostname !== 'api.gsa.gov'), 'unrelated providers must remain available');
   assert.equal(noKey.recommendationEligible, false);
 
   const requests = [];
@@ -69,10 +73,11 @@ test('Data.gov discovery uses the v4 API, authenticated headers, and explicit ke
       }] });
     }
   });
-  assert.ok(requests.length > 0);
-  assert.ok(requests.every(request => request.url.startsWith('https://api.gsa.gov/technology/datagov/v4/search?')));
-  assert.ok(requests.every(request => request.headers['X-Api-Key'] === 'test-datagov-key'));
-  assert.ok(requests.every(request => new URL(request.url).searchParams.has('per_page')));
+  const dataGovRequests = requests.filter(request => new URL(request.url).hostname === 'api.gsa.gov');
+  assert.ok(dataGovRequests.length > 0);
+  assert.ok(dataGovRequests.every(request => request.url.startsWith('https://api.gsa.gov/technology/datagov/v4/search?')));
+  assert.ok(dataGovRequests.every(request => request.headers['X-Api-Key'] === 'test-datagov-key'));
+  assert.ok(dataGovRequests.every(request => new URL(request.url).searchParams.has('per_page')));
   const searched = withKey.sourceSearches.find(search => search.sourceId === source.sourceId);
   assert.ok(searched.queriesAttempted > 0);
   assert.notEqual(searched.status, 'search-failed');
