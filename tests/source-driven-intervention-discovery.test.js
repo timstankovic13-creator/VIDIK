@@ -154,75 +154,105 @@ test('literature fallback stops after three consecutive retryable failures per p
   assert.equal(result.recommendationEligible, false);
 });
 
-test('literature rate limits are scoped to provider and normalized decision problem', async () => {
-  const { LITERATURE_PROVIDER_COOLDOWN_MS } = require('../js/source-driven-intervention-discovery');
+test('intervention discovery selects only intervention-universe sources', () => {
+  const { selectInterventionSources, buildApplicabilityAudit } = require('../js/source-driven-intervention-discovery');
+  const selected = selectInterventionSources({ problem: 'reduce violent crime', jurisdiction: 'CA' });
+  assert.deepEqual(selected.map(source => source.sourceId), [
+    'ca-program-discovery',
+    'ca-ontario-program-discovery'
+  ]);
+  assert.ok(!selected.some(source => ['ca-open-government','ca-procurement-program-discovery'].includes(source.sourceId)));
+  const audit = buildApplicabilityAudit({ problem: 'reduce violent crime', jurisdiction: 'CA' });
+  assert.deepEqual(audit.eligibleSources, ['ca-program-discovery','ca-ontario-program-discovery']);
+});
+
+test('catalog rate limits cool down only the affected provider host', async () => {
+  const { providerHostCooldownKey, SOURCE_PROVIDER_RATE_LIMIT_COOLDOWN_MS } = require('../js/source-driven-intervention-discovery');
+  const ONTARIO_SOURCE = {
+    sourceId: 'ca-ontario-program-discovery', provider: 'Ontario Data Catalogue', jurisdiction: 'CA',
+    domain: 'intervention-universe', tier: 'official_machine_readable', accessMethod: 'ckan-action-api',
+    url: 'https://data.ontario.ca/api/3/action/package_search?q='
+  };
   const providerCooldowns = new Map();
   const callsByHost = {};
   const fetchImpl = async url => {
     const host = new URL(url).hostname;
-    if (host === 'api.openalex.org' || host === 'api.crossref.org') {
-      callsByHost[host] = (callsByHost[host] || 0) + 1;
+    callsByHost[host] = (callsByHost[host] || 0) + 1;
+    if (host === 'open.canada.ca') {
       return { ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
     }
     return mockResponse({ result: { results: [] } });
   };
   const first = await discoverSourceDrivenInterventions({
-    problem: 'reduce wildfire smoke exposure',
-    jurisdiction: 'CA',
-    fetchImpl,
-    providerCooldowns
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'CA',
+    sources: [SOURCE, ONTARIO_SOURCE], fetchImpl, providerCooldowns
+  });
+  const firstCanada = first.sourceSearches.find(search => search.sourceId === SOURCE.sourceId);
+  assert.equal(firstCanada.queriesAttempted, 1);
+  assert.equal(firstCanada.stopReason, 'provider-rate-limit-cooldown');
+  assert.ok(providerCooldowns.get(providerHostCooldownKey(SOURCE)) > Date.now());
+  assert.ok(providerCooldowns.get(providerHostCooldownKey(SOURCE)) <= Date.now() + SOURCE_PROVIDER_RATE_LIMIT_COOLDOWN_MS);
+  const ontarioCallsAfterFirst = callsByHost['data.ontario.ca'];
+
+  const second = await discoverSourceDrivenInterventions({
+    problem: 'reduce pedestrian injuries', jurisdiction: 'CA',
+    sources: [SOURCE, ONTARIO_SOURCE], fetchImpl, providerCooldowns
+  });
+  const cooledCanada = second.sourceSearches.find(search => search.sourceId === SOURCE.sourceId);
+  assert.equal(cooledCanada.status, 'provider-cooldown-skipped');
+  assert.equal(cooledCanada.queriesAttempted, 0);
+  assert.ok(cooledCanada.skippedQueries > 0);
+  assert.equal(callsByHost['open.canada.ca'], 1);
+  assert.ok(callsByHost['data.ontario.ca'] > ontarioCallsAfterFirst);
+  assert.equal(second.recommendationEligible, false);
+});
+
+test('literature rate limits use host cooldowns without suppressing unrelated source providers', async () => {
+  const { providerHostCooldownKey } = require('../js/source-driven-intervention-discovery');
+  const providerCooldowns = new Map();
+  const callsByHost = {};
+  const fetchImpl = async url => {
+    const host = new URL(url).hostname;
+    callsByHost[host] = (callsByHost[host] || 0) + 1;
+    if (host === 'api.openalex.org' || host === 'api.crossref.org') {
+      return { ok: false, status: 429, headers: { get: () => null }, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    return mockResponse({ result: { results: [] } });
+  };
+  const first = await discoverSourceDrivenInterventions({
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'CA', fetchImpl, providerCooldowns
   });
   const firstOpenAlex = first.sourceSearches.find(search => search.sourceId === 'openalex-works');
   assert.equal(firstOpenAlex.stopReason, 'provider-rate-limit-cooldown');
   assert.equal(firstOpenAlex.queriesAttempted, 1);
   assert.equal(firstOpenAlex.skippedQueries, firstOpenAlex.queryBudget - 1);
-  const key = 'openalex-works:reduce wildfire smoke exposure';
-  assert.equal(providerCooldowns.get(key) > Date.now(), true);
-  assert.equal(providerCooldowns.get(key) <= Date.now() + LITERATURE_PROVIDER_COOLDOWN_MS, true);
+  assert.ok(providerCooldowns.get(providerHostCooldownKey({ url: 'https://api.openalex.org/works' })) > Date.now());
+  const canadaCallsAfterFirst = callsByHost['open.canada.ca'];
+  const ontarioCallsAfterFirst = callsByHost['data.ontario.ca'];
 
-  // Whitespace, case, and punctuation differences normalize to the same decision problem.
-  const second = await discoverSourceDrivenInterventions({
-    problem: '  REDUCE   wildfire-smoke exposure  ',
-    jurisdiction: 'CA',
-    fetchImpl,
-    providerCooldowns
-  });
-  const secondOpenAlex = second.sourceSearches.find(search => search.sourceId === 'openalex-works');
-  assert.equal(secondOpenAlex.stopReason, 'provider-rate-limit-cooldown');
-  assert.equal(secondOpenAlex.queriesAttempted, 0);
-  assert.equal(secondOpenAlex.skippedQueries, secondOpenAlex.queryBudget);
-  assert.equal(callsByHost['api.openalex.org'], 1);
-  assert.equal(callsByHost['api.crossref.org'], 1);
-  assert.equal(second.recommendationEligible, false);
-
-  // A separate decision problem must still be allowed to use the rate-limited provider.
   const unrelated = await discoverSourceDrivenInterventions({
-    problem: 'reduce pedestrian injuries',
-    jurisdiction: 'CA',
-    fetchImpl,
-    providerCooldowns
+    problem: 'reduce pedestrian injuries', jurisdiction: 'CA', fetchImpl, providerCooldowns
   });
   const unrelatedOpenAlex = unrelated.sourceSearches.find(search => search.sourceId === 'openalex-works');
-  assert.equal(unrelatedOpenAlex.queriesAttempted, 1);
-  assert.equal(unrelatedOpenAlex.stopReason, 'provider-rate-limit-cooldown');
-  assert.equal(unrelatedOpenAlex.skippedQueries, unrelatedOpenAlex.queryBudget - 1);
-  assert.equal(callsByHost['api.openalex.org'], 2);
-  assert.equal(callsByHost['api.crossref.org'], 2);
+  const unrelatedCrossref = unrelated.sourceSearches.find(search => search.sourceId === 'crossref-works');
+  assert.equal(unrelatedOpenAlex.status, 'provider-cooldown-skipped');
+  assert.equal(unrelatedOpenAlex.queriesAttempted, 0);
+  assert.equal(unrelatedOpenAlex.skippedQueries, unrelatedOpenAlex.queryBudget);
+  assert.equal(unrelatedCrossref.status, 'provider-cooldown-skipped');
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
+  assert.ok(callsByHost['open.canada.ca'] > canadaCallsAfterFirst);
+  assert.ok(callsByHost['data.ontario.ca'] > ontarioCallsAfterFirst);
   assert.equal(unrelated.recommendationEligible, false);
 
-  // The same normalized decision problem remains cooled down across jurisdictions.
   const otherJurisdiction = await discoverSourceDrivenInterventions({
-    problem: 'reduce wildfire smoke exposure',
-    jurisdiction: 'US',
-    fetchImpl,
-    providerCooldowns
+    problem: 'reduce wildfire smoke exposure', jurisdiction: 'US', fetchImpl, providerCooldowns
   });
   const usOpenAlex = otherJurisdiction.sourceSearches.find(search => search.sourceId === 'openalex-works');
+  assert.equal(usOpenAlex.status, 'provider-cooldown-skipped');
   assert.equal(usOpenAlex.queriesAttempted, 0);
-  assert.equal(usOpenAlex.stopReason, 'provider-rate-limit-cooldown');
-  assert.equal(usOpenAlex.skippedQueries, usOpenAlex.queryBudget);
-  assert.equal(callsByHost['api.openalex.org'], 2);
-  assert.equal(callsByHost['api.crossref.org'], 2);
+  assert.equal(callsByHost['api.openalex.org'], 1);
+  assert.equal(callsByHost['api.crossref.org'], 1);
   assert.equal(otherJurisdiction.recommendationEligible, false);
 });
 
