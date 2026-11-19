@@ -166,6 +166,25 @@ test('intervention discovery selects only intervention-universe sources', () => 
   assert.deepEqual(audit.eligibleSources, ['ca-program-discovery','ca-ontario-program-discovery']);
 });
 
+test('explicit discovery sources cannot route baseline or cost-resource records as interventions', async () => {
+  const { SOURCE_REGISTRY } = require('../js/source-registry');
+  const baseline = SOURCE_REGISTRY.find(source => source.sourceId === 'ca-open-government');
+  const procurement = SOURCE_REGISTRY.find(source => source.sourceId === 'ca-procurement-program-discovery');
+  let calls = 0;
+  const result = await discoverSourceDrivenInterventions({
+    problem: 'reduce violent crime',
+    jurisdiction: 'CA',
+    sources: [baseline, procurement],
+    fetchImpl: async () => {
+      calls += 1;
+      return mockResponse({ result: { results: [] } });
+    }
+  });
+  assert.deepEqual(result.sourcesSelected, []);
+  assert.equal(calls, 0);
+  assert.equal(result.recommendationEligible, false);
+});
+
 test('catalog rate limits cool down only the affected provider host', async () => {
   const { providerHostCooldownKey, SOURCE_PROVIDER_RATE_LIMIT_COOLDOWN_MS } = require('../js/source-driven-intervention-discovery');
   const ONTARIO_SOURCE = {
