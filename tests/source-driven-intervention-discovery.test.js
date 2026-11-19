@@ -24,7 +24,7 @@ function mockResponse(value) {
 }
 
 test('Data.gov discovery uses the v4 API, authenticated headers, and explicit key configuration', async () => {
-  const { buildDataGovSearchUrl, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
+  const { buildDataGovSearchUrl, normalizeDataGovPayload, discoverSourceDrivenInterventions } = require('../js/source-driven-intervention-discovery');
   const { SOURCE_REGISTRY } = require('../js/source-registry');
   const source = SOURCE_REGISTRY.find(item => item.sourceId === 'us-open-data-program-discovery');
   assert.equal(source.accessMethod, 'datagov-v4-api');
@@ -33,6 +33,9 @@ test('Data.gov discovery uses the v4 API, authenticated headers, and explicit ke
   assert.equal(built.searchParams.get('q'), 'reduce violent crime');
   assert.equal(built.searchParams.get('per_page'), '12');
   assert.equal(built.searchParams.has('rows'), false);
+  const normalized = normalizeDataGovPayload({ results: [{ identifier: 'dataset-001', landingPage: 'https://example.gov/record-001', title: 'Example' }] });
+  assert.equal(normalized.results[0].link, 'https://example.gov/record-001');
+  assert.equal(normalized.results[0].identifier, 'dataset-001');
 
   let calls = 0;
   const noKey = await discoverSourceDrivenInterventions({
